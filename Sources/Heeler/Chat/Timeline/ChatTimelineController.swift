@@ -1115,7 +1115,7 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
                     UIPasteboard.general.string = text
                 },
                 UIAction(title: "Select Text", image: UIImage(systemName: "selection.pin.in.out")) { _ in
-                    self?.selectText(text)
+                    self?.selectText(text, blocks: row.markdownBlocks)
                 },
             ]
             return UIMenu(children: items)
@@ -1134,9 +1134,10 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
         }
     }
 
-    private func selectText(_ text: String) {
+    private func selectText(_ text: String, blocks: [ChatMarkdownBlock]? = nil) {
+        let font = UIFont.preferredFont(forTextStyle: .body, compatibleWith: collectionView.traitCollection)
         TerminalTextSelectionPresenter.present(
-            text: text, font: .preferredFont(forTextStyle: .body, compatibleWith: collectionView.traitCollection),
+            text: text, attributedText: blocks.map { ChatMarkdown.selectionText($0, font: font) }, font: font,
             adjustsFontForContentSizeCategory: true,
             accessibilityIdentifier: "chat.text-selection", from: collectionView)
     }
@@ -1187,5 +1188,55 @@ final class ChatHostingCell: UICollectionViewCell {
         let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 2
         fitted.size.height = (size.height * scale).rounded(.up) / scale
         return fitted
+    }
+}
+
+extension ChatMarkdown {
+    /// Markdown as Select Text shows it: drawn rather than as source, so a
+    /// selection takes the words without `**`, `#` or backticks. Strong is
+    /// bold, emphasis italic, code monospaced, headings bold, list items
+    /// after their marker; tables stay as written.
+    @MainActor
+    static func selectionText(_ blocks: [ChatMarkdownBlock], font: UIFont) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let plain: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: UIColor.label]
+        for (index, block) in blocks.enumerated() {
+            if case .thematicBreak = block.kind { continue }
+            if index > 0, result.length > 0 {
+                result.append(NSAttributedString(string: block.blankLineBefore ? "\n\n" : "\n", attributes: plain))
+            }
+            switch block.kind {
+            case .code, .table, .html:
+                let mono = UIFont.monospacedSystemFont(ofSize: font.pointSize * 0.9, weight: .regular)
+                result.append(NSAttributedString(string: block.text, attributes: [.font: mono, .foregroundColor: UIColor.label]))
+                continue
+            case .listItem(let marker):
+                result.append(NSAttributedString(string: marker + " ", attributes: plain))
+            default:
+                break
+            }
+            let isHeading = if case .heading = block.kind { true } else { false }
+            for run in block.content.runs {
+                let intent = run.inlinePresentationIntent ?? []
+                var traits: UIFontDescriptor.SymbolicTraits = []
+                if isHeading || intent.contains(.stronglyEmphasized) { traits.insert(.traitBold) }
+                if intent.contains(.emphasized) { traits.insert(.traitItalic) }
+                var runFont =
+                    intent.contains(.code)
+                    ? UIFont.monospacedSystemFont(ofSize: font.pointSize * 0.9, weight: traits.contains(.traitBold) ? .bold : .regular)
+                    : font
+                if !intent.contains(.code), !traits.isEmpty,
+                    let descriptor = font.fontDescriptor.withSymbolicTraits(traits)
+                {
+                    runFont = UIFont(descriptor: descriptor, size: font.pointSize)
+                }
+                var attributes = plain
+                attributes[.font] = runFont
+                if block.quoteDepth > 0 { attributes[.foregroundColor] = UIColor.secondaryLabel }
+                if intent.contains(.strikethrough) { attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
+                result.append(NSAttributedString(string: String(block.content[run.range].characters), attributes: attributes))
+            }
+        }
+        return result
     }
 }

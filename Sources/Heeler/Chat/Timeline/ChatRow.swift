@@ -152,6 +152,15 @@ struct ChatRow: Identifiable, Sendable {
         }
     }
 
+    /// The model's Markdown as drawn, which Select Text shows instead of
+    /// its source. Nil for rows that are not the model's text.
+    var markdownBlocks: [ChatMarkdownBlock]? {
+        switch content {
+        case .assistant(_, let blocks), .plan(_, let blocks): blocks.isEmpty ? nil : blocks
+        default: nil
+        }
+    }
+
     /// What Copy and Select Text take: the whole message as written, the
     /// Markdown source for the model's text. Nil for rows without text.
     var copyText: String? {

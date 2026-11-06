@@ -721,3 +721,20 @@ struct ChatMarkdownTests {
         return result
     }
 }
+
+@MainActor
+@Suite("Chat Select Text")
+struct ChatSelectionTextTests {
+    @Test("Select Text shows Markdown drawn, not its source")
+    func drawnNotSource() throws {
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let blocks = ChatMarkdown.blocks(from: "# Plan\n\nRun **this** with `make`.\n\n- one\n- two")
+        let text = ChatMarkdown.selectionText(blocks, font: font)
+        #expect(text.string == "Plan\n\nRun this with make.\n\n• one\n• two")
+        let bold = (text.string as NSString).range(of: "this")
+        let boldFont = try #require(text.attribute(.font, at: bold.location, effectiveRange: nil) as? UIFont)
+        #expect(boldFont.fontDescriptor.symbolicTraits.contains(.traitBold))
+        let plain = try #require(text.attribute(.font, at: 0 + 6, effectiveRange: nil) as? UIFont)
+        #expect(!plain.fontDescriptor.symbolicTraits.contains(.traitBold))
+    }
+}

@@ -11,12 +11,12 @@ enum TerminalTextSelectionPresenter {
 
     /// Chat's Select Text: the whole message in the reading font, selected.
     static func present(
-        text: String, font: UIFont, adjustsFontForContentSizeCategory: Bool,
-        accessibilityIdentifier: String, from sourceView: UIView
+        text: String, attributedText: NSAttributedString? = nil, font: UIFont,
+        adjustsFontForContentSizeCategory: Bool, accessibilityIdentifier: String, from sourceView: UIView
     ) {
         present(
             TerminalTextSelectionViewController(
-                text: text, anchorRange: nil, font: font,
+                text: text, attributedText: attributedText, anchorRange: nil, font: font,
                 adjustsFontForContentSizeCategory: adjustsFontForContentSizeCategory,
                 accessibilityIdentifier: accessibilityIdentifier),
             from: sourceView)
@@ -36,6 +36,8 @@ enum TerminalTextSelectionPresenter {
 @MainActor
 final class TerminalTextSelectionViewController: UIViewController {
     private let text: String
+    /// Drawn text that replaces `text` when given (Chat's Markdown).
+    private let attributedText: NSAttributedString?
     private let anchorRange: NSRange?
     private let font: UIFont
     private let adjustsFontForContentSizeCategory: Bool
@@ -43,12 +45,13 @@ final class TerminalTextSelectionViewController: UIViewController {
     private let textView = UITextView()
 
     init(
-        text: String, anchorRange: NSRange?,
+        text: String, attributedText: NSAttributedString? = nil, anchorRange: NSRange?,
         font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular),
         adjustsFontForContentSizeCategory: Bool = false,
         accessibilityIdentifier: String = "terminal.text-selection"
     ) {
         self.text = text
+        self.attributedText = attributedText
         self.anchorRange = anchorRange
         self.font = font
         self.adjustsFontForContentSizeCategory = adjustsFontForContentSizeCategory
@@ -79,7 +82,11 @@ final class TerminalTextSelectionViewController: UIViewController {
         textView.isSelectable = true
         textView.alwaysBounceVertical = true
         textView.textContainerInset = UIEdgeInsets(top: 16, left: 12, bottom: 16, right: 12)
-        textView.text = text
+        if let attributedText {
+            textView.attributedText = attributedText
+        } else {
+            textView.text = text
+        }
         textView.accessibilityIdentifier = textAccessibilityIdentifier
         view.addSubview(textView)
 
@@ -92,7 +99,7 @@ final class TerminalTextSelectionViewController: UIViewController {
 
         textView.selectedRange = Self.normalizedSelectionRange(
             anchorRange,
-            textLength: (text as NSString).length)
+            textLength: attributedText?.length ?? (text as NSString).length)
     }
 
     override func viewDidAppear(_ animated: Bool) {
