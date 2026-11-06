@@ -287,6 +287,8 @@ extension AgentSessionSettings {
     /// configured model. Custom `modelPicker` entries are not read from the Host.
     static let modelChoices: [(id: String, title: String)] = [
         ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"),
+        ("deepseek-v4.1-flash[1m]", "DeepSeek V4.1 Flash"), ("glm-5.3-flash[1m]", "GLM 5.3 Flash"),
+        ("glm-5.3[1m]", "GLM 5.3"), ("k3.1-pro[1m]", "Kimi K3.1 Pro"), ("k3[1m]", "Kimi K3"),
     ]
 
     /// What the screen says to a typed `/model` or `/effort`: the first

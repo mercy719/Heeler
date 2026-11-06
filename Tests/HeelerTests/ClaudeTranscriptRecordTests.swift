@@ -269,7 +269,8 @@ struct AgentSessionSettingsTests {
         #expect(AgentSessionSettings.modelTitle("claude-opus-5-5[1m]") == "Opus 5.5")
         #expect(AgentSessionSettings.modelTitle("claude-sonnet-4-5-20250929") == "Sonnet 4.5")
         #expect(AgentSessionSettings.modelTitle("claude-3-5-sonnet-20241022") == "claude-3-5-sonnet-20241022")
-        #expect(AgentSessionSettings.modelTitle("deepseek-v4.1-flash") == "deepseek-v4.1-flash")
+        #expect(AgentSessionSettings.modelTitle("deepseek-v4.1-flash") == "DeepSeek V4.1 Flash")
+        #expect(AgentSessionSettings.model("deepseek-v4.1-flash", is: "deepseek-v4.1-flash[1m]"))
         #expect(AgentSessionSettings.modelTitle("mystery-1") == "mystery-1")
     }
 
