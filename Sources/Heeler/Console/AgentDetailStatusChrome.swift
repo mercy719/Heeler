@@ -290,9 +290,17 @@ enum AgentModelGridAction: Equatable {
 /// The model-by-effort pad in the status line's popover. Command ordering stays
 /// in AgentChatSurfaceView; this view only routes the selection to its controls.
 struct AgentModelGrid: View {
-    static let modelIDs = ["opus", "fable", "sonnet", "haiku"]
+    private static let claudeIDs = ["opus", "fable", "sonnet", "haiku"]
+    /// Every model takes an effort (transcripts record one for DeepSeek, GLM
+    /// and Kimi too), so all of them are rows: Claude's first, then the rest.
+    static let modelIDs = claudeIDs + AgentSessionSettings.modelChoices.map(\.id).filter { !claudeIDs.contains($0) }
+    /// Row labels short enough for the grid; the full name stays in VoiceOver.
+    private static let shortTitles = [
+        "deepseek-v4.1-flash[1m]": "DeepSeek", "glm-5.3-flash[1m]": "GLM Flash", "glm-5.3[1m]": "GLM 5.3",
+        "k3.1-pro[1m]": "Kimi K3.1", "k3[1m]": "Kimi K3",
+    ]
     private static let cellSide: CGFloat = 44
-    private static let rowLabelWidth: CGFloat = 56
+    private static let rowLabelWidth: CGFloat = 76
     private static let rowSpacing: CGFloat = 8
 
     let settings: AgentSessionSettings
@@ -371,7 +379,7 @@ struct AgentModelGrid: View {
                                 y: CGFloat(selectedCell.row) * Self.cellSide + Self.cellSide / 2)
                         Rectangle()
                             .fill(Color(uiColor: .separator))
-                            .frame(width: 0.5, height: Self.cellSide * 4)
+                            .frame(width: 0.5, height: Self.cellSide * CGFloat(Self.modelIDs.count))
                             .offset(
                                 x: Self.rowLabelWidth + Self.rowSpacing
                                     + CGFloat(selectedCell.column) * Self.cellSide + Self.cellSide / 2)
@@ -379,7 +387,9 @@ struct AgentModelGrid: View {
                     VStack(spacing: 0) {
                         ForEach(Self.modelIDs, id: \.self) { model in
                             HStack(spacing: Self.rowSpacing) {
-                                Text(AgentSessionSettings.modelTitle(model))
+                                Text(Self.shortTitles[model] ?? AgentSessionSettings.modelTitle(model))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                                     .font(.subheadline.weight(currentModelID == model ? .semibold : .regular))
                                     .foregroundStyle(currentModelID == model ? .primary : .secondary)
                                     .frame(width: Self.rowLabelWidth, height: Self.cellSide, alignment: .leading)
@@ -407,42 +417,9 @@ struct AgentModelGrid: View {
                 }
                 .accessibilityHidden(true)
             }
-
-            let otherModels = AgentSessionSettings.modelChoices.filter { !Self.modelIDs.contains($0.id) }
-            if !otherModels.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Other models")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
-                    ForEach(otherModels, id: \.id) { choice in
-                        Button {
-                            selectOtherModel(choice.id)
-                        } label: {
-                            HStack {
-                                Text(choice.title)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if AgentSessionSettings.model(settings.model, is: choice.id) {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.tint)
-                                        .accessibilityHidden(true)
-                                }
-                            }
-                            .font(.subheadline)
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(
-                            AgentSessionSettings.model(settings.model, is: choice.id) ? .isSelected : [])
-                    }
-                }
-            }
         }
         .padding(16)
-        .frame(width: 324)
+        .frame(width: 344)
         .disabled(!controls.isEnabled)
     }
 
@@ -484,12 +461,6 @@ struct AgentModelGrid: View {
         case .effort(let effort): controls.setEffort(effort)
         case .modelAndEffort(let model, let effort): controls.setModelAndEffort(model, effort)
         }
-    }
-
-    private func selectOtherModel(_ model: String) {
-        onSelect()
-        isPresented = false
-        controls.setModel(model)
     }
 }
 
