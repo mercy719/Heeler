@@ -269,7 +269,13 @@ struct AgentSessionSettingsTests {
         #expect(AgentSessionSettings.modelTitle("claude-opus-5-5[1m]") == "Opus 5.5")
         #expect(AgentSessionSettings.modelTitle("claude-sonnet-4-5-20250929") == "Sonnet 4.5")
         #expect(AgentSessionSettings.modelTitle("claude-3-5-sonnet-20241022") == "claude-3-5-sonnet-20241022")
-        #expect(AgentSessionSettings.modelTitle("deepseek-v4.1-flash") == "DeepSeek V4.1 Flash")
+        // A model the Host's modelPicker names keeps that name; one it does not keeps its id.
+        #expect(AgentSessionSettings.modelTitle("deepseek-v4.1-flash") == "deepseek-v4.1-flash")
+        #expect(
+            AgentSessionSettings.modelTitle(
+                "deepseek-v4.1-flash",
+                choices: [ClaudeModelChoice(id: "deepseek-v4.1-flash[1m]", title: "DeepSeek V4.1 Flash")])
+                == "DeepSeek V4.1 Flash")
         #expect(AgentSessionSettings.model("deepseek-v4.1-flash", is: "deepseek-v4.1-flash[1m]"))
         #expect(AgentSessionSettings.modelTitle("mystery-1") == "mystery-1")
     }
@@ -281,6 +287,80 @@ struct AgentSessionSettingsTests {
         #expect(AgentSessionSettings.model("claude-sonnet-5-5[1m]", is: "sonnet"))
         #expect(AgentSessionSettings.model("opus", is: "opus"))
         #expect(!AgentSessionSettings.model(nil, is: "opus"))
+    }
+
+    @Test("The Host's modelPicker names the models the grid offers")
+    func modelPickerOptions() {
+        let settings = """
+            {"theme": "dark", "modelPicker": {"options": [
+              {"model": "deepseek-v4.1-flash[1m]", "label": "DeepSeek V4.1 Flash", "behavesAs": "claude-opus-5-5"},
+              {"model": "k3.1-pro[1m]", "label": "Kimi K3.1 Pro"},
+              {"model": "k3[1m]", "label": "Kimi K3"}
+            ]}}
+            """
+        #expect(
+            ClaudeModelPicker.options(in: Data(settings.utf8)) == [
+                ClaudeModelChoice(id: "deepseek-v4.1-flash[1m]", title: "DeepSeek V4.1 Flash"),
+                ClaudeModelChoice(id: "k3.1-pro[1m]", title: "Kimi K3.1 Pro"),
+                ClaudeModelChoice(id: "k3[1m]", title: "Kimi K3"),
+            ])
+        // No modelPicker, broken JSON, other shapes: no models, no failure.
+        #expect(ClaudeModelPicker.options(in: Data(#"{"theme":"dark"}"#.utf8)).isEmpty)
+        #expect(ClaudeModelPicker.options(in: Data("not json".utf8)).isEmpty)
+        #expect(ClaudeModelPicker.options(in: Data(#"{"modelPicker":{"options":"none"}}"#.utf8)).isEmpty)
+        #expect(ClaudeModelPicker.options(in: Data(#"{"modelPicker":{"options":[{"label":"No model"}]}}"#.utf8)).isEmpty)
+        // A missing or blank label names the model; a repeat keeps its first place.
+        #expect(
+            ClaudeModelPicker.options(in: Data(
+                #"{"modelPicker":{"options":[{"model":"a[1m]"},{"model":"b[1m]","label":" "},{"model":"a[1m]","label":"A"}]}}"#
+                    .utf8)) == [ClaudeModelChoice(id: "a[1m]", title: "a[1m]"), ClaudeModelChoice(id: "b[1m]", title: "b[1m]")])
+        // A label the status line can show tells the model's name there.
+        let choices = ClaudeModelPicker.options(in: Data(settings.utf8))
+        #expect(AgentSessionSettings.modelTitle("deepseek-v4.1-flash", choices: choices) == "DeepSeek V4.1 Flash")
+        #expect(AgentSessionSettings.model("deepseek-v4.1-flash", is: "deepseek-v4.1-flash[1m]"))
+    }
+
+    @Test("A Host's settings.json is read from its config root, within a size cap")
+    func modelPickerRead() async throws {
+        let files = VirtualHostFiles(home: "/home/dev")
+        await files.write(
+            #"{"modelPicker":{"options":[{"model":"qwen-4[1m]","label":"Qwen 4"}]}}"#,
+            at: "/opt/claude/settings.json")
+        #expect(
+            try await ClaudeModelPicker.read(files: files.hostFiles(), configRoot: "/opt/claude") == [
+                ClaudeModelChoice(id: "qwen-4[1m]", title: "Qwen 4")
+            ])
+        // No config root falls back to ~/.claude; a file there is too large.
+        #expect(try await ClaudeModelPicker.read(files: files.hostFiles(), configRoot: nil).isEmpty)
+        await files.write(
+            #"{"modelPicker":{"options":[{"model":"x","label":"X"}]},"pad":""# + String(repeating: " ", count: 1 << 20)
+                + "}",
+            at: "/home/dev/.claude/settings.json")
+        #expect(try await ClaudeModelPicker.read(files: files.hostFiles(), configRoot: nil).isEmpty)
+    }
+
+    @Test("The grid pages the Host's models by the first word of their labels")
+    func modelGridPaging() {
+        let choices = [
+            ClaudeModelChoice(id: "deepseek-v4.1-flash[1m]", title: "DeepSeek V4.1 Flash"),
+            ClaudeModelChoice(id: "k3.1-pro[1m]", title: "Kimi K3.1 Pro"),
+            ClaudeModelChoice(id: "k3[1m]", title: "Kimi K3"),
+        ]
+        let pages = AgentModelPage.pages(choices)
+        #expect(pages.map(\.name) == ["Claude", "DeepSeek", "Kimi"])
+        #expect(pages[0].rows.map(\.rowTitle) == ["Opus", "Fable", "Sonnet", "Haiku"])
+        #expect(pages[0].rows.map(\.id) == ["opus", "fable", "sonnet", "haiku"])
+        #expect(pages[1].rows == [.init(id: "deepseek-v4.1-flash[1m]", rowTitle: "V4.1 Flash")])
+        #expect(pages[2].rows.map(\.rowTitle) == ["K3.1 Pro", "K3"])
+        // No Host models leaves Claude's page alone; a new vendor adds one, in order.
+        #expect(AgentModelPage.pages([]).map(\.name) == ["Claude"])
+        // A vendor the Host adds gets its own page; its first word names the page.
+        let withQwen = AgentModelPage.pages(choices + [ClaudeModelChoice(id: "qwen-4[1m]", title: "Qwen 4")])
+        #expect(withQwen.map(\.name) == ["Claude", "DeepSeek", "Kimi", "Qwen"])
+        #expect(withQwen[3].rows == [.init(id: "qwen-4[1m]", rowTitle: "4")])
+        // A one-word label names its page and its row alike.
+        #expect(AgentModelPage.pages([ClaudeModelChoice(id: "glm[1m]", title: "GLM")]).last
+            == AgentModelPage(name: "GLM", rows: [.init(id: "glm[1m]", rowTitle: "GLM")]))
     }
 
     @Test("The model grid routes one selection without reordering model and effort")

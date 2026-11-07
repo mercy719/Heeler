@@ -200,6 +200,8 @@ struct AgentChatSurfaceView: View {
             toggleInputMode: nil,
             inputMode: .composer))
         .task { composer.open() }
+        // The models the Host's own Claude Code lists, read once as Chat opens.
+        .task { await chat?.loadModelChoices() }
         // The screen in the conversation's place offers it, and so does the banner
         // over a conversation Chat keeps.
         .sheet(item: $openCodeEditFlow) { flow in
@@ -1001,7 +1003,7 @@ struct AgentChatSurfaceView: View {
             session: (chat?.conversation.transcript).map {
                 AgentSessionSettings(
                     model: override(.model) ?? $0.model, permissionMode: override(.permissionMode) ?? $0.permissionMode,
-                    effort: override(.effort) ?? $0.effort)
+                    effort: override(.effort) ?? $0.effort, modelChoices: chat?.modelChoices ?? [])
             },
             sessionControls: sessionControls,
             chromeColorScheme: colorScheme,

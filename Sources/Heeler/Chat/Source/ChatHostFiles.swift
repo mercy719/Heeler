@@ -120,3 +120,57 @@ struct ChatHostFiles: Sendable {
         case tooLong
     }
 }
+
+/// One model a Host's Claude Code offers in its `modelPicker`: the id
+/// `/model` takes and the name the status line shows.
+struct ClaudeModelChoice: Equatable, Sendable {
+    let id: String
+    let title: String
+}
+
+/// The models a Claude Code Host lists in its `settings.json`
+/// (`modelPicker.options`), read beside Claude's own aliases rather than
+/// instead of them.
+///
+/// The file is another machine's: bounded in size, and anything unexpected in
+/// it names no models rather than failing Chat.
+enum ClaudeModelPicker {
+    static let maximumBytes = 1_024 * 1_024
+
+    /// The Host's list, in the file's order; empty when the file is absent,
+    /// too large, or names nothing. Throws only when the Host will not answer.
+    static func read(files: ChatHostFiles, configRoot: String?) async throws -> [ClaudeModelChoice] {
+        let root: String
+        if let configRoot, RemoteFilePath.isAcceptable(configRoot) {
+            root = configRoot
+        } else {
+            root = RemoteFilePath.join(try await files.home(), ".claude")
+        }
+        let path = RemoteFilePath.join(root, "settings.json")
+        guard let status = try await files.status(path),
+            status.kind == nil || status.kind == .regular,
+            let size = status.size, size > 0, size <= UInt64(maximumBytes)
+        else { return [] }
+        guard let data = try await files.read(path: path, from: 0, to: size, chunk: 256 << 10)
+        else { return [] }
+        return options(in: data)
+    }
+
+    /// `modelPicker.options` as `(model, label)`, each model once, in the
+    /// file's order; an entry whose label is missing or blank is named by its
+    /// model.
+    static func options(in data: Data) -> [ClaudeModelChoice] {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let picker = object["modelPicker"] as? [String: Any],
+            let entries = picker["options"] as? [[String: Any]]
+        else { return [] }
+        var seen: Set<String> = []
+        var choices: [ClaudeModelChoice] = []
+        for entry in entries {
+            guard let id = entry["model"] as? String, !id.isEmpty, seen.insert(id).inserted else { continue }
+            let label = (entry["label"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            choices.append(ClaudeModelChoice(id: id, title: label.flatMap { $0.isEmpty ? nil : $0 } ?? id))
+        }
+        return choices
+    }
+}

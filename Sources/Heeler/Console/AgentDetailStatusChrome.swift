@@ -225,11 +225,13 @@ struct AgentSessionSettings: Equatable, Sendable {
     var model: String?
     var permissionMode: String?
     var effort: String? = nil
+    /// The models the Host's own `modelPicker` adds, which name themselves.
+    var modelChoices: [ClaudeModelChoice] = []
 
     /// `Fable 5.1 · high`: the model and the effort it last replied at.
     var modelLine: String? {
         guard let model, !model.isEmpty else { return nil }
-        let title = Self.modelTitle(model)
+        let title = Self.modelTitle(model, choices: modelChoices)
         guard let effort, !effort.isEmpty else { return title }
         return "\(title) · \(effort)"
     }
@@ -243,10 +245,13 @@ struct AgentSessionSettings: Equatable, Sendable {
     var showsAnything: Bool { (model?.isEmpty == false) || notablePermissionMode != nil }
 
     /// `claude-opus-5-5[1m]` → `Opus 5.5`, the way Claude Code's footer names it;
-    /// a model outside that pattern keeps its id.
-    static func modelTitle(_ id: String) -> String {
+    /// a model outside that pattern keeps its id, and a model the Host's
+    /// `modelPicker` lists keeps the name that lists it.
+    static func modelTitle(_ id: String, choices: [ClaudeModelChoice] = []) -> String {
         let bare = { (id: String) in id.lowercased().split(separator: "[").first.map(String.init) ?? id }
-        if let choice = modelChoices.first(where: { bare($0.id) == bare(id) }) { return choice.title }
+        for choice in modelChoices + choices.map({ (id: $0.id, title: $0.title) }) where bare(choice.id) == bare(id) {
+            return choice.title
+        }
         let base = String(id.split(separator: "[").first ?? Substring(id))
         guard base.hasPrefix("claude-") else { return id }
         let words: [String] = base.dropFirst("claude-".count).split(separator: "-").map(String.init)
@@ -287,20 +292,51 @@ enum AgentModelGridAction: Equatable {
     case modelAndEffort(model: String, effort: String)
 }
 
+/// One vendor's page of the model grid: the models it offers, in order.
+struct AgentModelPage: Equatable, Sendable {
+    struct Row: Equatable, Sendable {
+        let id: String
+        let rowTitle: String
+    }
+
+    let name: String
+    var rows: [Row]
+
+    /// Claude Code's aliases, which each Host resolves to its own configured
+    /// model. Every model takes an effort (transcripts record one for
+    /// DeepSeek and Kimi too).
+    static let claude = AgentModelPage(
+        name: "Claude",
+        rows: [
+            .init(id: "opus", rowTitle: "Opus"), .init(id: "fable", rowTitle: "Fable"),
+            .init(id: "sonnet", rowTitle: "Sonnet"), .init(id: "haiku", rowTitle: "Haiku"),
+        ])
+
+    /// Claude's page first, then one per vendor the Host's `modelPicker`
+    /// names, grouped by the first word of each label and in the order the
+    /// labels arrive. `DeepSeek V4.1 Flash` makes a `DeepSeek` page whose row
+    /// reads `V4.1 Flash`; a one-word label names its row too.
+    static func pages(_ choices: [ClaudeModelChoice]) -> [AgentModelPage] {
+        var pages = [claude]
+        for choice in choices {
+            let words = choice.title.split(separator: " ", omittingEmptySubsequences: true)
+            guard let first = words.first else { continue }
+            let name = String(first)
+            let rowTitle = words.count > 1 ? words.dropFirst().joined(separator: " ") : name
+            let row = Row(id: choice.id, rowTitle: rowTitle)
+            if let index = pages.firstIndex(where: { $0.name == name }) {
+                pages[index].rows.append(row)
+            } else {
+                pages.append(AgentModelPage(name: name, rows: [row]))
+            }
+        }
+        return pages
+    }
+}
+
 /// The model-by-effort pad in the status line's popover. Command ordering stays
 /// in AgentChatSurfaceView; this view only routes the selection to its controls.
 struct AgentModelGrid: View {
-    /// One page per vendor, so a page stays a short grid. Every model takes
-    /// an effort (transcripts record one for DeepSeek and Kimi too).
-    static let vendors: [(name: String, ids: [String])] = [
-        ("Claude", ["opus", "fable", "sonnet", "haiku"]),
-        ("DeepSeek", ["deepseek-v4.1-flash[1m]"]),
-        ("Kimi", ["k3.1-pro[1m]", "k3[1m]"]),
-    ]
-    /// Row labels inside a vendor's page; VoiceOver keeps the full name.
-    private static let shortTitles = ["deepseek-v4.1-flash[1m]": "V4.1 Flash", "k3.1-pro[1m]": "K3.1 Pro", "k3[1m]": "K3"]
-    /// Pages keep the tallest page's height so the popover does not jump.
-    private static let maxRows = vendors.map(\.ids.count).max() ?? 1
     private static let cellSide: CGFloat = 44
     private static let rowLabelWidth: CGFloat = 76
     private static let rowSpacing: CGFloat = 8
@@ -311,16 +347,24 @@ struct AgentModelGrid: View {
     var onSelect: () -> Void = {}
     @State private var pickedVendor: Int?
 
+    private var pages: [AgentModelPage] { AgentModelPage.pages(settings.modelChoices) }
+
+    /// Pages keep the tallest page's height so the popover does not jump.
+    private var maxRows: Int { pages.map(\.rows.count).max() ?? 1 }
+
     private var currentModelID: String? {
-        Self.vendors.flatMap(\.ids).first { AgentSessionSettings.model(settings.model, is: $0) }
+        pages.lazy.flatMap(\.rows).map(\.id).first { AgentSessionSettings.model(settings.model, is: $0) }
     }
 
     /// The page picked, else the current model's vendor.
     private var vendorIndex: Int {
-        pickedVendor ?? currentModelID.flatMap { id in Self.vendors.firstIndex { $0.ids.contains(id) } } ?? 0
+        let index =
+            pickedVendor
+            ?? currentModelID.flatMap { id in pages.firstIndex { page in page.rows.contains { $0.id == id } } } ?? 0
+        return min(index, pages.count - 1)
     }
 
-    private var rows: [String] { Self.vendors[vendorIndex].ids }
+    private var rows: [AgentModelPage.Row] { pages[vendorIndex].rows }
 
     private var currentEffort: String? {
         guard currentModelID != nil else { return nil }
@@ -329,7 +373,7 @@ struct AgentModelGrid: View {
 
     private var selectedCell: (row: Int, column: Int)? {
         guard let currentModelID, let currentEffort,
-            let row = rows.firstIndex(of: currentModelID),
+            let row = rows.firstIndex(where: { $0.id == currentModelID }),
             let column = AgentSessionSettings.effortChoices.firstIndex(of: currentEffort)
         else { return nil }
         return (row, column)
@@ -337,7 +381,7 @@ struct AgentModelGrid: View {
 
     private var modelTitle: String {
         guard let model = settings.model, !model.isEmpty else { return "Model" }
-        return AgentSessionSettings.modelTitle(model)
+        return AgentSessionSettings.modelTitle(model, choices: settings.modelChoices)
     }
 
     static func action(
@@ -378,13 +422,16 @@ struct AgentModelGrid: View {
                 }
             }
 
-            Picker("Vendor", selection: Binding(get: { vendorIndex }, set: { pickedVendor = $0 })) {
-                ForEach(Self.vendors.indices, id: \.self) { index in
-                    Text(Self.vendors[index].name).tag(index)
+            // One page needs no switch; it would only take a row of its own.
+            if pages.count > 1 {
+                Picker("Vendor", selection: Binding(get: { vendorIndex }, set: { pickedVendor = $0 })) {
+                    ForEach(pages.indices, id: \.self) { index in
+                        Text(pages[index].name).tag(index)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("agent-model-grid-vendor")
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("agent-model-grid-vendor")
 
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topLeading) {
@@ -403,22 +450,23 @@ struct AgentModelGrid: View {
                                     + CGFloat(selectedCell.column) * Self.cellSide + Self.cellSide / 2)
                     }
                     VStack(spacing: 0) {
-                        ForEach(rows, id: \.self) { model in
+                        ForEach(rows, id: \.id) { row in
+                            let isCurrent = currentModelID == row.id
                             HStack(spacing: Self.rowSpacing) {
-                                Text(Self.shortTitles[model] ?? AgentSessionSettings.modelTitle(model))
+                                Text(row.rowTitle)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.8)
-                                    .font(.subheadline.weight(currentModelID == model ? .semibold : .regular))
-                                    .foregroundStyle(currentModelID == model ? .primary : .secondary)
+                                    .font(.subheadline.weight(isCurrent ? .semibold : .regular))
+                                    .foregroundStyle(isCurrent ? .primary : .secondary)
                                     .frame(width: Self.rowLabelWidth, height: Self.cellSide, alignment: .leading)
                                 HStack(spacing: 0) {
                                     ForEach(AgentSessionSettings.effortChoices, id: \.self) { effort in
-                                        cell(model: model, effort: effort)
+                                        cell(row: row, effort: effort)
                                     }
                                 }
                             }
                             .accessibilityElement(children: .contain)
-                            .accessibilityLabel(AgentSessionSettings.modelTitle(model))
+                            .accessibilityLabel(fullTitle(row))
                         }
                     }
                 }
@@ -435,19 +483,24 @@ struct AgentModelGrid: View {
                 .accessibilityHidden(true)
             }
             // Room for the tallest page, below the labels, so pages keep one height.
-            .frame(height: Self.cellSide * CGFloat(Self.maxRows) + 24, alignment: .top)
+            .frame(height: Self.cellSide * CGFloat(maxRows) + 24, alignment: .top)
         }
         .padding(16)
         .frame(width: 344)
         .disabled(!controls.isEnabled)
     }
 
-    private func cell(model: String, effort: String) -> some View {
-        let row = rows.firstIndex(of: model)
+    /// VoiceOver keeps the name the status line shows, not the row's short one.
+    private func fullTitle(_ row: AgentModelPage.Row) -> String {
+        AgentSessionSettings.modelTitle(row.id, choices: settings.modelChoices)
+    }
+
+    private func cell(row: AgentModelPage.Row, effort: String) -> some View {
+        let rowIndex = rows.firstIndex { $0.id == row.id }
         let column = AgentSessionSettings.effortChoices.firstIndex(of: effort)
-        let isSelected = selectedCell.map { $0.row == row && $0.column == column } ?? false
+        let isSelected = selectedCell.map { $0.row == rowIndex && $0.column == column } ?? false
         return Button {
-            select(model: model, effort: effort)
+            select(model: row.id, effort: effort)
         } label: {
             ZStack {
                 Circle()
@@ -466,9 +519,9 @@ struct AgentModelGrid: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(AgentSessionSettings.modelTitle(model))，\(Self.effortTitle(effort))")
+        .accessibilityLabel("\(fullTitle(row))，\(Self.effortTitle(effort))")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier("agent-model-grid-\(model)-\(effort)")
+        .accessibilityIdentifier("agent-model-grid-\(row.id)-\(effort)")
     }
 
     private func select(model: String, effort: String) {
@@ -488,10 +541,10 @@ extension AgentSessionSettings {
     static let permissionChoices = ["default", "acceptEdits", "plan", "bypassPermissions"]
 
     /// Claude Code's model aliases, which each Host resolves to its own
-    /// configured model. Custom `modelPicker` entries are not read from the Host.
+    /// configured model. A Host's own `modelPicker` entries come beside these
+    /// (`ClaudeModelPicker`).
     static let modelChoices: [(id: String, title: String)] = [
         ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"),
-        ("deepseek-v4.1-flash[1m]", "DeepSeek V4.1 Flash"), ("k3.1-pro[1m]", "Kimi K3.1 Pro"), ("k3[1m]", "Kimi K3"),
     ]
 
     /// What the screen says to a typed `/model` or `/effort`: the first

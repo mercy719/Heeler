@@ -199,6 +199,10 @@ final class AgentChatStore {
     private(set) var sendStatuses: [UUID: SendStatus] = [:]
     /// The dialog the Agent waits on while herdr reports it Blocked.
     let blocked: BlockedCardStore
+    /// The models the Host's own Claude Code `settings.json` offers, read once
+    /// as Chat opens; Claude's aliases stay in the grid either way.
+    private(set) var modelChoices: [ClaudeModelChoice] = []
+    @ObservationIgnored private var hasReadModelChoices = false
     /// Output read again for expanded tool rows in this conversation.
     private(set) var outputs = ChatToolOutputs()
     /// The Subagents and Workflows the conversation's program runs beside
@@ -587,6 +591,22 @@ final class AgentChatStore {
         } catch ChatImagePreviewError.missing {
             throw ChatImagePreviewError.notFound(resolved)
         }
+    }
+
+    /// The models the Host's own Claude Code `settings.json` offers, read
+    /// once per Chat: the file changes on the Host rarely, and never mid-turn.
+    /// A Host that refuses or cannot parse the file offers only Claude's aliases.
+    func loadModelChoices() async {
+        guard program == .claude, !hasReadModelChoices else { return }
+        hasReadModelChoices = true
+        let choices: [ClaudeModelChoice]
+        do {
+            choices = try await ClaudeModelPicker.read(files: source.files, configRoot: evidenceRoot)
+        } catch {
+            return
+        }
+        guard !Task.isCancelled else { return }
+        modelChoices = choices
     }
 
     private func hostPath(ofImage path: String) async throws -> String {
