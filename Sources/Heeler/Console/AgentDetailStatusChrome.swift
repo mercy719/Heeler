@@ -422,6 +422,14 @@ struct AgentModelGrid: View {
                 }
             }
 
+            // Dimmed alone, a grid that takes no taps looks broken; say why.
+            if !controls.isEnabled {
+                Label("Switch when the Agent is idle", systemImage: "hourglass")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("agent-model-grid-busy")
+            }
+
             // One page needs no switch; it would only take a row of its own.
             if pages.count > 1 {
                 Picker("Vendor", selection: Binding(get: { vendorIndex }, set: { pickedVendor = $0 })) {

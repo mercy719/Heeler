@@ -555,6 +555,14 @@ final class AgentComposerStore: ComposerDraftOperations {
         }
     }
 
+    /// A status-line switch (`/model`, `/effort`) through the same paste-and-
+    /// submit as Chat's messages, on a herdr-core Host. Nil where this Host has
+    /// no core send, and the caller types it itself.
+    func submitCommandThroughCore(_ command: String) async -> Bool? {
+        guard let coreSend else { return nil }
+        return await coreSend.send(command, route: .chat, attach: nil) == .submitted
+    }
+
     private func deliverThroughCore(
         _ id: Message.ID, text: String, policy: ComposerDeliveryPolicy, using coreSend: HerdrCoreComposerSend
     ) async -> SendResult {

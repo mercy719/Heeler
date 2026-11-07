@@ -1183,13 +1183,19 @@ struct AgentChatSurfaceView: View {
             let was = AgentSessionSettings.Outcome(of: command, done: done, kept: kept, on: before)
             // A turn may have begun while the screen was read.
             guard activity() == .idle else { throw CancellationError() }
-            try await typeSwitchStep(io, .paste(command + " "), whileShowing: { PreSendGate.check($0, program: .claude, activity: .idle) == .send })
-            try await Task.sleep(for: .milliseconds(150))
-            guard activity() == .idle else { throw CancellationError() }
-            try await typeSwitchStep(io, .keys(["enter"]), whileShowing: { screen in
-                guard case .text(let typed) = InputBoxStateDetector.detect(screen, program: .claude) else { return false }
-                return typed.contains(command)
-            })
+            // On herdr-core, Chat's own send: paste and Enter on one viewer. Two
+            // viewers, each checking a fresh paint, left the command unsubmitted.
+            if let submitted = await composer.submitCommandThroughCore(command) {
+                guard submitted else { throw CancellationError() }
+            } else {
+                try await typeSwitchStep(io, .paste(command + " "), whileShowing: { PreSendGate.check($0, program: .claude, activity: .idle) == .send })
+                try await Task.sleep(for: .milliseconds(150))
+                guard activity() == .idle else { throw CancellationError() }
+                try await typeSwitchStep(io, .keys(["enter"]), whileShowing: { screen in
+                    guard case .text(let typed) = InputBoxStateDetector.detect(screen, program: .claude) else { return false }
+                    return typed.contains(command)
+                })
+            }
             var asked = false
             for _ in 0..<12 {
                 try await Task.sleep(for: .milliseconds(250))
