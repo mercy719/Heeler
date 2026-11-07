@@ -290,15 +290,17 @@ enum AgentModelGridAction: Equatable {
 /// The model-by-effort pad in the status line's popover. Command ordering stays
 /// in AgentChatSurfaceView; this view only routes the selection to its controls.
 struct AgentModelGrid: View {
-    private static let claudeIDs = ["opus", "fable", "sonnet", "haiku"]
-    /// Every model takes an effort (transcripts record one for DeepSeek, GLM
-    /// and Kimi too), so all of them are rows: Claude's first, then the rest.
-    static let modelIDs = claudeIDs + AgentSessionSettings.modelChoices.map(\.id).filter { !claudeIDs.contains($0) }
-    /// Row labels short enough for the grid; the full name stays in VoiceOver.
-    private static let shortTitles = [
-        "deepseek-v4.1-flash[1m]": "DeepSeek", "glm-5.3-flash[1m]": "GLM Flash", "glm-5.3[1m]": "GLM 5.3",
-        "k3.1-pro[1m]": "Kimi K3.1", "k3[1m]": "Kimi K3",
+    /// One page per vendor, so a page stays a short grid. Every model takes
+    /// an effort (transcripts record one for DeepSeek and Kimi too).
+    static let vendors: [(name: String, ids: [String])] = [
+        ("Claude", ["opus", "fable", "sonnet", "haiku"]),
+        ("DeepSeek", ["deepseek-v4.1-flash[1m]"]),
+        ("Kimi", ["k3.1-pro[1m]", "k3[1m]"]),
     ]
+    /// Row labels inside a vendor's page; VoiceOver keeps the full name.
+    private static let shortTitles = ["deepseek-v4.1-flash[1m]": "V4.1 Flash", "k3.1-pro[1m]": "K3.1 Pro", "k3[1m]": "K3"]
+    /// Pages keep the tallest page's height so the popover does not jump.
+    private static let maxRows = vendors.map(\.ids.count).max() ?? 1
     private static let cellSide: CGFloat = 44
     private static let rowLabelWidth: CGFloat = 76
     private static let rowSpacing: CGFloat = 8
@@ -307,10 +309,18 @@ struct AgentModelGrid: View {
     let controls: AgentSessionControls
     @Binding var isPresented: Bool
     var onSelect: () -> Void = {}
+    @State private var pickedVendor: Int?
 
     private var currentModelID: String? {
-        Self.modelIDs.first { AgentSessionSettings.model(settings.model, is: $0) }
+        Self.vendors.flatMap(\.ids).first { AgentSessionSettings.model(settings.model, is: $0) }
     }
+
+    /// The page picked, else the current model's vendor.
+    private var vendorIndex: Int {
+        pickedVendor ?? currentModelID.flatMap { id in Self.vendors.firstIndex { $0.ids.contains(id) } } ?? 0
+    }
+
+    private var rows: [String] { Self.vendors[vendorIndex].ids }
 
     private var currentEffort: String? {
         guard currentModelID != nil else { return nil }
@@ -319,7 +329,7 @@ struct AgentModelGrid: View {
 
     private var selectedCell: (row: Int, column: Int)? {
         guard let currentModelID, let currentEffort,
-            let row = Self.modelIDs.firstIndex(of: currentModelID),
+            let row = rows.firstIndex(of: currentModelID),
             let column = AgentSessionSettings.effortChoices.firstIndex(of: currentEffort)
         else { return nil }
         return (row, column)
@@ -368,6 +378,14 @@ struct AgentModelGrid: View {
                 }
             }
 
+            Picker("Vendor", selection: Binding(get: { vendorIndex }, set: { pickedVendor = $0 })) {
+                ForEach(Self.vendors.indices, id: \.self) { index in
+                    Text(Self.vendors[index].name).tag(index)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("agent-model-grid-vendor")
+
             VStack(alignment: .leading, spacing: 0) {
                 ZStack(alignment: .topLeading) {
                     if let selectedCell {
@@ -379,13 +397,13 @@ struct AgentModelGrid: View {
                                 y: CGFloat(selectedCell.row) * Self.cellSide + Self.cellSide / 2)
                         Rectangle()
                             .fill(Color(uiColor: .separator))
-                            .frame(width: 0.5, height: Self.cellSide * CGFloat(Self.modelIDs.count))
+                            .frame(width: 0.5, height: Self.cellSide * CGFloat(rows.count))
                             .offset(
                                 x: Self.rowLabelWidth + Self.rowSpacing
                                     + CGFloat(selectedCell.column) * Self.cellSide + Self.cellSide / 2)
                     }
                     VStack(spacing: 0) {
-                        ForEach(Self.modelIDs, id: \.self) { model in
+                        ForEach(rows, id: \.self) { model in
                             HStack(spacing: Self.rowSpacing) {
                                 Text(Self.shortTitles[model] ?? AgentSessionSettings.modelTitle(model))
                                     .lineLimit(1)
@@ -404,7 +422,6 @@ struct AgentModelGrid: View {
                         }
                     }
                 }
-                .accessibilityHidden(false)
 
                 HStack(spacing: 0) {
                     Color.clear.frame(width: Self.rowLabelWidth + Self.rowSpacing, height: 1)
@@ -417,6 +434,8 @@ struct AgentModelGrid: View {
                 }
                 .accessibilityHidden(true)
             }
+            // Room for the tallest page, below the labels, so pages keep one height.
+            .frame(height: Self.cellSide * CGFloat(Self.maxRows) + 24, alignment: .top)
         }
         .padding(16)
         .frame(width: 344)
@@ -424,7 +443,7 @@ struct AgentModelGrid: View {
     }
 
     private func cell(model: String, effort: String) -> some View {
-        let row = Self.modelIDs.firstIndex(of: model)
+        let row = rows.firstIndex(of: model)
         let column = AgentSessionSettings.effortChoices.firstIndex(of: effort)
         let isSelected = selectedCell.map { $0.row == row && $0.column == column } ?? false
         return Button {
@@ -472,8 +491,7 @@ extension AgentSessionSettings {
     /// configured model. Custom `modelPicker` entries are not read from the Host.
     static let modelChoices: [(id: String, title: String)] = [
         ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"),
-        ("deepseek-v4.1-flash[1m]", "DeepSeek V4.1 Flash"), ("glm-5.3-flash[1m]", "GLM 5.3 Flash"),
-        ("glm-5.3[1m]", "GLM 5.3"), ("k3.1-pro[1m]", "Kimi K3.1 Pro"), ("k3[1m]", "Kimi K3"),
+        ("deepseek-v4.1-flash[1m]", "DeepSeek V4.1 Flash"), ("k3.1-pro[1m]", "Kimi K3.1 Pro"), ("k3[1m]", "Kimi K3"),
     ]
 
     /// What the screen says to a typed `/model` or `/effort`: the first
