@@ -64,7 +64,7 @@ struct ChatImageLinkTests {
     @Test(arguments: [
         "*.png", ".png", "/tmp/.png", "image/png", #"UIImage(named: "a.png")"#, "https://x.test/a.png",
         "/tmp/a.pdf", "a b.png", "-o.png", "/tmp/dir.png/", #"C:\shots\a.png"#, "~user/a.png", "a:b.png",
-        "/tmp/$NAME.png", "/tmp/a.png\n/tmp/b.png",
+        "/tmp/$NAME.png", "/tmp/a.png\n/tmp/b.png", "/tmp/grid-{dark,light}.png",
     ])
     func codeAndOtherFilesNameNoImage(_ value: String) {
         #expect(ChatImageLink.path(written: value) == nil)

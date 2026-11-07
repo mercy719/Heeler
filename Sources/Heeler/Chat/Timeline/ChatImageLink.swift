@@ -137,7 +137,7 @@ enum ChatImageLink {
     // MARK: Matching
 
     /// Code-like characters; any of them makes a written value no path.
-    private static let rootedExclusions = CharacterSet(charactersIn: "*?\"'`<>|$\\")
+    private static let rootedExclusions = CharacterSet(charactersIn: "*?\"'`<>|$\\{}")
     /// A relative path also holds no whitespace or punctuation of code.
     private static let relativeExclusions = CharacterSet.whitespaces.union(CharacterSet(charactersIn: "()[]{};,=:"))
 
