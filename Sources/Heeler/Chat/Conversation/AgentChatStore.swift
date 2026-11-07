@@ -598,14 +598,14 @@ final class AgentChatStore {
     /// A Host that refuses or cannot parse the file offers only Claude's aliases.
     func loadModelChoices() async {
         guard program == .claude, !hasReadModelChoices else { return }
-        hasReadModelChoices = true
         let choices: [ClaudeModelChoice]
         do {
             choices = try await ClaudeModelPicker.read(files: source.files, configRoot: evidenceRoot)
         } catch {
-            return
+            return  // The Host did not answer: the next open of Chat asks again.
         }
         guard !Task.isCancelled else { return }
+        hasReadModelChoices = true
         modelChoices = choices
     }
 
