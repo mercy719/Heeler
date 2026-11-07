@@ -581,7 +581,12 @@ final class AgentChatStore {
     /// thumbnails come from ``thumbnails``. A path a message names may be
     /// relative to the Agent's directory or start at `~` (`ChatImageLink`).
     func readImage(at path: String) async throws -> Data {
-        try await ChatImagePreviewReader.read(path: try await hostPath(ofImage: path), files: source.files)
+        let resolved = try await hostPath(ofImage: path)
+        do {
+            return try await ChatImagePreviewReader.read(path: resolved, files: source.files)
+        } catch ChatImagePreviewError.missing {
+            throw ChatImagePreviewError.notFound(resolved)
+        }
     }
 
     private func hostPath(ofImage path: String) async throws -> String {

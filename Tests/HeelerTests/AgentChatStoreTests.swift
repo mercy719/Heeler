@@ -161,6 +161,9 @@ struct AgentChatStoreTests {
         #expect(try await fixture.store.readImage(at: "~/b.png") == Data([2]))
         #expect(try await fixture.store.readImage(at: "/tmp/c.png") == Data([3]))
         await #expect(throws: ChatImagePreviewError.self) { try await fixture.store.readImage(at: "~other/d.png") }
+        // A bare name is a guess at the Agent's directory: say where it looked.
+        let missing = await #expect(throws: ChatImagePreviewError.self) { try await fixture.store.readImage(at: "gone.png") }
+        #expect(missing?.localizedDescription == "Nothing at \(Self.cwd)/gone.png on the Host.")
     }
 
     @Test func runningBackgroundWorkKeepsTheActivePaceUntilItEnds() async throws {

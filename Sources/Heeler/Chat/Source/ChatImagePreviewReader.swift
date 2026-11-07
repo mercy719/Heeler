@@ -98,12 +98,16 @@ enum ChatImagePreviewReader {
 
 enum ChatImagePreviewError: Error, LocalizedError {
     case unavailable, invalidPath, missing, tooLarge, invalidImage, changed
+    /// Missing at the Host path a written name resolved to, which may be a
+    /// guess (a bare name joins the Agent's directory), so the path is shown.
+    case notFound(String)
 
     var errorDescription: String? {
         switch self {
         case .unavailable: "Connect to the Host to preview this image."
         case .invalidPath: "This image has no supported absolute path on the Host."
         case .missing: "This image is no longer on the Host."
+        case .notFound(let path): "Nothing at \(path) on the Host."
         case .tooLarge: "This image is too large to preview (20 MB maximum)."
         case .invalidImage: "This file cannot be displayed as an image."
         case .changed: "The image changed while loading. Try again."
@@ -115,6 +119,7 @@ enum ChatImagePreviewError: Error, LocalizedError {
         switch self {
         case .unavailable: "Connect to the Host to show this image"
         case .missing: "No longer on the Host"
+        case .notFound: "Not on the Host"
         case .tooLarge: "Too large to show (20 MB maximum)"
         case .invalidPath, .invalidImage: "Can't show this file as an image"
         case .changed: "Changed while loading"
