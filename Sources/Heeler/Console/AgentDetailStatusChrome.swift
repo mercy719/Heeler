@@ -277,6 +277,220 @@ struct AgentSessionControls {
     var setPermissionMode: @MainActor (String) -> Void
     var setModel: @MainActor (String) -> Void
     var setEffort: @MainActor (String) -> Void
+    var setModelAndEffort: @MainActor (String, String) -> Void
+}
+
+enum AgentModelGridAction: Equatable {
+    case noChange
+    case model(String)
+    case effort(String)
+    case modelAndEffort(model: String, effort: String)
+}
+
+/// The model-by-effort pad in the status line's popover. Command ordering stays
+/// in AgentChatSurfaceView; this view only routes the selection to its controls.
+struct AgentModelGrid: View {
+    static let modelIDs = ["opus", "fable", "sonnet", "haiku"]
+    private static let cellSide: CGFloat = 44
+    private static let rowLabelWidth: CGFloat = 56
+    private static let rowSpacing: CGFloat = 8
+
+    let settings: AgentSessionSettings
+    let controls: AgentSessionControls
+    @Binding var isPresented: Bool
+    var onSelect: () -> Void = {}
+
+    private var currentModelID: String? {
+        Self.modelIDs.first { AgentSessionSettings.model(settings.model, is: $0) }
+    }
+
+    private var currentEffort: String? {
+        guard currentModelID != nil else { return nil }
+        return AgentSessionSettings.effortChoices.first { settings.effort == $0 }
+    }
+
+    private var selectedCell: (row: Int, column: Int)? {
+        guard let currentModelID, let currentEffort,
+            let row = Self.modelIDs.firstIndex(of: currentModelID),
+            let column = AgentSessionSettings.effortChoices.firstIndex(of: currentEffort)
+        else { return nil }
+        return (row, column)
+    }
+
+    private var modelTitle: String {
+        guard let model = settings.model, !model.isEmpty else { return "Model" }
+        return AgentSessionSettings.modelTitle(model)
+    }
+
+    static func action(
+        currentModel: String?, currentEffort: String?, model: String, effort: String
+    ) -> AgentModelGridAction {
+        let modelChanges = !AgentSessionSettings.model(currentModel, is: model)
+        let effortChanges = currentEffort != effort
+        return switch (modelChanges, effortChanges) {
+        case (false, false): .noChange
+        case (true, false): .model(model)
+        case (false, true): .effort(effort)
+        case (true, true): .modelAndEffort(model: model, effort: effort)
+        }
+    }
+
+    static func effortTitle(_ id: String) -> String {
+        switch id {
+        case "low": "Low"
+        case "medium": "Medium"
+        case "high": "High"
+        case "xhigh": "xHigh"
+        case "max": "Max"
+        default: id
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(modelTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                if let effort = settings.effort, !effort.isEmpty {
+                    Text(Self.effortTitle(effort))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.tint)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    if let selectedCell {
+                        Rectangle()
+                            .fill(Color(uiColor: .separator))
+                            .frame(width: Self.cellSide * 5, height: 0.5)
+                            .offset(
+                                x: Self.rowLabelWidth + Self.rowSpacing,
+                                y: CGFloat(selectedCell.row) * Self.cellSide + Self.cellSide / 2)
+                        Rectangle()
+                            .fill(Color(uiColor: .separator))
+                            .frame(width: 0.5, height: Self.cellSide * 4)
+                            .offset(
+                                x: Self.rowLabelWidth + Self.rowSpacing
+                                    + CGFloat(selectedCell.column) * Self.cellSide + Self.cellSide / 2)
+                    }
+                    VStack(spacing: 0) {
+                        ForEach(Self.modelIDs, id: \.self) { model in
+                            HStack(spacing: Self.rowSpacing) {
+                                Text(AgentSessionSettings.modelTitle(model))
+                                    .font(.subheadline.weight(currentModelID == model ? .semibold : .regular))
+                                    .foregroundStyle(currentModelID == model ? .primary : .secondary)
+                                    .frame(width: Self.rowLabelWidth, height: Self.cellSide, alignment: .leading)
+                                HStack(spacing: 0) {
+                                    ForEach(AgentSessionSettings.effortChoices, id: \.self) { effort in
+                                        cell(model: model, effort: effort)
+                                    }
+                                }
+                            }
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel(AgentSessionSettings.modelTitle(model))
+                        }
+                    }
+                }
+                .accessibilityHidden(false)
+
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: Self.rowLabelWidth + Self.rowSpacing, height: 1)
+                    ForEach(AgentSessionSettings.effortChoices, id: \.self) { effort in
+                        Text(Self.effortTitle(effort))
+                            .font(.caption2.weight(currentEffort == effort ? .semibold : .regular))
+                            .foregroundStyle(currentEffort == effort ? .primary : .secondary)
+                            .frame(width: Self.cellSide, height: 24)
+                    }
+                }
+                .accessibilityHidden(true)
+            }
+
+            let otherModels = AgentSessionSettings.modelChoices.filter { !Self.modelIDs.contains($0.id) }
+            if !otherModels.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Other models")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.bottom, 4)
+                    ForEach(otherModels, id: \.id) { choice in
+                        Button {
+                            selectOtherModel(choice.id)
+                        } label: {
+                            HStack {
+                                Text(choice.title)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if AgentSessionSettings.model(settings.model, is: choice.id) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.tint)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                            .font(.subheadline)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(
+                            AgentSessionSettings.model(settings.model, is: choice.id) ? .isSelected : [])
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 324)
+        .disabled(!controls.isEnabled)
+    }
+
+    private func cell(model: String, effort: String) -> some View {
+        let row = Self.modelIDs.firstIndex(of: model)
+        let column = AgentSessionSettings.effortChoices.firstIndex(of: effort)
+        let isSelected = selectedCell.map { $0.row == row && $0.column == column } ?? false
+        return Button {
+            select(model: model, effort: effort)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.tertiary)
+                    .frame(width: 4, height: 4)
+                if isSelected {
+                    Circle()
+                        .fill(Color(uiColor: .label))
+                        .frame(width: 22, height: 22)
+                    Circle()
+                        .fill(.tint)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .frame(width: Self.cellSide, height: Self.cellSide)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(AgentSessionSettings.modelTitle(model))，\(Self.effortTitle(effort))")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("agent-model-grid-\(model)-\(effort)")
+    }
+
+    private func select(model: String, effort: String) {
+        onSelect()
+        isPresented = false
+        switch Self.action(currentModel: settings.model, currentEffort: settings.effort, model: model, effort: effort) {
+        case .noChange: break
+        case .model(let model): controls.setModel(model)
+        case .effort(let effort): controls.setEffort(effort)
+        case .modelAndEffort(let model, let effort): controls.setModelAndEffort(model, effort)
+        }
+    }
+
+    private func selectOtherModel(_ model: String) {
+        onSelect()
+        isPresented = false
+        controls.setModel(model)
+    }
 }
 
 extension AgentSessionSettings {
@@ -334,6 +548,8 @@ struct AgentSessionSettingsLabel: View {
     let settings: AgentSessionSettings
     var controls: AgentSessionControls? = nil
     @State private var confirmsBypass = false
+    @State private var showsModelGrid = false
+    @State private var modelSelectionFeedback = 0
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -347,6 +563,7 @@ struct AgentSessionSettingsLabel: View {
                 modelLabel("")
             }
         }
+        .sensoryFeedback(.selection, trigger: modelSelectionFeedback)
         .help([settings.notablePermissionMode, settings.modelLine].compactMap { $0 }.joined(separator: " · "))
         .confirmationDialog("Skip every permission prompt?", isPresented: $confirmsBypass, titleVisibility: .visible) {
             Button("Bypass Permissions", role: .destructive) { controls?.setPermissionMode("bypassPermissions") }
@@ -398,44 +615,19 @@ struct AgentSessionSettingsLabel: View {
             .foregroundStyle(.secondary)
             .fixedSize()
         if let controls {
-            Menu {
-                Section("Model") {
-                    ForEach(AgentSessionSettings.modelChoices, id: \.id) { @Sendable choice in
-                        MainActorContent {
-                            Button {
-                                controls.setModel(choice.id)
-                            } label: {
-                                if AgentSessionSettings.model(model, is: choice.id) {
-                                    Label(choice.title, systemImage: "checkmark")
-                                } else {
-                                    Text(choice.title)
-                                }
-                            }
-                        }
-                    }
-                }
-                Section("Effort") {
-                    ForEach(AgentSessionSettings.effortChoices, id: \.self) { @Sendable level in
-                        MainActorContent {
-                            Button {
-                                controls.setEffort(level)
-                            } label: {
-                                if settings.effort == level {
-                                    Label(level, systemImage: "checkmark")
-                                } else {
-                                    Text(level)
-                                }
-                            }
-                        }
-                    }
-                }
+            Button {
+                showsModelGrid = true
             } label: {
                 text.frame(minHeight: 28).contentShape(Rectangle())
             }
-            // A menu opening upward from the status line reverses its items;
-            // fixed keeps Model above Effort, the order they are chosen in.
-            .menuOrder(.fixed)
+            .buttonStyle(.plain)
             .disabled(!controls.isEnabled)
+            .popover(isPresented: $showsModelGrid, arrowEdge: .bottom) {
+                AgentModelGrid(
+                    settings: settings, controls: controls, isPresented: $showsModelGrid,
+                    onSelect: { modelSelectionFeedback += 1 })
+                .presentationCompactAdaptation(.popover)
+            }
             .accessibilityLabel("Model")
             .accessibilityValue(settings.modelLine ?? model)
             .accessibilityIdentifier("agent-status-model")

@@ -1063,6 +1063,15 @@ struct AgentChatSurfaceView: View {
                         setOverride(.effort, level)
                     }
                 }
+            },
+            setModelAndEffort: { id, level in
+                switchSetting {
+                    guard await typeCommand("/model \(id)", done: "Set model to", kept: "Kept model as") else { return }
+                    setOverride(.model, id)
+                    if await typeCommand("/effort \(level)", done: "Set effort level to", kept: "Kept effort level as") {
+                        setOverride(.effort, level)
+                    }
+                }
             })
     }
 

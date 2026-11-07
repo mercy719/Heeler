@@ -283,6 +283,21 @@ struct AgentSessionSettingsTests {
         #expect(!AgentSessionSettings.model(nil, is: "opus"))
     }
 
+    @Test("The model grid routes one selection without reordering model and effort")
+    func modelGridSelection() {
+        #expect(AgentModelGrid.action(
+            currentModel: "claude-opus-5-5", currentEffort: "high", model: "opus", effort: "high") == .noChange)
+        #expect(AgentModelGrid.action(
+            currentModel: "claude-opus-5-5", currentEffort: "high", model: "fable", effort: "high") == .model("fable"))
+        #expect(AgentModelGrid.action(
+            currentModel: "claude-opus-5-5", currentEffort: "high", model: "opus", effort: "max") == .effort("max"))
+        #expect(AgentModelGrid.action(
+            currentModel: "claude-opus-5-5", currentEffort: "high", model: "fable", effort: "max")
+            == .modelAndEffort(model: "fable", effort: "max"))
+        #expect(AgentModelGrid.action(
+            currentModel: "deepseek-v4.1-flash", currentEffort: "high", model: "opus", effort: "high") == .model("opus"))
+    }
+
     @Test("A switch's answer is the line below the newest echo of its command, not a recount")
     func switchOutcome() {
         func outcome(_ rows: [String]) -> AgentSessionSettings.Outcome {
