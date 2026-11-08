@@ -699,12 +699,16 @@ struct AgentComposerView: View {
         }
     }
 
-    /// Voice Input's mic; it opens setup until a service is saved. Starting
+    /// Voice Input's mic; it opens setup until a service is saved, and a
+    /// long press opens it any time. Starting
     /// taps medium and stopping taps light.
     @ViewBuilder
     private var voiceButton: some View {
         if let voiceInput, inputMode == .composer {
-            ComposerVoiceButton(voice: store.voice, tint: secondaryActionTint) {
+            ComposerVoiceButton(
+                voice: store.voice, tint: secondaryActionTint,
+                openSettings: { isVoiceSetupPresented = true }
+            ) {
                 let wasRecording = store.voice.isRecording
                 let wasResting = !store.voice.isBusy
                 // Before the recorder ends, so the tap lands under the

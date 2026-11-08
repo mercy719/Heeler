@@ -5,13 +5,19 @@ import UIKit
 /// while Stop shows, the draft has text, or a recording runs. A tap starts
 /// and a second tap stops. While the microphone is being asked for or the
 /// text is on its way it waits; the recording bar's Cancel ends those.
+/// A long press while it rests opens Voice Input's settings instead.
 struct ComposerVoiceButton: View {
     let voice: ComposerVoiceInput
     let tint: Color
+    let openSettings: () -> Void
     let action: () -> Void
+    // The button still fires on release after a long press; this swallows that tap.
+    @State private var longPressed = false
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            if longPressed { longPressed = false } else { action() }
+        } label: {
             ZStack {
                 switch voice.phase {
                 case .starting, .transcribing:
@@ -30,6 +36,12 @@ struct ComposerVoiceButton: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .tint(voice.isRecording ? Color(uiColor: .systemRed) : tint)
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.5).onEnded { _ in
+            guard isResting else { return }
+            longPressed = true
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            openSettings()
+        })
         // Not `disabled`: that repaints the circle, near black in Dark Mode,
         // and the mic should only gain its spinner.
         .allowsHitTesting(!isWaiting)
@@ -38,7 +50,15 @@ struct ComposerVoiceButton: View {
         .accessibilityLabel("Voice Input")
         .accessibilityValue(accessibilityValue)
         .accessibilityHint(accessibilityHint)
+        .accessibilityAction(named: "Voice Input Settings", openSettings)
         .accessibilityIdentifier("composer.voice")
+    }
+
+    private var isResting: Bool {
+        switch voice.phase {
+        case .idle, .failed: true
+        case .starting, .recording, .transcribing: false
+        }
     }
 
     private var isWaiting: Bool {
