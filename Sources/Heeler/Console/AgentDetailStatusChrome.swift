@@ -562,8 +562,11 @@ extension AgentSessionSettings {
 
     /// A custom model ID does not prove which alias it maps to.
     static func model(_ model: String?, is choice: String) -> Bool {
-        guard let model else { return false }
-        let title = modelTitle(model).lowercased()
+        guard let model, !model.isEmpty else { return false }
+        // `deepseek-v4.1-flash` is the `[1m]` entry a Host's modelPicker lists.
+        let bare = { (id: String) in String(id.lowercased().split(separator: "[").first ?? "") }
+        if bare(model) == bare(choice) { return true }
+        let title = bare(modelTitle(model))
         return title == choice || title.hasPrefix(choice + " ")
     }
 

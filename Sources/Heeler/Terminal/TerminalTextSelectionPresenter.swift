@@ -9,7 +9,7 @@ enum TerminalTextSelectionPresenter {
     ) {
         present(
             TerminalTextSelectionViewController(
-                text: text, attributedText: attributedText, anchorRange: nil, font: font,
+                text: text, attributedText: attributedText, font: font,
                 adjustsFontForContentSizeCategory: adjustsFontForContentSizeCategory,
                 accessibilityIdentifier: accessibilityIdentifier),
             from: sourceView)
@@ -31,21 +31,19 @@ final class TerminalTextSelectionViewController: UIViewController {
     private let text: String
     /// Drawn text that replaces `text` when given (Chat's Markdown).
     private let attributedText: NSAttributedString?
-    private let anchorRange: NSRange?
     private let font: UIFont
     private let adjustsFontForContentSizeCategory: Bool
     private let textAccessibilityIdentifier: String
     private let textView = UITextView()
 
     init(
-        text: String, attributedText: NSAttributedString? = nil, anchorRange: NSRange?,
+        text: String, attributedText: NSAttributedString? = nil,
         font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular),
         adjustsFontForContentSizeCategory: Bool = false,
         accessibilityIdentifier: String = "terminal.text-selection"
     ) {
         self.text = text
         self.attributedText = attributedText
-        self.anchorRange = anchorRange
         self.font = font
         self.adjustsFontForContentSizeCategory = adjustsFontForContentSizeCategory
         textAccessibilityIdentifier = accessibilityIdentifier
@@ -90,9 +88,7 @@ final class TerminalTextSelectionViewController: UIViewController {
             textView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
-        textView.selectedRange = Self.normalizedSelectionRange(
-            anchorRange,
-            textLength: attributedText?.length ?? (text as NSString).length)
+        textView.selectedRange = NSRange(location: 0, length: attributedText?.length ?? (text as NSString).length)
     }
 
     override func viewDidAppear(_ animated: Bool) {
