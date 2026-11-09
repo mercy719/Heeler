@@ -81,6 +81,49 @@ struct ConsoleSplitPresentationTests {
         #expect(state.visibility == .detailOnly)
     }
 
+    private let compact = ConsoleSplitPresentation(
+        horizontalSizeClass: .compact, size: CGSize(width: 466, height: 678))
+
+    @Test func unfoldingIntoLandscapeRestoresTheSidebar() {
+        var state = ConsoleSplitVisibilityState()
+        // A window running in portrait, its sidebar out of the way.
+        state.update(from: portrait)
+        state.systemDidChangeVisibility(.detailOnly, presentation: portrait)
+        #expect(state.userVisibility == nil)
+        // Unfolded, the split keeps reporting portrait's Detail Only once.
+        state.update(from: landscape)
+        state.systemDidChangeVisibility(.detailOnly, presentation: landscape)
+        #expect(state.restoresSidebarAfterLayoutChange)
+        #expect(state.userVisibility == nil)
+        let restored = state.takeSidebarRestore()
+        #expect(restored)
+        #expect(!state.restoresSidebarAfterLayoutChange)
+        state.showSidebar()
+        #expect(state.visibility == .all)
+        #expect(state.userVisibility == nil)
+    }
+
+    @Test func unfoldingFromCompactStillShowsDetailInPortrait() {
+        var state = ConsoleSplitVisibilityState()
+        state.update(from: compact)
+        state.systemDidChangeVisibility(.detailOnly, presentation: compact)
+        state.update(from: portrait)
+        #expect(state.visibility == .detailOnly)
+        #expect(state.userVisibility == nil)
+    }
+
+    @Test func aHideInLandscapeSurvivesFoldingAndUnfolding() {
+        var state = ConsoleSplitVisibilityState()
+        state.update(from: landscape)
+        state.systemDidChangeVisibility(.detailOnly, presentation: landscape)
+        #expect(state.userVisibility == .detailOnly)
+        state.update(from: compact)
+        state.systemDidChangeVisibility(.detailOnly, presentation: compact)
+        state.update(from: landscape)
+        #expect(state.visibility == .detailOnly)
+        #expect(state.userVisibility == .detailOnly)
+    }
+
     @Test(arguments: [false, true])
     func stableSystemToggleSurvivesRotation(startInPortrait: Bool) {
         var state = ConsoleSplitVisibilityState()

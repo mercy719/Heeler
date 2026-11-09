@@ -49,6 +49,11 @@ struct ConsoleSplitVisibilityState {
     private(set) var userVisibility: NavigationSplitViewVisibility?
     private(set) var reportedSidebarVisibility: Bool?
     private var appliedPresentation: ConsoleSplitPresentation?
+    /// Whether the next report answers a layout change that has not settled.
+    private var awaitsReportAfterLayoutChange = false
+    /// Set when a layout change collapsed the sidebar against its own policy,
+    /// so the view can show it again once the report has landed.
+    private(set) var restoresSidebarAfterLayoutChange = false
 
     /// A concrete report wins; an applied concrete request is the fallback when
     /// SwiftUI does not echo programmatic visibility changes through the binding.
@@ -60,6 +65,7 @@ struct ConsoleSplitVisibilityState {
 
     mutating func update(from presentation: ConsoleSplitPresentation) {
         guard presentation.hasUsableSize, presentation != appliedPresentation else { return }
+        awaitsReportAfterLayoutChange = appliedPresentation != nil
         reportedSidebarVisibility = nil
         appliedPresentation = presentation
         visibility = userVisibility ?? presentation.defaultVisibility
@@ -71,6 +77,20 @@ struct ConsoleSplitVisibilityState {
     ) {
         // A callback from a different layout must not pin the outgoing column state.
         guard presentation.hasUsableSize, presentation == appliedPresentation else { return }
+        let isFirstReport = awaitsReportAfterLayoutChange
+        awaitsReportAfterLayoutChange = false
+        // A window unfolding into a landscape split reports the columns
+        // Detail Only once, from the layout it left. That collapse is the
+        // system's, not the user's: accept it so the view can reassert the
+        // layout's policy, unless the user hid the sidebar in landscape.
+        if isFirstReport, presentation.isLandscape, newVisibility == .detailOnly,
+            userVisibility != .detailOnly
+        {
+            visibility = newVisibility
+            reportedSidebarVisibility = false
+            restoresSidebarAfterLayoutChange = true
+            return
+        }
         reportedSidebarVisibility = Self.sidebarVisibility(for: newVisibility)
         let changed = visibility != newVisibility
         visibility = newVisibility
@@ -94,6 +114,13 @@ struct ConsoleSplitVisibilityState {
         visibility = .detailOnly
         reportedSidebarVisibility = nil
         userVisibility = appliedPresentation?.defaultVisibility == .detailOnly ? nil : .detailOnly
+    }
+
+    /// The view's once-per-layout-change reassertion of a sidebar the
+    /// system collapsed as the window unfolded.
+    mutating func takeSidebarRestore() -> Bool {
+        defer { restoresSidebarAfterLayoutChange = false }
+        return restoresSidebarAfterLayoutChange
     }
 
     /// A list switched to from inside a visible sidebar keeps the sidebar

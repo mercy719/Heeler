@@ -789,6 +789,17 @@ struct ConsoleView: View {
             set: {
                 splitVisibilities[tab, default: ConsoleSplitVisibilityState()]
                     .systemDidChangeVisibility($0, presentation: presentation)
+                // A window unfolding into a landscape split collapses the
+                // sidebar once, before this state holds the new layout. The
+                // policy has to be reasserted or the sidebar stays away.
+                if splitVisibilities[tab, default: ConsoleSplitVisibilityState()]
+                    .takeSidebarRestore()
+                {
+                    Task { @MainActor in
+                        splitVisibilities[tab, default: ConsoleSplitVisibilityState()]
+                            .showSidebar()
+                    }
+                }
             })
     }
 
