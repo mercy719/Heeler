@@ -769,4 +769,93 @@ struct ArcProjectTests {
         // Error is not Blocked: herdr reports a failure, not a waiting dialog.
         #expect(ArcProjectLight.light(for: [.error]) == nil)
     }
+    private static func agent(
+        _ pane: String, on host: Host, workspace: String, status: AgentStatus
+    ) -> ConsoleAgent {
+        ConsoleAgent(
+            hostID: host.id,
+            hostName: host.displayName,
+            agent: Agent(
+                terminalID: "term_\(pane)", kind: "claude", title: "",
+                status: status, workspaceID: workspace, tabID: "\(workspace):t1", paneID: pane,
+                cwd: "", revision: 1, name: nil),
+            workspaceLabel: nil,
+            repositoryCheckout: nil,
+            lastOutputSnippet: nil)
+    }
+
+    @Test("Waiting lists Blocked, then Done, across Hosts in Host and herdr order")
+    func waitingEntries() {
+        let alpha = Host.fixture(name: "alpha")
+        let beta = Host.fixture(name: "beta")
+        let agents = [
+            Self.agent("b1", on: beta, workspace: "w1", status: .blocked),
+            Self.agent("a1", on: alpha, workspace: "w2", status: .done),
+            Self.agent("a2", on: alpha, workspace: "w1", status: .blocked),
+            Self.agent("a3", on: alpha, workspace: "w2", status: .working),
+            Self.agent("a4", on: alpha, workspace: "w2", status: .blocked),
+            Self.agent("a5", on: alpha, workspace: "w1", status: .error),
+        ]
+        let groups = ArcProjectGroup.groups(
+            hosts: [alpha, beta], agents: agents,
+            workspacesByHost: [
+                alpha.id: [
+                    ConsoleWorkspace(id: "w2", label: "Heeler", order: 1),
+                    ConsoleWorkspace(id: "w1", label: "FRS", order: 0),
+                ],
+                beta.id: [ConsoleWorkspace(id: "w1", label: "EBHD", order: 0)],
+            ])
+
+        let blocked = ArcWaitingList.entries(groups, status: .blocked)
+        #expect(blocked.map(\.agent.agent.paneID) == ["a2", "a4", "b1"])
+        #expect(blocked.map(\.projectLabel) == ["FRS", "Heeler", "EBHD"])
+        let done = ArcWaitingList.entries(groups, status: .done)
+        #expect(done.map(\.agent.agent.paneID) == ["a1"])
+        #expect(ArcWaitingList.entries([], status: .blocked).isEmpty)
+    }
+
+    @Test("Progress puts the most Blocked first, keeps herdr order on ties, and names who it waits on")
+    func progressRows() {
+        let host = Host.fixture(name: "alpha")
+        let agents = [
+            Self.agent("p1", on: host, workspace: "w1", status: .working),
+            Self.agent("p2", on: host, workspace: "w2", status: .working),
+            Self.agent("p3", on: host, workspace: "w2", status: .blocked),
+            Self.agent("p4", on: host, workspace: "w3", status: .done),
+            Self.agent("p5", on: host, workspace: "w5", status: .blocked),
+            Self.agent("p6", on: host, workspace: "w5", status: .blocked),
+        ]
+        let groups = ArcProjectGroup.groups(
+            hosts: [host], agents: agents,
+            workspacesByHost: [
+                host.id: [
+                    ConsoleWorkspace(id: "w1", label: "A", order: 0),
+                    ConsoleWorkspace(id: "w2", label: "B", order: 1),
+                    ConsoleWorkspace(id: "w3", label: "C", order: 2),
+                    ConsoleWorkspace(id: "w4", label: "D", order: 3),
+                    ConsoleWorkspace(id: "w5", label: "E", order: 4),
+                ]
+            ])
+
+        let rows = ArcProgressRow.rows(groups) { $0.agent.paneID }
+        #expect(rows.map(\.project.label) == ["E", "B", "A", "C", "D"])
+        // A Blocked Agent outranks a Working one for the subtitle.
+        #expect(rows.map(\.subtitle) == ["p5", "p3", "p1", nil, nil])
+        #expect(rows.map(\.blocked) == [2, 1, 0, 0, 0])
+        #expect(rows.map(\.working) == [0, 1, 1, 0, 0])
+        #expect(rows.map(\.done) == [0, 0, 0, 1, 0])
+        #expect(rows.map(\.isEmpty) == [false, false, false, false, true])
+    }
+
+    @Test("A saved tab from before Hosts, Settings and Usage left the bar lands on Projects")
+    func savedTabLandsOnAList() {
+        #expect(ConsoleTab(saved: "agents") == .agents)
+        #expect(ConsoleTab(saved: "terminals") == .terminals)
+        for saved in ["hosts", "settings", "usage", "waiting", "progress", "", "nonsense"] {
+            #expect(ConsoleTab(saved: saved) == .agents)
+        }
+        #expect(ConsoleTab.bar == [.agents, .waiting, .progress, .terminals])
+        #expect(!ConsoleTab.waiting.isList)
+        #expect(!ConsoleTab.progress.isList)
+    }
 }

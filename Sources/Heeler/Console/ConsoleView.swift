@@ -36,7 +36,7 @@ struct ConsoleView: View {
     @State private var selectedTerminal: ConsoleTerminal?
     @State private var titleRename: AgentTitleRenameStore?
     /// Agents or Terminals, per window; empty until this window picks one.
-    /// Hosts and Settings are tracked apart so neither is the tab a window
+    /// Waiting and Progress are tracked apart so neither is the tab a window
     /// comes back to.
     @SceneStorage("console.list-tab") private var sceneListTab = ""
     /// The last list tab any window picked: where a new window, or a
@@ -47,18 +47,25 @@ struct ConsoleView: View {
     /// storages above can still answer with the old tab then: the bar
     /// reverted to it and then jumped forward again.
     @State private var listTab: ConsoleTab?
-    @State private var isHostsTabSelected = false
-    @State private var isSettingsTabSelected = false
-    @State private var isUsageTabSelected = false
-    /// The Host the Usage tab reads; nil reads every Host.
+    /// Waiting or Progress while the tab bar shows one; nil while a list
+    /// tab is on screen. Neither is a tab a window comes back to.
+    @State private var pageTab: ConsoleTab?
+    /// The Progress tab's stack, where Usage pushes.
+    @State private var progressPath: [ArcProgressDestination] = []
+    /// Progress beside a sidebar, which has no tab bar: a sheet with its
+    /// own stack.
+    @State private var isShowingProgressSheet = false
+    @State private var progressSheetPath: [ArcProgressDestination] = []
+    /// Usage asked for from the Hosts or Settings sheet beside a sidebar:
+    /// Progress waits for that sheet to close, as a sheet asked for while
+    /// another one leaves never shows.
+    @State private var opensProgressSheetAfterDismiss = false
+    /// The Host the Usage page reads; nil reads every Host.
     @State private var usageScopeHostID: Host.ID?
     @State private var usageMetric = AgentUsageMetric.cost
-    @State private var usageShowsLimits = false
     /// A Usage Limits widget's tap, until the Usage page shows them.
     @State private var usageLimitsRequested = false
-    @State private var isShowingUsageListMenu = false
-    @State private var usageListMenuTitleFrame: CGRect?
-    /// Hosts and Settings where the sidebar navigates instead of a tab bar.
+    /// Hosts and Settings, in every width: sheets the list's toolbar presents.
     @State private var isShowingHostsSheet = false
     @State private var isShowingSettingsSheet = false
     /// A Host added in Settings, or one whose Host Helper Settings opens,
@@ -99,14 +106,10 @@ struct ConsoleView: View {
     /// Bumped by each pick that replaces a detail left on a gone core, at an address
     /// a new detail would otherwise reuse the old one's state for.
     @State private var detailOpening = 0
-    /// A request to open Hosts, as a tab or a sheet, on one Host's detail.
-    /// Each request rebuilds the list so it lands there even when that Host
-    /// is already on its stack.
+    /// A request to open the Hosts sheet on one Host's detail. Each request
+    /// rebuilds the list so it lands there even when that Host is already
+    /// on its stack.
     @State private var hostsTabRequest: HostsTabRequest?
-    /// Bumped to rebuild the Hosts or Settings tab, taking down a sheet it
-    /// presented when a deep link carries the window off to an Agent.
-    @State private var hostsTabGeneration = 0
-    @State private var settingsTabGeneration = 0
     /// The New Agent sheet while it is up. An item rather than a flag, so
     /// the sheet reads the origin it was opened with.
     @State private var startAgentRequest: StartAgentRequest?
@@ -183,8 +186,15 @@ struct ConsoleView: View {
 
     private var tabs: some View {
         TabView(selection: tabViewSelection) {
-            Tab(ConsoleTab.agents.title, systemImage: "sparkles", value: ConsoleTab.agents) {
+            Tab(ConsoleTab.agents.title, systemImage: ConsoleTab.agents.systemImage, value: ConsoleTab.agents) {
                 splitView(for: usesSidebarNavigation ? shownListTab : .agents)
+            }
+            Tab(ConsoleTab.waiting.title, systemImage: ConsoleTab.waiting.systemImage, value: ConsoleTab.waiting) {
+                waitingTab
+            }
+            .badge(arcBlockedCount)
+            Tab(ConsoleTab.progress.title, systemImage: ConsoleTab.progress.systemImage, value: ConsoleTab.progress) {
+                progressTab
             }
             Tab(value: ConsoleTab.terminals) {
                 // Beside an iPad's sidebar the Terminals list shows in the
@@ -201,27 +211,6 @@ struct ConsoleView: View {
                 // The tab bar fills symbols; filled, this one is a solid
                 // block beside the other tabs' line icons.
                 Label(ConsoleTab.terminals.title, systemImage: "terminal")
-                    .environment(\.symbolVariants, .none)
-            }
-            if console.isUsageEnabled {
-                Tab(ConsoleTab.usage.title, systemImage: "chart.bar.xaxis", value: ConsoleTab.usage) {
-                    usageTab()
-                }
-            }
-            Tab(ConsoleTab.hosts.title, systemImage: "server.rack", value: ConsoleTab.hosts) {
-                hostList(
-                    origin: hostsTabRequest?.origin.map { origin in
-                        HostListOrigin(title: origin.title) { selectedTab.wrappedValue = origin }
-                    })
-                .id(hostsTabGeneration)
-            }
-            Tab(value: ConsoleTab.settings) {
-                settingsView()
-                    .id(settingsTabGeneration)
-            } label: {
-                // Outlined, as Terminals is: filled, the gear is the heaviest
-                // icon in the bar.
-                Label(ConsoleTab.settings.title, systemImage: "gearshape")
                     .environment(\.symbolVariants, .none)
             }
         }
@@ -314,13 +303,17 @@ struct ConsoleView: View {
         .sheet(isPresented: $isShowingHostIssues) {
             ConsoleSheetContent(sheetPresentation) { hostIssuesSheet(presentation: $0) }
         }
-        .sheet(isPresented: $isShowingHostsSheet, onDismiss: { hostsTabRequest = nil }) {
+        .sheet(isPresented: $isShowingHostsSheet, onDismiss: {
+            hostsTabRequest = nil
+            openProgressSheetIfAsked()
+        }) {
             ConsoleSheetContent(sheetPresentation) { presentation in
                 hostList(onDone: { isShowingHostsSheet = false })
                     .modifier(ConsoleSheetPresentationModifier(presentation: presentation))
             }
         }
         .sheet(isPresented: $isShowingSettingsSheet, onDismiss: {
+            openProgressSheetIfAsked()
             guard let pending = pendingSettingsHost else { return }
             pendingSettingsHost = nil
             presentHosts(pending.id, opensHostHelper: pending.opensHostHelper)
@@ -329,6 +322,21 @@ struct ConsoleView: View {
                 settingsView(onDone: { isShowingSettingsSheet = false })
                     .modifier(ConsoleSheetPresentationModifier(presentation: presentation))
             }
+        }
+        // Progress beside a sidebar; a project picked there opens in it.
+        .sheet(isPresented: $isShowingProgressSheet, onDismiss: { progressSheetPath = [] }) {
+            NavigationStack(path: $progressSheetPath) {
+                progressPage { id in
+                    isShowingProgressSheet = false
+                    openProject(id)
+                }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { isShowingProgressSheet = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
         }
         // A Usage widget's tap. ContentView routes `heeler://agent` links;
         // these land on this window's Usage tab.
@@ -377,25 +385,16 @@ struct ConsoleView: View {
         .onChange(of: notificationRouter.repeatLandings) {
             bringAgentForward(parking: parkedSelection)
         }
-        // A Host opened on request belongs to that one visit: once the user
-        // leaves the Hosts tab, it reopens on its list.
-        .onChange(of: isHostsTabSelected) { _, isSelected in
-            if !isSelected, !isShowingHostsSheet { hostsTabRequest = nil }
-        }
-        // A window widening past the tab bar carries Hosts or Settings over
-        // into their sheet, over the list tab beneath them.
+        // A window widening past the tab bar (an iPhone Duo unfolding) has
+        // no Waiting or Progress tab: Progress carries over into its sheet,
+        // and the sidebar's list shows what waits.
         .onChange(of: usesSidebarNavigation) { _, usesSidebar in
-            guard usesSidebar else { return }
-            if isHostsTabSelected {
-                hostsTabRequest = hostsTabRequest.map {
-                    HostsTabRequest(hostID: $0.hostID, showsSetupGuide: $0.showsSetupGuide, origin: nil)
-                }
-                isShowingHostsSheet = true
-                isHostsTabSelected = false
-            }
-            if isSettingsTabSelected {
-                isShowingSettingsSheet = true
-                isSettingsTabSelected = false
+            guard usesSidebar, let page = pageTab else { return }
+            pageTab = nil
+            if page == .progress {
+                progressSheetPath = progressPath
+                progressPath = []
+                isShowingProgressSheet = true
             }
         }
         // Drop removed Hosts without losing remaining selections. Removing
@@ -407,25 +406,39 @@ struct ConsoleView: View {
         .focusedSceneValue(\.consoleCommandTarget, commandTarget)
     }
 
-    /// The TabView's selection: Search on top of the remembered list tab.
+    /// The TabView's selection: Waiting or Progress on top of the
+    /// remembered list tab. Every way in lands here, so Hosts, Settings and
+    /// Usage, which are no longer tabs, turn into what replaced them.
     private var selectedTab: Binding<ConsoleTab> {
         Binding(
-            get: {
-                if isHostsTabSelected { return .hosts }
-                if isSettingsTabSelected { return .settings }
-                if isUsageTabSelected { return .usage }
-                return shownListTab
-            },
+            get: { pageTab ?? shownListTab },
             set: { requested in
-                // Usage turned off behind a screen that opened from it.
-                let tab = requested == .usage && !console.isUsageEnabled ? shownListTab : requested
+                switch requested {
+                case .hosts:
+                    isShowingHostsSheet = true
+                    return
+                case .settings:
+                    isShowingSettingsSheet = true
+                    return
+                case .usage:
+                    // Usage turned off behind a screen that opened from it.
+                    if console.isUsageEnabled { showUsage() }
+                    return
+                case .agents, .waiting, .progress, .terminals:
+                    break
+                }
+                // Beside a sidebar Progress is a sheet and Waiting the
+                // sidebar's own section.
+                if usesSidebarNavigation, !requested.isList {
+                    if requested == .progress { isShowingProgressSheet = true }
+                    return
+                }
+                let tab = requested
                 let leavingList = shownListTab
                 // A search field keeping first responder through the switch
                 // can leave the arriving tab blank; its query stays.
                 if tab != currentTab { focusedSearch = nil }
-                isHostsTabSelected = tab == .hosts
-                isSettingsTabSelected = tab == .settings
-                isUsageTabSelected = tab == .usage
+                pageTab = tab.isList ? nil : tab
                 guard tab.isList else { return }
                 if tab != leavingList, horizontalSizeClass == .regular {
                     swapListSelection(from: leavingList, to: tab)
@@ -436,33 +449,27 @@ struct ConsoleView: View {
 
     private var currentTab: ConsoleTab { selectedTab.wrappedValue }
 
-    /// The TabView's own selection. Beside an iPad's sidebar both lists
-    /// share the Agents tab's split view, so switching lists keeps one
-    /// sidebar and its bar rather than swapping in another tab's.
+    /// The TabView's own selection. Beside a sidebar both lists share the
+    /// Projects tab's split view, so switching lists keeps one sidebar and
+    /// its bar rather than swapping in another tab's; there is no tab bar
+    /// to pick anything else from.
     private var tabViewSelection: Binding<ConsoleTab> {
         Binding(
-            get: {
-                let tab = currentTab
-                return usesSidebarNavigation && tab.isList ? .agents : tab
-            },
+            get: { usesSidebarNavigation ? .agents : currentTab },
             set: { tab in
-                guard !(usesSidebarNavigation && tab.isList) else { return }
+                guard !usesSidebarNavigation else { return }
                 selectedTab.wrappedValue = tab
             })
     }
 
-    /// An iPad beside its sidebar navigates from the sidebar instead of a
-    /// tab bar. An iPhone, and an iPad window too narrow for a sidebar, keep
-    /// the tab bar.
+    /// Regular width, an iPad or an unfolded iPhone Duo alike, navigates
+    /// from a sidebar instead of a tab bar; compact width keeps the bar.
     private var usesSidebarNavigation: Bool {
-        horizontalSizeClass == .regular && UIDevice.current.userInterfaceIdiom == .pad
+        horizontalSizeClass == .regular
     }
 
-    /// Hosts, as a tab or a sheet. HostListView brings its own
-    /// NavigationStack.
-    private func hostList(
-        origin: HostListOrigin? = nil, onDone: (@MainActor () -> Void)? = nil
-    ) -> some View {
+    /// Hosts, as a sheet. HostListView brings its own NavigationStack.
+    private func hostList(onDone: (@MainActor () -> Void)? = nil) -> some View {
         HostListView(
             store: hosts,
             initialHostID: hostsTabRequest?.hostID,
@@ -480,13 +487,11 @@ struct ConsoleView: View {
             manualReconnectInFlightHostIDs: manualReconnectInFlightHostIDs,
             retryConnection: { await reconnectHost($0) },
             stopConnecting: { await console.cancelHostConnection($0) },
-            origin: origin,
             onDone: onDone)
         .id(hostsTabRequest?.id)
     }
 
-    /// Settings, as a tab or a sheet. SettingsView brings its own
-    /// NavigationStack.
+    /// Settings, as a sheet. SettingsView brings its own NavigationStack.
     private func settingsView(onDone: (@MainActor () -> Void)? = nil) -> some View {
         SettingsView(
             terminal: terminal,
@@ -512,121 +517,147 @@ struct ConsoleView: View {
         }
     }
 
-    /// The lists an iPad sidebar's title menu switches between.
-    private var shownSidebarLists: [ConsoleTab] {
-        console.isUsageEnabled ? [.agents, .terminals, .usage] : [.agents, .terminals]
-    }
+    /// The lists a sidebar's title menu switches between.
+    private var shownSidebarLists: [ConsoleTab] { [.agents, .terminals] }
 
-    /// Every Host the Usage tab can read, in catalog order.
+    /// Every Host the Usage page can read, in catalog order.
     private var usageEntries: [AgentUsageHostEntry] {
         hosts.consoleHosts.map(console.agentUsageEntry(for:))
     }
 
-    /// Usage, as a tab; beside an iPad's sidebar, its own split view whose
-    /// sidebar lists the Hosts and whose title switches back to the lists.
-    private func usageTab() -> some View {
-        usageTabContent()
-            .environment(\.hostAccounts, HostAccountsProvider { [console] in console.hostAccountsStore(for: $0) })
+    /// Blocked Agents on every Host: the Waiting tab's badge.
+    private var arcBlockedCount: Int {
+        ArcWaitingList.entries(arcAllGroups, status: .blocked).count
     }
 
+    /// The Waiting tab. Beside a sidebar there is no tab bar: the sidebar's
+    /// list shows what waits.
     @ViewBuilder
-    private func usageTabContent() -> some View {
+    private var waitingTab: some View {
         if usesSidebarNavigation {
-            NavigationSplitView {
-                AgentUsageSidebar(entries: usageEntries, scopeHostID: $usageScopeHostID, metric: usageMetric)
-                    .navigationTitle(ConsoleTab.usage.title)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            SidebarListMenu(
-                                shown: .usage, lists: shownSidebarLists,
-                                isPresented: $isShowingUsageListMenu, frame: $usageListMenuTitleFrame)
-                        }
-                        .toolbarItemBackground(.hidden)
-                    }
-                    .toolbar(removing: .title)
-                    .toolbar(removing: .sidebarToggle)
-                    .bottomBar { usageSidebarFooter }
-                    .overlay {
-                        GeometryReader { proxy in
-                            let anchor = SidebarListMenu.anchor(
-                                under: usageListMenuTitleFrame, in: proxy.frame(in: .global))
-                            Color.clear
-                                .frame(width: 1, height: 1)
-                                .popover(isPresented: $isShowingUsageListMenu, arrowEdge: .top) {
-                                    SidebarListChoices(
-                                        shown: .usage, lists: shownSidebarLists,
-                                        isPresented: $isShowingUsageListMenu,
-                                        select: { selectedTab.wrappedValue = $0 })
-                                }
-                                .position(anchor)
-                        }
-                        .ignoresSafeArea(.container, edges: .top)
-                        .allowsHitTesting(false)
-                    }
-            } detail: {
-                NavigationStack {
-                    AgentUsageDashboard(
-                        entries: usageEntries, scopeHostID: $usageScopeHostID, metric: $usageMetric,
-                        showsLimits: $usageShowsLimits, limitsRequested: $usageLimitsRequested,
-                        allowsColumns: true)
-                        .navigationTitle(
-                            usageScopeHostID.flatMap { id in hosts.consoleHosts.first { $0.id == id }?.displayName }
-                                ?? String(localized: "All Hosts"))
-                        .toolbarTitleDisplayMode(.inlineLarge)
-                }
-            }
-            .background {
-                ConsoleTabBarBridge(chromeScheme: nil, hidesBar: true, request: tabBarRequest)
-            }
-            .toolbarVisibility(.hidden, for: .tabBar)
+            // As the Terminals tab: still asking for the bar hidden.
+            Color.clear.toolbarVisibility(.hidden, for: .tabBar)
         } else {
-            AgentUsageTabView(
+            waitingPage
+        }
+    }
+
+    /// The Progress tab. Beside a sidebar the sidebar's toolbar presents
+    /// Progress as a sheet instead.
+    @ViewBuilder
+    private var progressTab: some View {
+        if usesSidebarNavigation {
+            Color.clear.toolbarVisibility(.hidden, for: .tabBar)
+        } else {
+            NavigationStack(path: $progressPath) {
+                progressPage { openProject($0) }
+            }
+        }
+    }
+
+    /// Every Host's Blocked conversations, then its Done ones. A row opens
+    /// its Agent as the lists do.
+    private var waitingPage: some View {
+        let groups = arcAllGroups
+        return NavigationStack {
+            ArcWaitingPage(
+                blocked: ArcWaitingList.entries(groups, status: .blocked),
+                done: ArcWaitingList.entries(groups, status: .done),
+                agentTitle: { arcAgentTitle($0) },
+                onSelect: { id in
+                    selectedTab.wrappedValue = .agents
+                    selectAgent(id)
+                })
+        }
+    }
+
+    /// The Progress page, in its tab or its sheet; `onSelect` opens a
+    /// project.
+    private func progressPage(
+        onSelect: @escaping (ConsoleWorkspaceSection.ID) -> Void
+    ) -> some View {
+        ArcProgressPage(
+            rows: ArcProgressRow.rows(arcAllGroups) { arcAgentTitle($0) },
+            showsUsage: console.isUsageEnabled,
+            onSelect: onSelect
+        ) {
+            AgentUsageDashboard(
                 entries: usageEntries, scopeHostID: $usageScopeHostID, metric: $usageMetric,
                 limitsRequested: $usageLimitsRequested)
+                .navigationTitle(ConsoleTab.usage.title)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        AgentUsageScopeMenu(entries: usageEntries, scopeHostID: $usageScopeHostID)
+                    }
+                }
+                .environment(\.hostAccounts, HostAccountsProvider { [console] in console.hostAccountsStore(for: $0) })
         }
     }
 
-    /// The Usage sidebar's foot: Hosts and Settings, as the lists' foot has.
-    private var usageSidebarFooter: some View {
-        HStack(spacing: 4) {
-            Button(ConsoleTab.hosts.title, systemImage: "server.rack") { showHosts() }
-            Button(ConsoleTab.settings.title, systemImage: "gearshape") { showSettings() }
-            Spacer(minLength: 0)
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(SidebarIconButtonStyle())
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+    /// An Agent's title as its list row heads it, beside a project the row
+    /// names apart.
+    private func arcAgentTitle(_ agent: ConsoleAgent) -> String {
+        AgentCardPresentation(
+            agent: agent, layout: console.rowLayout(for: agent.hostID), hiding: [.workspace],
+            leadsWithMark: true
+        ).switcherTitle
     }
 
-    /// The Host detail's way into Usage: the tab, on that Host.
+    /// A project picked on Progress: the Projects tab, on that project.
+    private func openProject(_ id: ConsoleWorkspaceSection.ID) {
+        // A Host filter hiding the project would leave the pick unseen.
+        if !hostFilter.isEmpty, !hostFilter.contains(id.hostID) { hostFilter = [] }
+        arcSelect(id)
+        selectedTab.wrappedValue = .agents
+    }
+
+    /// Usage, on Progress: pushed on the tab's stack, or on the sheet's
+    /// beside a sidebar.
+    private func showUsage() {
+        if usesSidebarNavigation {
+            progressSheetPath = [.usage]
+            if isShowingHostsSheet || isShowingSettingsSheet {
+                opensProgressSheetAfterDismiss = true
+            } else {
+                isShowingProgressSheet = true
+            }
+        } else {
+            progressPath = [.usage]
+            selectedTab.wrappedValue = .progress
+        }
+        isShowingHostsSheet = false
+        isShowingSettingsSheet = false
+    }
+
+    private func openProgressSheetIfAsked() {
+        guard opensProgressSheetAfterDismiss else { return }
+        opensProgressSheetAfterDismiss = false
+        isShowingProgressSheet = true
+    }
+
+    /// The Host detail's way into Usage, on that Host.
     private func openUsage(for hostID: Host.ID) {
         usageScopeHostID = hostID
-        isShowingHostsSheet = false
         selectedTab.wrappedValue = .usage
     }
 
-    /// A Usage widget's tap: the tab on the widget's scope, and for Usage
+    /// A Usage widget's tap: Usage on the widget's scope, and for Usage
     /// Limits, that Host's limits. A Host since removed opens All Hosts.
     private func openUsage(_ link: UsageWidgetLink.Target) {
         guard console.isUsageEnabled else { return }
         let hostID = link.hostID.flatMap { id in hosts.consoleHosts.contains { $0.id == id } ? id : nil }
         usageScopeHostID = hostID
-        isShowingHostsSheet = false
-        isShowingSettingsSheet = false
         selectedTab.wrappedValue = .usage
         usageLimitsRequested = link.showsLimits && hostID != nil
     }
 
     /// Usage turned off, from this window or another: nothing of it stays
-    /// selected or asked for, so turning it back on opens where it first did.
+    /// on screen or asked for, so turning it back on opens where it first did.
     private func leaveUsage() {
-        if isUsageTabSelected { selectedTab.wrappedValue = shownListTab }
+        progressPath.removeAll { $0 == .usage }
+        progressSheetPath.removeAll { $0 == .usage }
         usageScopeHostID = nil
-        usageShowsLimits = false
         usageLimitsRequested = false
-        isShowingUsageListMenu = false
     }
 
     private func switchList(to tab: ConsoleTab) {
@@ -637,25 +668,14 @@ struct ConsoleView: View {
             .keepSidebar(from: leaving)
     }
 
-    private func showHosts() {
-        if usesSidebarNavigation {
-            isShowingHostsSheet = true
-        } else {
-            selectedTab.wrappedValue = .hosts
-        }
-    }
+    private func showHosts() { selectedTab.wrappedValue = .hosts }
 
-    private func showSettings() {
-        if usesSidebarNavigation {
-            isShowingSettingsSheet = true
-        } else {
-            selectedTab.wrappedValue = .settings
-        }
-    }
+    private func showSettings() { selectedTab.wrappedValue = .settings }
 
-    /// The list tab on screen, or under Hosts or Settings.
+    /// The list tab on screen, or under Waiting or Progress. A tab saved
+    /// before Hosts, Settings and Usage left the bar lands on Projects.
     private var shownListTab: ConsoleTab {
-        listTab ?? ConsoleTab(rawValue: sceneListTab) ?? lastListTab
+        listTab ?? ConsoleTab(saved: sceneListTab.isEmpty ? lastListTab.rawValue : sceneListTab)
     }
 
     private func pinListTab(_ tab: ConsoleTab) {
@@ -679,23 +699,13 @@ struct ConsoleView: View {
     /// the new-agent flow's, which dismisses itself first, so clearing here
     /// is a no-op for it.
     private func bringAgentForward(parking parked: ParkedSelection?) {
-        // Hosts and Settings tabs present their own sheets, which cover the
-        // tab bar: one up now is theirs. Rebuilding the tab takes it down,
-        // as closing them does where they are sheets.
-        let ownsPresentation = startAgentRequest != nil || isStartingTerminal
-            || connectionDetailRequest != nil || isShowingHostIssues
-            || isShowingHostsSheet || isShowingSettingsSheet
-        if isPresentingOverConsole, !ownsPresentation {
-            if isHostsTabSelected { hostsTabGeneration += 1 }
-            if isSettingsTabSelected { settingsTabGeneration += 1 }
-        }
         showAgentsList(parking: parked)
         selectedTerminal = nil
-        // Hosts and Settings have no detail column; the Agent shows on its
+        // Waiting and Progress have no detail column; the Agent shows on its
         // list tab.
-        isHostsTabSelected = false
-        isSettingsTabSelected = false
-        isUsageTabSelected = false
+        pageTab = nil
+        isShowingProgressSheet = false
+        opensProgressSheetAfterDismiss = false
         startAgentRequest = nil
         isStartingTerminal = false
         connectionDetailRequest = nil
@@ -850,8 +860,6 @@ struct ConsoleView: View {
                     .bottomBar {
                         if usesSidebarNavigation {
                             sidebarFooter(for: tab)
-                        } else if horizontalSizeClass == .regular {
-                            wideSidebarListMenus(for: tab)
                         }
                     }
                     // iPadOS 27 draws the system's button on its own glass;
@@ -1017,8 +1025,8 @@ struct ConsoleView: View {
                     focus: $focusedSearch, tab: .terminals,
                     prompt: "Search Terminals", showsField: !usesSidebarNavigation))
             }
-        case .usage, .hosts, .settings:
-            // These tabs show their own screens, not a split view.
+        case .waiting, .progress, .usage, .hosts, .settings:
+            // These show their own screens, not a split view.
             EmptyView()
         }
     }
@@ -1136,16 +1144,27 @@ struct ConsoleView: View {
             }
             .toolbarItemBackground(.hidden)
         }
-        // A sidebar keeps its list menus at its foot. A wide iPhone's sidebar
-        // does too, on its trailing edge (`wideSidebarListMenus`), so its bar
-        // keeps only the title. Compact width keeps them in the bar.
-        if !usesSidebarNavigation, horizontalSizeClass != .regular,
-           offersFilters(for: tab), !foldsListFilters {
+        // Without a tab bar to hold them, Projects keeps Hosts and Settings
+        // in its own bar; a sidebar has them at its foot.
+        if !usesSidebarNavigation, tab == .agents {
+            ToolbarItem(placement: .topBarLeading) {
+                HStack(spacing: 0) {
+                    Button(ConsoleTab.hosts.title, systemImage: ConsoleTab.hosts.systemImage) { showHosts() }
+                    Button(ConsoleTab.settings.title, systemImage: ConsoleTab.settings.systemImage) {
+                        showSettings()
+                    }
+                }
+                .hoverEffect(.highlight)
+            }
+        }
+        // A sidebar keeps its list menus at its foot; compact width keeps
+        // them in the bar.
+        if !usesSidebarNavigation, offersFilters(for: tab), !foldsListFilters {
             ToolbarItem(placement: .primaryAction) {
                 filterButton(for: tab).hoverEffect(.highlight)
             }
         }
-        if !usesSidebarNavigation, horizontalSizeClass != .regular, !hosts.consoleHosts.isEmpty {
+        if !usesSidebarNavigation, !hosts.consoleHosts.isEmpty {
             ToolbarItem(placement: .primaryAction) {
                 presentationMenu(for: tab).hoverEffect(.highlight)
             }
@@ -1157,6 +1176,10 @@ struct ConsoleView: View {
             // only this way.
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 0) {
+                    // No tab bar beside a sidebar: Progress opens as a sheet.
+                    Button(ConsoleTab.progress.title, systemImage: ConsoleTab.progress.systemImage) {
+                        isShowingProgressSheet = true
+                    }
                     if !hosts.consoleHosts.isEmpty { newItemButton(for: tab) }
                     Button("Hide Sidebar", systemImage: "sidebar.left") {
                         withAnimation(reduceMotion ? nil : .snappy) {
@@ -1168,31 +1191,11 @@ struct ConsoleView: View {
                 .buttonStyle(SidebarIconButtonStyle())
             }
             .toolbarItemBackground(.hidden)
-        } else if horizontalSizeClass != .regular, !hosts.consoleHosts.isEmpty {
+        } else if !hosts.consoleHosts.isEmpty {
             ToolbarItem(placement: .primaryAction) {
                 newItemButton(for: tab).hoverEffect(.highlight)
             }
         }
-    }
-
-    /// A wide iPhone's list menus and new-item button, at the sidebar's foot
-    /// on its trailing edge: out of the title's way, and within reach.
-    private func wideSidebarListMenus(for tab: ConsoleTab) -> some View {
-        HStack(spacing: 4) {
-            Spacer(minLength: 0)
-            if offersFilters(for: tab), !foldsListFilters {
-                filterButton(for: tab).roundPointerHighlight()
-            }
-            if !hosts.consoleHosts.isEmpty {
-                presentationMenu(for: tab).roundPointerHighlight()
-                newItemButton(for: tab)
-            }
-        }
-        .labelStyle(.iconOnly)
-        .buttonStyle(SidebarIconButtonStyle())
-        .menuStyle(.button)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
     }
 
     /// One button for both lists, so a sidebar switching lists keeps its
@@ -2377,6 +2380,14 @@ struct ConsoleView: View {
             hosts: scoped, agents: filteredAgents, workspacesByHost: console.workspacesByHost)
     }
 
+    /// Every Host's projects, past the list's filters and search: what
+    /// Waiting and Progress read.
+    private var arcAllGroups: [ArcProjectGroup] {
+        ArcProjectGroup.groups(
+            hosts: hosts.consoleHosts, agents: console.chatDisplayAgents,
+            workspacesByHost: console.workspacesByHost)
+    }
+
     /// The selected project's identity, read back from the saved key or, the
     /// first time, the first project with Agents.
     private var arcSelectedProjectID: ConsoleWorkspaceSection.ID? {
@@ -2528,9 +2539,6 @@ struct ConsoleView: View {
         var showsSetupGuide = false
         /// Opens the Host's Host Helper sheet over its page.
         var opensHostHelper = false
-        /// The tab the Host was opened from; its back button returns there.
-        /// Nil when opened from the Hosts tab itself.
-        let origin: ConsoleTab?
     }
 
     /// One actionable status per Host. A disconnected session takes priority;
@@ -2622,15 +2630,11 @@ struct ConsoleView: View {
         }
     }
 
-    /// Opens Hosts, on one Host's detail when `id` is given, with its Host
-    /// Helper sheet up when asked. A sheet closes back where it was opened,
-    /// so only the tab names its origin.
+    /// Opens the Hosts sheet, on one Host's detail when `id` is given, with
+    /// its Host Helper sheet up when asked.
     private func presentHosts(_ id: Host.ID? = nil, opensHostHelper: Bool = false) {
         if let id {
-            hostsTabRequest = HostsTabRequest(
-                hostID: id,
-                opensHostHelper: opensHostHelper,
-                origin: usesSidebarNavigation || currentTab == .hosts ? nil : currentTab)
+            hostsTabRequest = HostsTabRequest(hostID: id, opensHostHelper: opensHostHelper)
         }
         showHosts()
     }
@@ -2638,7 +2642,7 @@ struct ConsoleView: View {
     /// Hosts with the Setup Guide over it, so the guide's Scan to Pair and
     /// Add Manually run where every new Host is added.
     private func presentHostSetupGuide() {
-        hostsTabRequest = HostsTabRequest(showsSetupGuide: true, origin: nil)
+        hostsTabRequest = HostsTabRequest(showsSetupGuide: true)
         showHosts()
     }
 
@@ -2844,7 +2848,7 @@ private struct SidebarListMenu: View {
                 // gives way to one over the bar item's whole frame.
                 .contentShape(.hoverEffect, Capsule().inset(by: 4))
                 .hoverEffect(.highlight)
-                .accessibilityHint("Switches between Agents, Terminals and Usage")
+                .accessibilityHint("Switches between Projects and Terminals")
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
                     frame = $0
                 }
@@ -2873,7 +2877,7 @@ private struct SidebarListChoices: View {
                                 .font(.body.weight(.semibold))
                                 .opacity(list == shown ? 1 : 0)
                                 .accessibilityHidden(true)
-                            Image(systemName: Self.symbol(for: list))
+                            Image(systemName: list.systemImage)
                                 .frame(width: 24)
                                 .accessibilityHidden(true)
                             Text(list.title)
@@ -2892,14 +2896,6 @@ private struct SidebarListChoices: View {
         .padding(.vertical, 6)
         .frame(width: 220)
         .presentationCompactAdaptation(.popover)
-    }
-
-    private static func symbol(for list: ConsoleTab) -> String {
-        switch list {
-        case .terminals: "terminal"
-        case .usage: "chart.bar.xaxis"
-        default: "sparkles"
-        }
     }
 }
 

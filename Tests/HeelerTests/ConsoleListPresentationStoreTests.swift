@@ -620,6 +620,20 @@ struct ConsoleListPresentationStoreTests {
         #expect(ConsoleListPresentationStore(defaults: defaults).mode == .flat)
     }
 
+    @Test func savedModeMovesToArcOnceThenStaysTheUsers() throws {
+        let (defaults, cleanup) = try makeDefaults()
+        defer { cleanup() }
+        // An install from before the arc list, By Workspace saved.
+        defaults.set("byWorkspace", forKey: "console-list.presentation-mode")
+
+        let store = ConsoleListPresentationStore(defaults: defaults)
+        #expect(store.mode == .arc)
+        #expect(defaults.bool(forKey: "console-list.arc-default-applied"))
+
+        store.select(.byWorkspace)
+        #expect(ConsoleListPresentationStore(defaults: defaults).mode == .byWorkspace)
+    }
+
     @Test func collapsedStatePersistsAndIsIsolatedPerHost() throws {
         let (defaults, cleanup) = try makeDefaults()
         defer { cleanup() }

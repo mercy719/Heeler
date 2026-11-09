@@ -1,12 +1,17 @@
 import Foundation
 import Observation
 
-/// The Console's bottom tabs (#316). Hosts is Host management, the screen
-/// the toolbar's Hosts button used to present, and Settings the sheet its
-/// gear used to. Agents and Terminals each search their own list.
+/// The Console's bottom tabs (#316): the project lists, the conversations
+/// that wait on the user, progress, and the shell Terminals. Hosts and
+/// Settings are sheets the project list's toolbar presents; Usage is a page
+/// of Progress.
 enum ConsoleTab: String, CaseIterable, Identifiable, Sendable {
     case agents
+    case waiting
+    case progress
     case terminals
+    /// Kept for a saved tab and for the links that named Hosts before the
+    /// tab existed: the Console opens its sheet instead of a tab.
     case usage
     case hosts
     case settings
@@ -15,7 +20,10 @@ enum ConsoleTab: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .agents: String(localized: "Agents")
+        case .agents: String(localized: "Projects")
+        case .waiting:
+            String(localized: "Waiting tab", defaultValue: "Waiting", comment: "Tab of the conversations waiting on the user")
+        case .progress: String(localized: "Progress")
         case .terminals: String(localized: "Terminals")
         case .usage: String(localized: "Usage")
         case .hosts: String(localized: "Hosts")
@@ -23,9 +31,37 @@ enum ConsoleTab: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Agents and Terminals are the lists the Console reopens on; Usage,
-    /// Hosts and Settings sit on top of the remembered one.
+    /// The tab bar's symbol, and the sidebar's.
+    var systemImage: String {
+        switch self {
+        case .agents: "square.grid.2x2"
+        case .waiting: "hand.raised"
+        case .progress: "chart.bar"
+        case .terminals: "terminal"
+        case .usage: "chart.bar.xaxis"
+        case .hosts: "server.rack"
+        case .settings: "gearshape"
+        }
+    }
+
+    /// The lists the Console reopens on. Waiting and Progress are their own
+    /// screens, and Hosts, Settings and Usage show no list at all.
     var isList: Bool { self == .agents || self == .terminals }
+
+    /// The tabs the bar offers, in its order. Usage, Hosts and Settings are
+    /// no longer tabs; see `ConsoleView`.
+    static let bar: [Self] = [.agents, .waiting, .progress, .terminals]
+
+    /// The list tab a window restores. A saved list keeps it; anything
+    /// else, such as Hosts, Settings or Usage from before they left the
+    /// bar, lands on the project list, which presents those itself.
+    init(saved rawValue: String) {
+        if let tab = Self(rawValue: rawValue), tab.isList {
+            self = tab
+        } else {
+            self = .agents
+        }
+    }
 }
 
 /// The Terminals tab's two groupings. By Workspace flattens every Host's

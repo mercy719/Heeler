@@ -520,6 +520,9 @@ final class ConsoleListPresentationStore {
     }
 
     private static let modeDefaultsKey = "console-list.presentation-mode"
+    /// Set once the list has moved an install to the arc presentation, so a
+    /// mode the user picks afterwards stays theirs.
+    private static let arcDefaultAppliedKey = "console-list.arc-default-applied"
     private static let collapsedHostsDefaultsKey = "console-list.collapsed-hosts"
     private static let collapsedWorkspacesDefaultsKey = "console-list.collapsed-workspaces"
     private static let statusFilterDefaultsKey = "console-list.status-filter"
@@ -545,6 +548,12 @@ final class ConsoleListPresentationStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // An install that saved another mode before the arc list existed
+        // moves to it once.
+        if !defaults.bool(forKey: Self.arcDefaultAppliedKey) {
+            defaults.set(ConsoleListPresentationMode.arc.rawValue, forKey: Self.modeDefaultsKey)
+            defaults.set(true, forKey: Self.arcDefaultAppliedKey)
+        }
         mode =
             defaults.string(forKey: Self.modeDefaultsKey)
             .flatMap(ConsoleListPresentationMode.init(rawValue:)) ?? .arc

@@ -111,6 +111,23 @@ private struct AgentKindMarkImage: View {
     }
 }
 
+/// The program's mark on a small disc, without a status ring: a badge's
+/// corner on the Waiting page.
+struct AgentKindMarkView: View {
+    let kind: String
+    let diameter: CGFloat
+
+    var body: some View {
+        AgentKindMarkImage(
+            mark: AgentKindMark(kind: kind), size: (diameter * 0.68).rounded(),
+            monogramSize: diameter / 2)
+            .frame(width: diameter, height: diameter)
+            .background(Color(uiColor: .secondarySystemBackground), in: Circle())
+            .overlay(Circle().strokeBorder(Color(uiColor: .separator), lineWidth: 0.5))
+            .accessibilityHidden(true)
+    }
+}
+
 /// An Agents list row's lead: the mark on a disc, inside a ring that is the
 /// Agent's status. Working's ring is an open arc that turns; Done, Blocked and
 /// Error close it in their colors, and Blocked's and Error's break into dashes
