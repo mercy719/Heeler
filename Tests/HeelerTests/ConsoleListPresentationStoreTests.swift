@@ -606,12 +606,12 @@ struct ConsoleListPresentationStoreTests {
         #expect(store.workspaceSections(hosts: [host], agents: [unnamed]).first?.title == "Unknown Workspace")
     }
 
-    @Test func presentationModeDefaultsToFlatAndPersists() throws {
+    @Test func presentationModeDefaultsToArcAndPersists() throws {
         let (defaults, cleanup) = try makeDefaults()
         defer { cleanup() }
 
         let store = ConsoleListPresentationStore(defaults: defaults)
-        #expect(store.mode == .flat)
+        #expect(store.mode == .arc)
 
         store.select(.grouped)
         #expect(ConsoleListPresentationStore(defaults: defaults).mode == .grouped)

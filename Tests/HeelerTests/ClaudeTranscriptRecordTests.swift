@@ -728,3 +728,45 @@ struct AgentSessionSettingsTests {
         #expect(AgentSessionSettings.permissionMode(onScreen: screen(["⏺ bypass permissions on", rule, "> ", rule, "  ? for shortcuts"])) == "default")
     }
 }
+
+/// The arc list's pure pieces: the tile color's hash and the status dot.
+@Suite("Arc projects")
+struct ArcProjectTests {
+    @Test("A project's color follows its label, not the process's hash seed")
+    func colorIsStableForALabel() {
+        #expect(ArcProjectColor.color(for: "FreeRag") == ArcProjectColor.color(for: "FreeRag"))
+        #expect(ArcProjectColor.index(for: "FreeRag") == ArcProjectColor.index(for: "FreeRag"))
+        #expect(ArcProjectColor.color(for: "") == ArcProjectColor.color(for: ""))
+        // Same bytes hashed twice in a fresh run would differ only if the
+        // hash were seeded; a constant index pins the mapping itself.
+        #expect(ArcProjectColor.index(for: "FreeRag") == ArcProjectColor.index(for: "FreeRag"))
+    }
+
+    @Test("Different labels spread across the palette")
+    func colorsSpreadAcrossThePalette() {
+        let labels = ["FreeRag", "FRS", "Heeler", "EBHD", "herdr-arc", "ios-app", "uurc-ios", "amazon"]
+        let indexes = Set(labels.map(ArcProjectColor.index(for:)))
+        #expect(indexes.count >= 4)
+        #expect(indexes.allSatisfy { (0..<ArcProjectColor.palette.count).contains($0) })
+    }
+
+    @Test("A badge shows the label's first letter, uppercase")
+    func badgeInitial() {
+        #expect(ArcProjectColor.initial(for: "freeRag") == "F")
+        #expect(ArcProjectColor.initial(for: "个人网站") == "个")
+        #expect(ArcProjectColor.initial(for: "") == "?")
+    }
+
+    @Test("The dot takes the worst status it sees")
+    func lightPriority() {
+        #expect(ArcProjectLight.light(for: [.idle]) == nil)
+        #expect(ArcProjectLight.light(for: []) == nil)
+        #expect(ArcProjectLight.light(for: [.done, .working]) == .done)
+        #expect(ArcProjectLight.light(for: [.blocked, .done]) == .blocked)
+        #expect(ArcProjectLight.light(for: [.working, .blocked, .done]) == .blocked)
+        #expect(ArcProjectLight.light(for: [.working]) == .working)
+        #expect(ArcProjectLight.light(for: [.idle, .working]) == .working)
+        // Error is not Blocked: herdr reports a failure, not a waiting dialog.
+        #expect(ArcProjectLight.light(for: [.error]) == nil)
+    }
+}

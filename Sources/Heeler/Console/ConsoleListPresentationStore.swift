@@ -1,13 +1,14 @@
 import Foundation
 import Observation
 
-/// The Console Agent-list presentations. Flat remains the default so
-/// introducing grouped-list support does not change the existing surface
-/// until the UI explicitly selects it.
+/// The Console Agent-list presentations. Arc leads with a Host's projects,
+/// as herdr's arc does, and is what a fresh install shows; a stored choice
+/// from an earlier build still wins.
 enum ConsoleListPresentationMode: String, CaseIterable, Identifiable, Sendable {
     case flat
     case grouped
     case byWorkspace
+    case arc
 
     var id: Self { self }
 
@@ -17,6 +18,7 @@ enum ConsoleListPresentationMode: String, CaseIterable, Identifiable, Sendable {
         case .flat: String(localized: "All Agents")
         case .grouped: String(localized: "By Host")
         case .byWorkspace: String(localized: "By Workspace")
+        case .arc: String(localized: "Projects")
         }
     }
 
@@ -27,6 +29,7 @@ enum ConsoleListPresentationMode: String, CaseIterable, Identifiable, Sendable {
         case .flat: "list.bullet"
         case .grouped: "list.bullet.indent"
         case .byWorkspace: "rectangle.3.group"
+        case .arc: "square.grid.2x2"
         }
     }
 }
@@ -544,7 +547,7 @@ final class ConsoleListPresentationStore {
         self.defaults = defaults
         mode =
             defaults.string(forKey: Self.modeDefaultsKey)
-            .flatMap(ConsoleListPresentationMode.init(rawValue:)) ?? .flat
+            .flatMap(ConsoleListPresentationMode.init(rawValue:)) ?? .arc
         collapsedHostIDs = Set(
             (defaults.stringArray(forKey: Self.collapsedHostsDefaultsKey) ?? [])
                 .compactMap(UUID.init(uuidString:)))

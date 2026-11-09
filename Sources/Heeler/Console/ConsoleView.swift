@@ -142,6 +142,15 @@ struct ConsoleView: View {
     @State private var pendingSavedChatRemoval: ConsoleAgent?
     /// Owns presentation mode and Host/Workspace collapse state.
     @State private var listPresentation = ConsoleListPresentationStore()
+    /// The project the arc list shows, by Host and Workspace id; empty until
+    /// the list picks the first project that has Agents.
+    @AppStorage("console.arc.selected-project") private var arcSelectionKey = ""
+    /// Whether the arc list is falling back to the flat rows because a search
+    /// or a status filter is on.
+    private var arcIsNarrowed: Bool {
+        !agentSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !listPresentation.statusFilter.isEmpty
+    }
     /// Outlives the detail column's rebuilds, which is the whole point: it
     /// carries the raised keyboard from one Attach screen to the next.
     @State private var keyboardHandoff = TerminalKeyboardHandoff()
@@ -1699,9 +1708,13 @@ struct ConsoleView: View {
                 case .flat: flatAgentListRows
                 case .grouped: groupedAgentListRows
                 case .byWorkspace: workspaceAgentListRows
+                case .arc: arcAgentListRows
                 }
             }
-            .modifier(ConsoleAgentListStyle(showsCards: listPresentation.mode == .byWorkspace))
+            .modifier(
+                ConsoleAgentListStyle(
+                    showsCards: listPresentation.mode == .byWorkspace
+                        || listPresentation.mode == .arc))
             .modifier(ConsoleSidebarListTint())
             .searchDrawerStartsTucked()
         }
@@ -1741,6 +1754,91 @@ struct ConsoleView: View {
         let saved = console.savedChatEntries
         ForEach(filteredAgents) { @Sendable agent in
             MainActorContent { agentRow(agent, qualifier: qualifiers[agent.id], saved: saved[agent.id]) }
+        }
+    }
+
+    /// A search or a status filter keeps the arc list's own semantics out of
+    /// the way: the flat rows say exactly what the filter admits.
+    @ViewBuilder
+    private var arcAgentListRows: some View {
+        if arcIsNarrowed {
+            flatAgentListRows
+        } else {
+            arcProjectTileRows
+            arcSelectedProjectRows
+            arcWaitingRows
+        }
+    }
+
+    /// Every Host's projects as tiles, one row per Host so each keeps its
+    /// own grid.
+    @ViewBuilder
+    private var arcProjectTileRows: some View {
+        agentHostIssueRows
+        let groups = arcProjectGroups
+        let selection = arcSelectedProjectID
+        ForEach(groups) { @Sendable group in
+            MainActorContent {
+                ArcProjectTilesRow(
+                    group: group, showsHostName: groups.count > 1,
+                    selected: selection) { id in arcSelect(id) }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .selectionDisabled()
+            }
+        }
+    }
+
+    /// The selected project's card: its header and its Agents, as the other
+    /// presentations' rows.
+    @ViewBuilder
+    private var arcSelectedProjectRows: some View {
+        let qualifiers = agentTitleQualifiers
+        let saved = console.savedChatEntries
+        if let project = arcSelectedProject {
+            let color = ArcProjectColor.color(for: project.label)
+            Section {
+                if project.agents.isEmpty {
+                    ArcProjectEmptyRow {
+                        startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
+                    }
+                    .listRowBackground(color.opacity(0.13))
+                } else {
+                    ForEach(project.agents) { @Sendable agent in
+                        MainActorContent {
+                            // The card's header names the project already.
+                            agentRow(
+                                agent, qualifier: qualifiers[agent.id], saved: saved[agent.id],
+                                hiding: [.workspace]
+                            )
+                            .listRowBackground(color.opacity(0.13))
+                        }
+                    }
+                }
+            } header: {
+                ArcProjectHeader(label: project.label) {
+                    startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
+                }
+            }
+        }
+    }
+
+    /// The other projects' Blocked Agents, under a count of them.
+    @ViewBuilder
+    private var arcWaitingRows: some View {
+        let qualifiers = agentTitleQualifiers
+        let saved = console.savedChatEntries
+        let waiting = arcWaitingAgents
+        if !waiting.isEmpty {
+            Section {
+                ForEach(waiting) { @Sendable agent in
+                    MainActorContent {
+                        agentRow(agent, qualifier: qualifiers[agent.id], saved: saved[agent.id])
+                    }
+                }
+            } header: {
+                ArcWaitingHeader(count: waiting.count)
+            }
         }
     }
 
@@ -1991,7 +2089,11 @@ struct ConsoleView: View {
 
     /// An Agent's row in the plain lists: no rules between rows, and closer
     /// together than the list would set them, as their marks set them apart.
-    private func agentRow(_ agent: ConsoleAgent, qualifier: String?, saved: HostReadiness?) -> some View {
+    /// `hiding` drops fields an arc card's header already says.
+    private func agentRow(
+        _ agent: ConsoleAgent, qualifier: String?, saved: HostReadiness?,
+        hiding hiddenTokens: Set<AgentRowToken> = []
+    ) -> some View {
         agentLink(
             agent,
             isSaved: saved != nil,
@@ -2005,7 +2107,8 @@ struct ConsoleView: View {
                     hostID: agent.hostID, paneID: agent.agent.paneID),
                 changes: console.rowChanges.store(for: agent),
                 qualifier: qualifier,
-                saved: saved)
+                saved: saved,
+                hiddenTokens: hiddenTokens)
         } preview: {
             AgentCardView(
                 agent: agent,
@@ -2013,7 +2116,8 @@ struct ConsoleView: View {
                 isPinned: console.pins.isPinned(
                     hostID: agent.hostID, paneID: agent.agent.paneID),
                 qualifier: qualifier,
-                saved: saved)
+                saved: saved,
+                hiddenTokens: hiddenTokens)
         }
         .listRowSeparator(.hidden)
         .modifier(ListRowVerticalInsets(4))
@@ -2244,6 +2348,7 @@ struct ConsoleView: View {
             visibleIssueCount: visibleHostIssues.count,
             presentationMode: listPresentation.mode,
             projectedSectionCount: hostSections.count,
+            projectCount: arcProjectGroups.reduce(0) { $0 + $1.projects.count },
             searchQuery: agentSearchText,
             isStatusFiltered: !listPresentation.statusFilter.isEmpty)
     }
@@ -2263,12 +2368,67 @@ struct ConsoleView: View {
                 filteredHostIDs: hostFilter, searchQuery: agentSearchText))
     }
 
+    // MARK: Arc (Projects)
+
+    private var arcProjectGroups: [ArcProjectGroup] {
+        let scoped = hostFilter.isEmpty
+            ? hosts.consoleHosts : hosts.consoleHosts.filter { hostFilter.contains($0.id) }
+        return ArcProjectGroup.groups(
+            hosts: scoped, agents: filteredAgents, workspacesByHost: console.workspacesByHost)
+    }
+
+    /// The selected project's identity, read back from the saved key or, the
+    /// first time, the first project with Agents.
+    private var arcSelectedProjectID: ConsoleWorkspaceSection.ID? {
+        let projects = arcProjectGroups.flatMap(\.projects)
+        let saved = ConsoleWorkspaceSection.ID(arcSelectionKey)
+        if let saved, projects.contains(where: { $0.id == saved }) { return saved }
+        return projects.first { !$0.agents.isEmpty }?.id ?? projects.first?.id
+    }
+
+    private var arcSelectedProject: ArcProjectGroup.Project? {
+        guard let id = arcSelectedProjectID else { return nil }
+        return arcProjectGroups.lazy.flatMap(\.projects).first { $0.id == id }
+    }
+
+    private func arcSelect(_ id: ConsoleWorkspaceSection.ID) {
+        arcSelectionKey = id.storedText
+    }
+
+    /// The other projects' Blocked Agents: the ones the waiting section
+    /// lists, and nothing from the project on screen.
+    private var arcWaitingAgents: [ConsoleAgent] {
+        let selected = arcSelectedProjectID
+        return filteredAgents.filter {
+            $0.agent.status == .blocked
+                && ConsoleWorkspaceSection.ID(hostID: $0.hostID, workspaceID: $0.agent.workspaceID)
+                    != selected
+        }
+    }
+
+    /// Where a project's New Agent starts: its Workspace, in its first
+    /// Agent's directory, or the Workspace's own checkout when it has none.
+    private func arcNewAgentOrigin(
+        for project: ArcProjectGroup.Project
+    ) -> StartAgentStore.LaunchOrigin? {
+        guard console.capabilities(for: project.id.hostID).startsAgents else { return nil }
+        let workspace = console.workspaces(for: project.id.hostID)
+            .first { $0.id == project.id.workspaceID }
+        let asked = project.agents.first?.agent.cwd ?? workspace?.checkoutPath ?? ""
+        return StartAgentStore.LaunchOrigin(
+            hostID: project.id.hostID, workspaceID: project.id.workspaceID,
+            cwd: console.launchDirectory(
+                ofWorkspace: project.id.workspaceID, asked: asked, on: project.id.hostID))
+    }
+
     /// Where previous and next can land.
     private var visibleAgentIDs: [ConsoleAgent.ID] {
         switch listPresentation.mode {
         case .flat: filteredAgents.map(\.id)
         case .grouped: hostSections.filter { !$0.isCollapsed }.flatMap { $0.agents.map(\.id) }
         case .byWorkspace: workspaceCards.flatMap(\.visibleAgentIDs)
+        case .arc:
+            (arcSelectedProject?.agents.map(\.id) ?? []) + arcWaitingAgents.map(\.id)
         }
     }
 

@@ -3098,6 +3098,17 @@
         }
       }
     },
+    "%lld waiting on you" : {
+      "comment" : "Count of other projects' Blocked Agents, above their rows",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个对话在等你"
+          }
+        }
+      }
+    },
     "%lld working" : {
       "comment" : "Pill counting a Host's Agents by status.",
       "localizations" : {
@@ -24027,7 +24038,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无 Agent"
+            "value" : "没有 Agent"
           }
         }
       }
@@ -29383,6 +29394,16 @@
             "value" : "プロジェクト"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目"
+          }
+        }
+      }
+    },
+    "Projects" : {
+      "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",

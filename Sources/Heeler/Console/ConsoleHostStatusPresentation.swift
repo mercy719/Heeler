@@ -254,6 +254,7 @@ enum ConsoleAgentsSurface: Equatable {
         visibleIssueCount: Int,
         presentationMode: ConsoleListPresentationMode = .flat,
         projectedSectionCount: Int = 0,
+        projectCount: Int = 0,
         searchQuery: String = "",
         isStatusFiltered: Bool = false
     ) {
@@ -261,6 +262,10 @@ enum ConsoleAgentsSurface: Equatable {
             || isStatusFiltered
         if hostCount == 0 {
             self = .noHosts
+        } else if presentationMode == .arc && !isSearching {
+            // Arc leads with its project tiles, which stand for a project
+            // with no Agent as well; with no project at all it says so.
+            self = projectCount > 0 ? .rows : .noAgents
         } else if presentationMode == .grouped {
             if projectedSectionCount > 0 {
                 self = .rows
@@ -296,7 +301,7 @@ enum ConsoleHostIssuePlacement: Equatable {
 
     init(mode: ConsoleListPresentationMode) {
         switch mode {
-        case .flat, .byWorkspace: self = .flatIssueRows
+        case .flat, .byWorkspace, .arc: self = .flatIssueRows
         case .grouped: self = .sectionHeaders
         }
     }

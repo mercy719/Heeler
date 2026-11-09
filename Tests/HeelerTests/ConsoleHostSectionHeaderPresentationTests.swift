@@ -245,12 +245,15 @@ struct ConsoleListPresentationRoutingTests {
         #expect(ConsoleHostIssuePlacement(mode: .flat) == .flatIssueRows)
         #expect(ConsoleHostIssuePlacement(mode: .grouped) == .sectionHeaders)
         #expect(ConsoleHostIssuePlacement(mode: .byWorkspace) == .flatIssueRows)
+        #expect(ConsoleHostIssuePlacement(mode: .arc) == .flatIssueRows)
     }
 
     @Test func presentationModeTitlesAreStableForTheSwitcher() {
         #expect(ConsoleListPresentationMode.flat.title == "All Agents")
         #expect(ConsoleListPresentationMode.grouped.title == "By Host")
         #expect(ConsoleListPresentationMode.byWorkspace.title == "By Workspace")
+        #expect(ConsoleListPresentationMode.arc.title == "Projects")
+        #expect(ConsoleListPresentationMode.arc.systemImage == "square.grid.2x2")
     }
 
     @Test func readinessNamesTheInventoryItDescribes() {
