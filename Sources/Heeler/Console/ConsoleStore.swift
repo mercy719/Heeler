@@ -458,7 +458,7 @@ final class ConsoleStore {
         return { [weak self] request, handler in
             guard let runner = await self?.liveTerminalRunner(for: hostID) else {
                 throw TransportError.sshUnreachable(
-                    detail: "The Host is not connected.")
+                    detail: String(localized: "The Host is not connected."))
             }
             try await runner(request, handler.keeping(to: pin))
         }
@@ -505,7 +505,7 @@ final class ConsoleStore {
         { [weak self] image, reporter in
             guard let stager = await self?.projections[hostID]?.imageStager(beside: paneID, keepingTo: corePin) else {
                 throw TransportError.sshUnreachable(
-                    detail: "The Host is not connected.")
+                    detail: String(localized: "The Host is not connected."))
             }
             return try await stager(image, reporter)
         }
@@ -517,7 +517,7 @@ final class ConsoleStore {
         { [weak self] file, reporter in
             guard let stager = await self?.projections[hostID]?.fileStager(beside: paneID, keepingTo: corePin) else {
                 throw TransportError.sshUnreachable(
-                    detail: "The Host is not connected.")
+                    detail: String(localized: "The Host is not connected."))
             }
             return try await stager(file, reporter)
         }
@@ -535,7 +535,7 @@ final class ConsoleStore {
         { [weak self] range in
             guard let reader = await self?.liveSessionFileReader(for: hostID) else {
                 throw TransportError.sshUnreachable(
-                    detail: "The Host is not connected.")
+                    detail: String(localized: "The Host is not connected."))
             }
             return try await reader(range)
         }
@@ -551,7 +551,7 @@ final class ConsoleStore {
         { [weak self] selector in
             guard let resolver = await self?.liveModelContextWindowResolver(for: hostID) else {
                 throw TransportError.sshUnreachable(
-                    detail: "The Host is not connected.")
+                    detail: String(localized: "The Host is not connected."))
             }
             return try await resolver(selector)
         }
@@ -572,7 +572,7 @@ final class ConsoleStore {
     private func projection(for hostID: Host.ID) throws -> any ConsoleHostProjection {
         guard let projection = projections[hostID] else {
             throw TransportError.sshUnreachable(
-                detail: "The Host is not connected.")
+                detail: String(localized: "The Host is not connected."))
         }
         return projection
     }
@@ -730,7 +730,8 @@ final class ConsoleStore {
     /// Console connection rather than dialing a parallel connection or holding
     /// an RPC open for Agent completion.
     func promptAgent(_ params: AgentPromptParams, on hostID: Host.ID) async throws -> Agent {
-        try await projection(for: hostID).promptAgent(params)
+        try requireNoTitleRename(.init(hostID: hostID, paneID: params.target))
+        return try await projection(for: hostID).promptAgent(params)
     }
 
     /// The Agent's screen as herdr renders it now, colors kept
@@ -748,6 +749,7 @@ final class ConsoleStore {
     func sendAgentKeys(
         _ keys: [String], to paneID: String, on hostID: Host.ID, keepingTo corePin: TerminalCorePin? = nil
     ) async throws {
+        try requireNoTitleRename(.init(hostID: hostID, paneID: paneID))
         guard !hasLeftCore(corePin, on: hostID) else {
             throw HerdrCoreChatTyping.Refusal(message: TransportError.herdrCoreTerminalGone.presentation.message)
         }
@@ -758,6 +760,7 @@ final class ConsoleStore {
     /// Types one line of text into the Agent's pane (`pane.send_input`): a
     /// Blocked card's note or typed answer.
     func pasteIntoAgent(_ text: String, paneID: String, on hostID: Host.ID) async throws {
+        try requireNoTitleRename(.init(hostID: hostID, paneID: paneID))
         try requireReadyForInput(hostID)
         try await projection(for: hostID).pasteIntoAgent(text, paneID: paneID)
     }
@@ -767,9 +770,9 @@ final class ConsoleStore {
     private func requireReadyForInput(_ hostID: Host.ID) throws {
         guard isHostReadyForInput(hostID) else {
             if coreProjection(on: hostID) != nil {
-                throw HerdrCoreChatTyping.Refusal(message: "The Host is not ready.")
+                throw HerdrCoreChatTyping.Refusal(message: String(localized: "The Host is not ready."))
             }
-            throw TransportError.sshUnreachable(detail: "The Host is not ready.")
+            throw TransportError.sshUnreachable(detail: String(localized: "The Host is not ready."))
         }
     }
 
@@ -845,6 +848,25 @@ final class ConsoleStore {
 
     func composerStore(for agent: ConsoleAgent) -> AgentComposerStore {
         composerSession(for: agent).composer
+    }
+
+    /// The live process's opt-in, never a saved transcript or a terminal's launch command.
+    func claudePermissionLaunch(
+        for agent: ConsoleAgent, corePin: TerminalCorePin
+    ) async throws -> ClaudePermissionMode.Launch? {
+        let projection = try projection(for: agent.hostID)
+        if let core = projection as? HerdrCoreConsoleProjection {
+            guard !hasLeftCore(corePin, on: agent.hostID) else { return nil }
+            return try await core.claudePermissionLaunch(paneID: agent.agent.paneID)
+        }
+        let info = try await projection.processInfo(paneID: agent.agent.paneID)
+        guard let pid = ClaudePermissionMode.processID(in: info) else { return nil }
+        let facts = try await projection.withHostServices {
+            try await $0.readProcesses(ClaudePermissionMode.request(pid: pid))
+        }
+        let current = try await projection.processInfo(paneID: agent.agent.paneID)
+        guard ClaudePermissionMode.processID(in: current) == pid, let process = facts[pid] else { return nil }
+        return ClaudePermissionMode.Launch(pid: pid, facts: process)
     }
 
     /// The Agent's Chat (ADR 0024), made on first use and kept while the
@@ -978,7 +1000,7 @@ final class ConsoleStore {
             queryOpenCode: { [weak self] query in
                 guard let self else { throw TransportError.cancelled }
                 guard let queryOpenCode = try await liveChatHostFiles(for: hostID).queryOpenCode else {
-                    throw TransportError.hostFeatureUnavailable(feature: "Chat")
+                    throw TransportError.hostFeatureUnavailable(feature: String(localized: "Chat"))
                 }
                 return try await queryOpenCode(query)
             },
@@ -1257,8 +1279,7 @@ final class ConsoleStore {
     /// A close nobody answered may have happened, so it is left to the user to
     /// check, and nothing sends it again.
     static let closeUnconfirmedMessage =
-        "The Host did not confirm the close. The Terminal may already have ended, "
-        + "so check it before trying again."
+        String(localized: "The Host did not confirm the close. The Terminal may already have ended, so check it before trying again.")
 
     /// User-facing copy for a failed `tab.close`. `TransportError` is not a
     /// `LocalizedError`, so `localizedDescription` would read as an opaque
@@ -1266,19 +1287,20 @@ final class ConsoleStore {
     static func tabCloseFailureMessage(for error: any Error) -> String {
         switch error {
         case TransportError.sshUnreachable:
-            "The Host is not connected."
+            String(localized: "The Host is not connected.")
         case TransportError.timedOut:
-            "The Host did not answer in time."
+            String(localized: "The Host did not answer in time.")
         case TransportError.coreMutationOutcomeUnknown:
             closeUnconfirmedMessage
         case let refusal as HerdrCoreCloseRefusal:
-            "herdr-core rejected the close: \(refusal.message)"
+            String(localized: "herdr-core rejected the close: \(refusal.message)")
         case let apiError as HerdrAPIError:
-            "herdr rejected the close: \(apiError.message)"
+            String(localized: "herdr rejected the close: \(apiError.message)")
         case TransportError.apiRejected(_, let message):
-            "herdr rejected the close: \(message)"
+            String(localized: "herdr rejected the close: \(message)")
         default:
-            TransportError.herdrCoreLinkMessage(for: error) ?? "Closing failed: \(error)"
+            TransportError.herdrCoreLinkMessage(for: error)
+                ?? String(localized: "Closing failed: \(String(describing: error))")
         }
     }
 
@@ -1344,6 +1366,44 @@ final class ConsoleStore {
 
     private func shownAgents(on hostID: Host.ID) -> Set<String> {
         Set(agentViewers.values.lazy.filter { $0.agent.hostID == hostID }.map(\.agent.paneID))
+    }
+
+    private var titleRenamesInFlight: Set<ConsoleAgent.ID> = []
+
+    private func requireNoTitleRename(_ id: ConsoleAgent.ID) throws {
+        guard !titleRenamesInFlight.contains(id) else {
+            throw AgentTitleRenameError(message: String(localized: "Wait for the title rename to finish before sending input."))
+        }
+    }
+
+    func offersTitleRename(for agent: ConsoleAgent) -> Bool {
+        capabilities(for: agent.hostID).renameAgent && ChatProgram(rawValue: agent.agent.kind) != nil
+    }
+
+    func titleRenameStore(for agent: ConsoleAgent) -> AgentTitleRenameStore? {
+        guard offersTitleRename(for: agent), let program = ChatProgram(rawValue: agent.agent.kind),
+            let origin = try? projection(for: agent.hostID) else { return nil }
+        let generation = origin.transportGeneration
+        func connection() throws -> any ConsoleHostProjection {
+            try requireReadyForInput(agent.hostID)
+            let current = try projection(for: agent.hostID)
+            guard current === origin, current.transportGeneration == generation else {
+                throw AgentTitleRenameError(message: String(localized: "The Host connection changed. Reopen Rename."))
+            }
+            return current
+        }
+        return AgentTitleRenameStore(agent: agent.agent, program: program, io: AgentTitleRenameIO(
+            agent: { try await connection().agentInfo(paneID: agent.agent.paneID) },
+            screen: { try await connection().readAgentScreen(agent.agent.paneID) },
+            prompt: { text in
+                _ = try await connection().promptAgent(AgentPromptParams(
+                    target: agent.agent.paneID, text: text))
+            },
+            keys: { try await connection().sendAgentKeys($0, to: agent.agent.paneID) },
+            paste: { try await connection().pasteIntoAgent($0, paneID: agent.agent.paneID) },
+            refresh: { await origin.refreshSidebarMetadata() },
+            acquire: { self.titleRenamesInFlight.insert(agent.id).inserted },
+            release: { self.titleRenamesInFlight.remove(agent.id) }))
     }
 
     func renameAgent(
@@ -1889,12 +1949,12 @@ final class ConsoleStore {
 
     /// Replaces a detail's title while its Host is not ready for input.
     func connectionRecoveryTitle(for hostID: Host.ID) -> String? {
-        if hostsCheckingConnection.contains(hostID) { return "Connection slow…" }
+        if hostsCheckingConnection.contains(hostID) { return String(localized: "Connection slow…") }
         switch hostStatuses[hostID] {
         case .connecting, .reconnecting:
-            return "Reconnecting…"
+            return String(localized: "Reconnecting…")
         case .connected where hostsAwaitingFreshSnapshot.contains(hostID):
-            return "Updating session…"
+            return String(localized: "Updating session…")
         default:
             return nil
         }
@@ -2100,7 +2160,7 @@ final class ConsoleStore {
 
     private func grokBuildEdit(on hostID: Host.ID, process: Int?) async throws -> HarnessConfigEdit {
         guard let core = projections[hostID] as? HerdrCoreConsoleProjection else {
-            throw TransportError.hostFeatureUnavailable(feature: "Editing Host files")
+            throw TransportError.hostFeatureUnavailable(feature: String(localized: "Editing Host files"))
         }
         // Only an environment that was read can say `GROK_HOME` is unset. Taking an
         // unreadable one for unset would edit a file this Agent may not read.
@@ -2120,7 +2180,7 @@ final class ConsoleStore {
 
     private func openCodePluginEdit(paneID: String, on hostID: Host.ID) async throws -> HarnessConfigEdit {
         guard let core = projections[hostID] as? HerdrCoreConsoleProjection else {
-            throw TransportError.hostFeatureUnavailable(feature: "Editing Host files")
+            throw TransportError.hostFeatureUnavailable(feature: String(localized: "Editing Host files"))
         }
         // Only an environment that was read can say a variable is unset.
         guard let foreground = core.foreground(of: paneID), let process = foreground.pid else {

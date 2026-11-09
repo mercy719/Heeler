@@ -104,25 +104,25 @@ enum ChatImagePreviewError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unavailable: "Connect to the Host to preview this image."
-        case .invalidPath: "This image has no supported absolute path on the Host."
-        case .missing: "This image is no longer on the Host."
-        case .notFound(let path): "Nothing at \(path) on the Host."
-        case .tooLarge: "This image is too large to preview (20 MB maximum)."
-        case .invalidImage: "This file cannot be displayed as an image."
-        case .changed: "The image changed while loading. Try again."
+        case .unavailable: String(localized: "Connect to the Host to preview this image.")
+        case .invalidPath: String(localized: "This image has no supported absolute path on the Host.")
+        case .missing: String(localized: "This image is no longer on the Host.")
+        case .notFound(let path): String(localized: "Nothing at \(path) on the Host.")
+        case .tooLarge: String(localized: "This image is too large to preview (20 MB maximum).")
+        case .invalidImage: String(localized: "This file cannot be displayed as an image.")
+        case .changed: String(localized: "The image changed while loading. Try again.")
         }
     }
 
     /// The same, in the room a row's thumbnail has.
     var thumbnailMessage: String {
         switch self {
-        case .unavailable: "Connect to the Host to show this image"
-        case .missing: "No longer on the Host"
-        case .notFound: "Not on the Host"
-        case .tooLarge: "Too large to show (20 MB maximum)"
-        case .invalidPath, .invalidImage: "Can't show this file as an image"
-        case .changed: "Changed while loading"
+        case .unavailable: String(localized: "Connect to the Host to show this image")
+        case .missing: String(localized: "No longer on the Host")
+        case .notFound: String(localized: "Not on the Host")
+        case .tooLarge: String(localized: "Too large to show (20 MB maximum)")
+        case .invalidPath, .invalidImage: String(localized: "Can't show this file as an image")
+        case .changed: String(localized: "Changed while loading")
         }
     }
 }

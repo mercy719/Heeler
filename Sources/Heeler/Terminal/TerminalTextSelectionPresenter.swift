@@ -1,14 +1,7 @@
-import GhosttyTerminal
 import UIKit
 
 @MainActor
 enum TerminalTextSelectionPresenter {
-    static func present(_ request: TerminalTextSelectionRequest, from sourceView: UIView) {
-        present(
-            TerminalTextSelectionViewController(text: request.text, anchorRange: request.anchorRange),
-            from: sourceView)
-    }
-
     /// Chat's Select Text: the whole message in the reading font, selected.
     static func present(
         text: String, attributedText: NSAttributedString? = nil, font: UIFont,
@@ -66,7 +59,7 @@ final class TerminalTextSelectionViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Select Text"
+        title = String(localized: "Select Text")
         view.backgroundColor = .systemBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(
             barButtonSystemItem: .done,
@@ -105,16 +98,6 @@ final class TerminalTextSelectionViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         textView.scrollRangeToVisible(textView.selectedRange)
-    }
-
-    static func normalizedSelectionRange(_ range: NSRange?, textLength: Int) -> NSRange {
-        guard let range,
-            range.location <= textLength,
-            range.length <= textLength - range.location
-        else {
-            return NSRange(location: 0, length: textLength)
-        }
-        return range
     }
 
     @objc private func dismissSelection() {

@@ -9,7 +9,7 @@ struct AgentDetailStatusChrome: View {
     /// The Agent's Checkout, as a Tide git item and the totals its Agents
     /// list row shows.
     var changes: AgentDetailChanges? = nil
-    /// The conversation's model and permission mode, from Chat's transcript.
+    /// The conversation's permission mode, from Chat's transcript.
     var session: AgentSessionSettings? = nil
     var sessionControls: AgentSessionControls? = nil
     let chromeColorScheme: ColorScheme
@@ -28,7 +28,7 @@ struct AgentDetailStatusChrome: View {
         } ?? false
         // Only a line that shows the Checkout opens it.
         let open = showsGit || showsTotals ? changes?.open : nil
-        let showsSession = (session?.showsAnything ?? false) || (session != nil && sessionControls != nil)
+        let showsSession = session?.notablePermissionMode != nil || (session != nil && sessionControls != nil)
         // No spacing of its own, so a divider sits closer to its neighbours
         // than the line's spacing would put it: the rule already separates
         // them, and the branch needs the width.
@@ -50,7 +50,7 @@ struct AgentDetailStatusChrome: View {
             }
             if let session, showsSession {
                 // Short and fixed: the branch (priority -1) truncates instead.
-                AgentSessionSettingsLabel(settings: session, controls: sessionControls)
+                AgentPermissionModeLabel(settings: session, controls: sessionControls)
                 if showsGit { StatusLineDivider() }
             }
             // The Checkout's stretch, from the git item to the totals and
@@ -242,8 +242,6 @@ struct AgentSessionSettings: Equatable, Sendable {
         return permissionMode
     }
 
-    var showsAnything: Bool { (model?.isEmpty == false) || notablePermissionMode != nil }
-
     /// `claude-opus-5-5[1m]` → `Opus 5.5`, the way Claude Code's footer names it;
     /// a model outside that pattern keeps its id, and a model the Host's
     /// `modelPicker` lists keeps the name that lists it.
@@ -261,9 +259,12 @@ struct AgentSessionSettings: Equatable, Sendable {
         return family.prefix(1).uppercased() + family.dropFirst() + (version.isEmpty ? "" : " " + version)
     }
 
-    /// Short words the way Claude Code's own footer says them.
+    /// Short words the way Claude Code's own footer says them, kept in the
+    /// program's terms; only the placeholder for an unread mode is Heeler's.
     static func permissionTitle(_ mode: String) -> String {
         switch mode {
+        case "": String(localized: "Permission")
+        case "default": "manual"
         case "bypassPermissions": "bypass"
         case "acceptEdits": "accept edits"
         case "plan": "plan"
@@ -279,10 +280,14 @@ struct AgentSessionSettings: Equatable, Sendable {
 struct AgentSessionControls {
     /// Off while the Agent works: keys and `/model` would land in its turn.
     var isEnabled: Bool
+    /// Includes the preflight reads and waiting for terminal confirmation.
+    var isSwitchingPermissionMode = false
+    /// A launch opt-in or current live bypass, not a recorded transcript mode.
+    var allowsBypassPermissions = false
     var setPermissionMode: @MainActor (String) -> Void
     var setModel: @MainActor (String) -> Void
     var setEffort: @MainActor (String) -> Void
-    var setModelAndEffort: @MainActor (String, String) -> Void
+    var setModelAndEffort: @MainActor (String, String) -> Void = { _, _ in }
 }
 
 enum AgentModelGridAction: Equatable {
@@ -546,7 +551,7 @@ struct AgentModelGrid: View {
 
 extension AgentSessionSettings {
     /// The modes Shift+Tab cycles through, in Claude Code's order.
-    static let permissionChoices = ["default", "acceptEdits", "plan", "bypassPermissions"]
+    static let permissionChoices = ["default", "acceptEdits", "plan", "bypassPermissions", "auto"]
 
     /// Claude Code's model aliases, which each Host resolves to its own
     /// configured model. A Host's own `modelPicker` entries come beside these
@@ -555,6 +560,13 @@ extension AgentSessionSettings {
         ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"), ("fable", "Fable"),
     ]
 
+    /// A custom model ID does not prove which alias it maps to.
+    static func model(_ model: String?, is choice: String) -> Bool {
+        guard let model else { return false }
+        let title = modelTitle(model).lowercased()
+        return title == choice || title.hasPrefix(choice + " ")
+    }
+
     /// What the screen says to a typed `/model` or `/effort`: the first
     /// `done` or `kept` line below the newest echo of the command. Read
     /// against the echo rather than by counting confirmations, which a full
@@ -562,6 +574,7 @@ extension AgentSessionSettings {
     struct Outcome: Equatable {
         var echoes = 0
         var result: Bool?
+        var value: String?
 
         init(of command: String, done: String, kept: String, on screen: ANSIScreen) {
             let rows = screen.rows.map(\.text)
@@ -569,7 +582,14 @@ extension AgentSessionSettings {
             echoes = echoRows.count
             guard let last = echoRows.last else { return }
             for row in rows[(last + 1)...] {
-                if row.contains(done) { result = true; return }
+                if let range = row.range(of: done) {
+                    result = true
+                    // Claude 2.1.318 appends a persistence notice to the name.
+                    let confirmed = row[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                        .replacing(/\ and saved as your default for new sessions$/, with: "")
+                    value = confirmed.isEmpty ? nil : confirmed
+                    return
+                }
                 if row.contains(kept) { result = false; return }
             }
         }
@@ -582,39 +602,21 @@ extension AgentSessionSettings {
 
     /// The levels `/effort` takes (2.1.319); a model without one refuses it on screen.
     static let effortChoices = ["low", "medium", "high", "xhigh", "max"]
-
-    /// Whether the recorded model is the one `choice` switches to.
-    static func model(_ model: String?, is choice: String) -> Bool {
-        guard let model, !model.isEmpty else { return false }
-        let bare = { (id: String) in String(id.lowercased().split(separator: "[").first ?? "") }
-        if bare(model) == bare(choice) { return true }
-        return bare(modelTitle(model)).hasPrefix(choice + " ") || bare(modelTitle(model)) == choice
-    }
 }
 
-/// Permission mode first (it is the one that can hurt), then the model.
-/// With controls, each opens a menu that switches it.
-struct AgentSessionSettingsLabel: View {
+/// Permission mode stays beside the Composer; model and effort live in the title.
+struct AgentPermissionModeLabel: View {
     let settings: AgentSessionSettings
     var controls: AgentSessionControls? = nil
     @State private var confirmsBypass = false
-    @State private var showsModelGrid = false
-    @State private var modelSelectionFeedback = 0
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if let mode = settings.notablePermissionMode ?? (controls == nil ? nil : "default") {
+        Group {
+            if let mode = settings.notablePermissionMode ?? (controls == nil ? nil : settings.permissionMode ?? "") {
                 permission(mode)
             }
-            if let model = settings.model, !model.isEmpty {
-                modelLabel(model)
-            } else if controls != nil {
-                // Before the first reply nothing records a model; set one anyway.
-                modelLabel("")
-            }
         }
-        .sensoryFeedback(.selection, trigger: modelSelectionFeedback)
-        .help([settings.notablePermissionMode, settings.modelLine].compactMap { $0 }.joined(separator: " · "))
         .confirmationDialog("Skip every permission prompt?", isPresented: $confirmsBypass, titleVisibility: .visible) {
             Button("Bypass Permissions", role: .destructive) { controls?.setPermissionMode("bypassPermissions") }
         } message: {
@@ -624,31 +626,48 @@ struct AgentSessionSettingsLabel: View {
 
     @ViewBuilder
     private func permission(_ mode: String) -> some View {
-        let text = Text(verbatim: (mode == "plan" ? "⏸ " : "⏵⏵ ") + AgentSessionSettings.permissionTitle(mode))
+        let isSwitching = controls?.isSwitchingPermissionMode == true
+        let prefix = mode.isEmpty && !isSwitching ? "" : (mode == "plan" ? "⏸\u{FE0E} " : "⏵⏵ ")
+        let text = HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(verbatim: prefix)
+                .opacity(isSwitching ? 0 : 1)
+                .overlay {
+                    if isSwitching {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(permissionInk(mode))
+                            .scaleEffect(0.65)
+                            .accessibilityHidden(true)
+                    }
+                }
+            Text(verbatim: AgentSessionSettings.permissionTitle(mode))
+        }
             .font(.caption2.weight(.medium))
             .foregroundStyle(permissionInk(mode))
             .fixedSize()
         if let controls {
             Menu {
-                ForEach(AgentSessionSettings.permissionChoices, id: \.self) { @Sendable choice in
-                    MainActorContent {
-                        Button {
-                            if choice == "bypassPermissions" { confirmsBypass = true } else { controls.setPermissionMode(choice) }
-                        } label: {
-                            if choice == mode {
-                                Label(AgentSessionSettings.permissionTitle(choice), systemImage: "checkmark")
-                            } else {
-                                Text(AgentSessionSettings.permissionTitle(choice))
-                            }
-                        }
+                Picker("Permission mode", selection: Binding(
+                    get: { mode },
+                    set: { choice in
+                        if choice == "bypassPermissions" { confirmsBypass = true } else { controls.setPermissionMode(choice) }
+                    })
+                ) {
+                    ForEach(AgentSessionSettings.permissionChoices.filter {
+                        $0 != "bypassPermissions" || controls.allowsBypassPermissions
+                    }, id: \.self) { choice in
+                        Text(AgentSessionSettings.permissionTitle(choice)).tag(choice)
                     }
                 }
+                .labelsHidden()
             } label: {
                 text.frame(minHeight: 28).contentShape(Rectangle())
             }
             .disabled(!controls.isEnabled)
             .accessibilityLabel("Permission mode")
-            .accessibilityValue(AgentSessionSettings.permissionTitle(mode))
+            .accessibilityValue(isSwitching
+                ? String(localized: "Switching from \(AgentSessionSettings.permissionTitle(mode))")
+                : AgentSessionSettings.permissionTitle(mode))
             .accessibilityIdentifier("agent-status-permission")
         } else {
             text
@@ -658,53 +677,49 @@ struct AgentSessionSettingsLabel: View {
         }
     }
 
-    @ViewBuilder
-    private func modelLabel(_ model: String) -> some View {
-        let text = Text(verbatim: settings.modelLine ?? (model.isEmpty ? "Model" : AgentSessionSettings.modelTitle(model)))
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .fixedSize()
-        if let controls {
-            Button {
-                showsModelGrid = true
-            } label: {
-                text.frame(minHeight: 28).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!controls.isEnabled)
-            .popover(isPresented: $showsModelGrid, arrowEdge: .bottom) {
-                AgentModelGrid(
-                    settings: settings, controls: controls, isPresented: $showsModelGrid,
-                    onSelect: { modelSelectionFeedback += 1 })
-                .presentationCompactAdaptation(.popover)
-            }
-            .accessibilityLabel("Model")
-            .accessibilityValue(settings.modelLine ?? model)
-            .accessibilityIdentifier("agent-status-model")
-        } else {
-            text
-                .accessibilityLabel("Model")
-                .accessibilityValue(settings.modelLine ?? model)
-                .accessibilityIdentifier("agent-status-model")
-        }
-    }
-
-    /// Red only for the mode that skips every prompt; red means risk here.
+    /// Claude Code 2.1.319's standard dark/light permission colors, separate
+    /// from herdr's Agent lifecycle palette.
     private func permissionInk(_ mode: String) -> Color {
+        let dark = colorScheme == .dark
+        let rgb: UInt32
         switch mode {
-        case "bypassPermissions", "dontAsk": Color(AgentStatusPalette.redInk)
-        case "acceptEdits": Color(AgentStatusPalette.yellowInk)
-        default: Color.secondary
+        case "default": rgb = dark ? 0x999999 : 0x666666
+        case "acceptEdits": rgb = dark ? 0xAF87FF : 0x8700FF
+        case "plan": rgb = dark ? 0x48968C : 0x006666
+        case "auto": rgb = dark ? 0xFFC107 : 0x966C1E
+        case "bypassPermissions", "dontAsk": rgb = dark ? 0xFF6B80 : 0xAB2B3F
+        default: return .secondary
         }
+        return Color(
+            red: Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >> 8) & 0xFF) / 255,
+            blue: Double(rgb & 0xFF) / 255)
     }
 }
 
 extension AgentSessionSettings {
+    /// Claude's compact welcome banner before its first message (2.1.291–319).
+    /// Never infer a model from user-defined status lines or conversation text.
+    static func welcomeModel(onScreen screen: ANSIScreen) -> String? {
+        let rows = screen.rows.map(\.text)
+        guard let header = rows.prefix(4).firstIndex(where: { $0.wholeMatch(of: /^\s*[▐▛█▌]+\s+Claude Code v[0-9.]+\s*$/) != nil }),
+            rows.indices.contains(header + 1),
+            let model = rows[header + 1].wholeMatch(of: /^\s*[▝▜█▀]+\s+(.+?)\s+·\s+.+$/)
+        else { return nil }
+        // An old banner above replies or slash commands is not current settings.
+        let rest = rows.dropFirst(header + 3).prefix { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("─") }
+        guard rest.allSatisfy({
+            $0.trimmingCharacters(in: .whitespaces).isEmpty
+                || $0.wholeMatch(of: /^\s*◐ (low|medium|high|xhigh|max) · \/effort\s*$/) != nil
+        }) else { return nil }
+        return String(model.1)
+    }
+
     /// The mode Claude Code's footer shows (`⏵⏵ bypass permissions on`,
-    /// `⏸ plan mode on`, …; 2.1.319); none shown is `default`. The footer is
-    /// what lies below the input box's last rule, or without one the last
+    /// `⏸ plan mode on`, …; 2.1.319). A missing footer is unknown, not Manual.
+    /// The footer lies below the input box's last rule, or without one the last
     /// line, so a reply quoting the words does not count.
-    static func permissionMode(onScreen screen: ANSIScreen) -> String {
+    static func permissionMode(onScreen screen: ANSIScreen) -> String? {
         let rows = screen.rows.map(\.text)
         let isRule = { (row: String) in
             let trimmed = row.trimmingCharacters(in: .whitespaces)
@@ -717,6 +732,7 @@ extension AgentSessionSettings {
         if footer.contains("accept edits on") { return "acceptEdits" }
         if footer.contains("plan mode on") { return "plan" }
         if footer.contains("auto mode on") { return "auto" }
-        return "default"
+        if footer.contains("manual mode on") || footer.contains("? for shortcuts") { return "default" }
+        return nil
     }
 }
