@@ -15,8 +15,13 @@ extension View {
     /// iPad, tucks it with `sidebarSearchDrawer(following:)`. A narrow iPad
     /// window's list starts on its large title instead, which UIKit lays out
     /// collapsed when a tab switch first shows the list.
-    func searchDrawerStartsTucked() -> some View {
-        modifier(SearchDrawerTuck())
+    @ViewBuilder
+    func searchDrawerStartsTucked(isDisabled: Bool = false) -> some View {
+        if isDisabled {
+            self
+        } else {
+            modifier(SearchDrawerTuck())
+        }
     }
 }
 

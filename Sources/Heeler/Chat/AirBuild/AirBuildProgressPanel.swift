@@ -9,11 +9,13 @@ struct AirBuildProgressPanel: View {
     let onClose: () -> Void
     let onOpenTerminal: () -> Void
     var onOpenUsage: (() -> Void)?
+    var onShowChanges: (() -> Void)?
     /// A sheet brings its own navigation bar; beside the chat the panel sits
     /// inside the detail's stack, which must not nest another one.
     var inSheet = true
 
     @State private var query = ""
+    @State private var showsFavorites = false
 
     private var asks: [ArcProjectBoard.Ask] {
         (board?.asks ?? []).filter {
@@ -43,15 +45,12 @@ struct AirBuildProgressPanel: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Spacer()
-                            Button("Done", action: onClose)
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .padding(.top, 8)
+                        workspaceHeader
                         search
-                        sectionTitle("Frequently Used")
-                        favorites(proxy: proxy)
+                        if showsFavorites {
+                            sectionTitle("Frequently Used")
+                            favorites(proxy: proxy)
+                        }
                         if let board, !board.isEmpty {
                             if !asks.isEmpty {
                                 sectionTitle("Waiting on You")
@@ -60,7 +59,7 @@ struct AirBuildProgressPanel: View {
                                         MainActorContent {
                                             AirBuildPanelRow(
                                                 icon: ask.kind == .decision ? "arrow.triangle.branch" : "hand.raised",
-                                                tint: ask.kind == .decision ? .red : .orange,
+                                                tint: ask.kind == .decision ? .red : AirBuildStatusLamp.waiting.color,
                                                 title: ask.title, detail: ask.detail,
                                                 time: ask.since?.formatted(.relative(presentation: .named)))
                                         }
@@ -106,6 +105,55 @@ struct AirBuildProgressPanel: View {
             .task { await refresh() }
     }
 
+    private var workspaceHeader: some View {
+        HStack(spacing: 8) {
+            workspaceTab(title: "Progress", isSelected: true, closeLabel: "Close Progress") {}
+            if let onShowChanges {
+                workspaceTab(title: "Changes", isSelected: false, closeLabel: "Close Changes") {
+                    onClose()
+                    onShowChanges()
+                }
+            }
+            Spacer(minLength: 0)
+            Button {
+                showsFavorites.toggle()
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .background(Color(uiColor: .systemGray5), in: Circle())
+            .accessibilityLabel("Frequently Used")
+        }
+        .padding(.top, 8)
+    }
+
+    private func workspaceTab(
+        title: LocalizedStringKey, isSelected: Bool, closeLabel: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 3) {
+            Button(action: action) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            Button(closeLabel, systemImage: "xmark", action: onClose)
+                .labelStyle(.iconOnly)
+                .font(.system(size: 9, weight: .bold))
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 32)
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.16) : Color(uiColor: .systemGray5),
+            in: Capsule())
+    }
+
     private var search: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -138,9 +186,18 @@ struct AirBuildProgressPanel: View {
             }
             if waitingCount > 0 {
                 AirBuildQuickAction(
-                    icon: "hand.raised", title: "Waiting on You", count: waitingCount, tint: .orange
+                    icon: "hand.raised", title: "Waiting on You", count: waitingCount,
+                    tint: AirBuildStatusLamp.waiting.color
                 ) {
                     withAnimation { proxy.scrollTo("waiting", anchor: .top) }
+                }
+            }
+            if let onShowChanges {
+                AirBuildQuickAction(
+                    icon: "plus.forwardslash.minus", title: "Changes", tint: .blue
+                ) {
+                    onClose()
+                    onShowChanges()
                 }
             }
             if let onOpenUsage {

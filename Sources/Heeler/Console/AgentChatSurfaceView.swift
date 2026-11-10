@@ -36,7 +36,6 @@ struct AgentChatSurfaceView: View {
     private let arcBoard: ArcProjectBoard?
     private let arcRefreshBoard: (() async -> Void)?
     private let onOpenUsage: (() -> Void)?
-    @State private var isShowingAirBuildPanel = false
 
     @State private var timeline = ChatTimelineModel()
     @State private var skillsStore: SkillsPaneStore?
@@ -118,6 +117,8 @@ struct AgentChatSurfaceView: View {
     @Environment(\.detailSidebarIsHidden) private var detailSidebarIsHidden
     @Environment(\.showsDetailBackButton) private var showsBackButton
     @Environment(\.usesVerticalToolbar) private var usesVerticalToolbar
+    @Environment(\.airBuildWorkspacePresented) private var airBuildWorkspacePresented
+    @Environment(\.airBuildGlobalActions) private var airBuildGlobalActions
     @Environment(\.detailTopChromeInset) private var topChromeInset
     @Environment(\.detailBarRow) private var barRow
     @Environment(\.detailSurfaceEdges) private var surfaceEdges
@@ -216,29 +217,9 @@ struct AgentChatSurfaceView: View {
         return revealDetailSidebar
     }
 
-    private func airBuildProgressPanel(inSheet: Bool) -> some View {
-        AirBuildProgressPanel(
-            project: airBuildProject, board: arcBoard,
-            refresh: { await arcRefreshBoard?() },
-            onClose: { isShowingAirBuildPanel = false },
-            onOpenTerminal: { showAgentTerminal() },
-            onOpenUsage: onOpenUsage,
-            inSheet: inSheet)
-    }
-
-    /// Unfolded, the progress panel slides over the chat's trailing edge. Not
-    /// `.inspector`: inside the split view's detail it re-laid both columns
-    /// on every pass and the Duo hung in one endless layout (2026-11-11).
-    @ViewBuilder
-    private var airBuildSidePanel: some View {
-        if !showsBackButton && isShowingAirBuildPanel {
-            airBuildProgressPanel(inSheet: false)
-                .frame(width: 320)
-                .frame(maxHeight: .infinity)
-                .background(Color(uiColor: .systemGroupedBackground))
-                .overlay(alignment: .leading) { Divider() }
-                .transition(.move(edge: .trailing))
-        }
+    private var isShowingAirBuildPanel: Bool {
+        get { airBuildWorkspacePresented?.wrappedValue ?? false }
+        nonmutating set { airBuildWorkspacePresented?.wrappedValue = newValue }
     }
 
     private var airBuildHeader: some View {
@@ -593,8 +574,11 @@ struct AgentChatSurfaceView: View {
                 .ignoresSafeArea(.all, edges: surfaceEdges)
         }
         .ignoresSafeArea(.container, edges: .top)
-        .overlay(alignment: .trailing) { airBuildSidePanel }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isShowingAirBuildPanel)
+        .airBuildGlobalBarControls(
+            isVisible: usesVerticalToolbar && !showsBackButton && arcProject != nil,
+            surfaceSwitch: terminalSurfaceSwitch,
+            workspace: airBuildWorkspacePresented,
+            actions: airBuildGlobalActions)
         .navigationBarBackButtonHidden(true)
         .interactivePopGestureEnabled(showsBackButton)
         .navigationTitle("")
@@ -602,11 +586,6 @@ struct AgentChatSurfaceView: View {
         .toolbarBackground(Color(uiColor: .clear), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
-        .sheet(isPresented: Binding(
-            get: { showsBackButton && isShowingAirBuildPanel },
-            set: { isShowingAirBuildPanel = $0 })) {
-            airBuildProgressPanel(inSheet: true)
-        }
         .prioritizesVerticalDetailToolbar()
     }
 
@@ -648,6 +627,7 @@ struct AgentChatSurfaceView: View {
                 hidesFromAccessibility: presentation != .timeline,
                 agent: agent,
                 actions: timelineActions)
+            .environment(\.chatShowsRunningTurnHeader, arcProject == nil)
             .modifier(AirBuildScrollEdgeEffectStyle())
             .padding(.top, -topInset)
             .ignoresSafeArea(.container, edges: .bottom)
@@ -680,7 +660,7 @@ struct AgentChatSurfaceView: View {
                 .padding(.top, headerObstruction)
         }
         .overlay(alignment: .bottomLeading) {
-            if agent.agent.status == .working, let startedAt = chat?.turnStartedAt {
+            if arcProject != nil, agent.agent.status == .working, let startedAt = chat?.turnStartedAt {
                 AirBuildRunningCapsule(startedAt: startedAt)
                     .padding(.leading, 46)
                     .padding(.bottom, 6)

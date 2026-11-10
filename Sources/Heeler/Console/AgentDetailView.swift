@@ -56,6 +56,7 @@ struct AgentDetailView: View {
     private let arcRefreshBoard: (() async -> Void)?
     private let onOpenUsage: (() -> Void)?
     @State private var isResolvingTerminal = false
+    @State private var isShowingAirBuildPanel = false
     @State private var isChoosingTerminal = false
     @State private var terminalOpenFailure: String?
     @State private var createdTerminal = CreatedWorkspaceTerminal()
@@ -79,6 +80,7 @@ struct AgentDetailView: View {
     @Environment(\.agentSceneRouting) private var sceneRouting
     @Environment(\.sceneWindow) private var sceneWindow
     @Environment(\.detailCrossfade) private var detailCrossfade
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         agent: ConsoleAgent,
@@ -395,8 +397,70 @@ struct AgentDetailView: View {
         }
     }
 
+    private var airBuildProject: ArcProjectGroup.Project? {
+        if let arcProject { return arcProject }
+        guard chatProgram != nil else { return nil }
+        return ArcProjectGroup.Project(
+            id: .init(hostID: agent.hostID, workspaceID: agent.agent.workspaceID),
+            label: agent.workspaceLabel ?? agent.agent.workspaceID,
+            agents: [agent])
+    }
+
+    private var airBuildSheetPresented: Binding<Bool> {
+        Binding(
+            get: { airBuildProject != nil && isPushedOverList && isShowingAirBuildPanel },
+            set: { isShowingAirBuildPanel = $0 })
+    }
+
+    private func airBuildProgressPanel(
+        project: ArcProjectGroup.Project, inSheet: Bool
+    ) -> some View {
+        AirBuildProgressPanel(
+            project: project, board: arcBoard,
+            refresh: { await arcRefreshBoard?() },
+            onClose: { isShowingAirBuildPanel = false },
+            onOpenTerminal: showAirBuildTerminal,
+            onOpenUsage: onOpenUsage,
+            onShowChanges: offersChanges ? { changes.open() } : nil,
+            inSheet: inSheet)
+    }
+
+    @ViewBuilder
+    private var airBuildSidePanel: some View {
+        if let project = airBuildProject, !isPushedOverList, isShowingAirBuildPanel,
+            arcProject != nil || effectiveSurface == .chat
+        {
+            airBuildProgressPanel(project: project, inSheet: false)
+                .frame(width: 300)
+                .frame(maxHeight: .infinity)
+                .background(Color(uiColor: .systemGroupedBackground))
+                .overlay(alignment: .leading) { Divider() }
+                .transition(.move(edge: .trailing))
+        }
+    }
+
+    private func showAirBuildTerminal() {
+        if keyboardInset.height > 0 { keyboardHandoff.arm(for: agent.id, mode: .text) }
+        selectSurface(.terminal)
+    }
+
+    private func withAirBuildWorkspace(_ content: some View) -> some View {
+        content
+            // Arc's workspace is an overlay shared by Chat and Terminal, never an inspector.
+            .overlay(alignment: .trailing) { airBuildSidePanel }
+            .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isShowingAirBuildPanel)
+            .sheet(isPresented: airBuildSheetPresented) {
+                if let airBuildProject {
+                    airBuildProgressPanel(project: airBuildProject, inSheet: true)
+                }
+            }
+            .environment(
+                \.airBuildWorkspacePresented,
+                airBuildProject == nil ? nil : $isShowingAirBuildPanel)
+    }
+
     var body: some View {
-        Group {
+        withAirBuildWorkspace(Group {
             if let shell = openTerminal.shell {
                 ShellTerminalView(
                     store: shell,
@@ -482,7 +546,7 @@ struct AgentDetailView: View {
                     inheritsKeyboardHandoff: !permitsRetention || retainedAgent != nil || isOwnViewer)
                 .id(ObjectIdentifier(attach))
             }
-        }
+        })
         // Pushed as Hosts pushes a Host, so Back and the swipe are the
         // system's own; either one closes the presentation.
         .navigationDestination(item: changesRoute) { route in
@@ -573,6 +637,7 @@ struct AgentDetailView: View {
         // Host's platform is known, and goes when the Agent stops being one
         // Chat can read.
         .onChange(of: effectiveSurface, initial: true) { previous, current in
+            if arcProject == nil { isShowingAirBuildPanel = false }
             attachReference.showsChat = current == .chat
             sceneRouting?.chatSurfaceDidChange(agent: current == .chat ? agent.id : nil)
             onShowsChat?(current == .chat && shellRoute == nil)

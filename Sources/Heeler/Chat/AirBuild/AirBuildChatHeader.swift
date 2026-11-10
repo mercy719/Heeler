@@ -94,9 +94,9 @@ enum AirBuildChatMenuPolicy {
     static func items(in group: AirBuildChatMenuGroup) -> [AirBuildChatMenuItem] {
         switch group {
         case .activity:
-            [.agentTerminal, .openTerminal, .changes, .progress, .newAgent, .skills, .snippets]
+            [.agentTerminal, .openTerminal, .changes, .progress]
         case .session:
-            [.model, .permission]
+            [.model, .permission, .newAgent, .skills, .snippets]
         case .navigation:
             [.goTo, .rename, .renameAgent, .renameWorkspace, .worktreeDetails]
         case .destructive:

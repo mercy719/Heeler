@@ -285,6 +285,8 @@ struct AgentTerminalView: View {
     @Environment(\.revealDetailSidebar) private var revealDetailSidebar
     @Environment(\.showsDetailBackButton) private var showsBackButton
     @Environment(\.usesVerticalToolbar) private var usesVerticalToolbar
+    @Environment(\.airBuildWorkspacePresented) private var airBuildWorkspacePresented
+    @Environment(\.airBuildGlobalActions) private var airBuildGlobalActions
     /// Whether the back header is out, or folded into its one button.
     /// Folded until the user shows it, so it covers no output by default,
     /// then remembered across Agents as a reading preference.
@@ -1224,7 +1226,9 @@ struct AgentTerminalView: View {
             isExpanded: $isBackHeaderExpanded,
             actions: backHeaderActions,
             surfaceSwitch: chatSurfaceSwitch,
-            onBack: showsBackButton && usesVerticalToolbar ? { dismiss() } : nil)
+            onBack: showsBackButton && usesVerticalToolbar ? { dismiss() } : nil,
+            airBuildWorkspace: showsBackButton ? nil : airBuildWorkspacePresented,
+            airBuildActions: showsBackButton ? nil : airBuildGlobalActions)
         .prioritizesVerticalDetailToolbar()
     }
 

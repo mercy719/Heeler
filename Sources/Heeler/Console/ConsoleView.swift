@@ -980,6 +980,12 @@ struct ConsoleView: View {
                             .environment(\.revealDetailSidebar, sidebarReveal(for: tab))
                             .environment(\.detailSidebarIsHidden, splitVisibility(for: tab).isSidebarVisible == false)
                             .environment(
+                                \.airBuildGlobalActions,
+                                usesAirBuildArcChrome(for: tab)
+                                    ? AirBuildGlobalActions(
+                                        openHosts: { showHosts() }, openSettings: { showSettings() })
+                                    : nil)
+                            .environment(
                                 \.showsDetailBackButton, !presentation.usesRegularColumns)
                             .toolbar {
                                 if usesSidebarNavigation,
@@ -1065,7 +1071,7 @@ struct ConsoleView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: tab == .terminals ? String(localized: "Search Terminals") : String(localized: "Search Agents"))
             .searchFocused($focusedSearch, equals: tab)
-            .sidebarSearchDrawer(following: tab)
+            .sidebarSearchDrawer(following: tab, isDisabled: listPresentation.mode == .arc)
             // The title's list menu opens from here rather than from the
             // title: anything a bar item presents folds back onto the item's
             // frame, which lingers as a rectangle around a bare title for
@@ -1232,15 +1238,9 @@ struct ConsoleView: View {
     @ToolbarContentBuilder
     private func toolbar(for tab: ConsoleTab) -> some ToolbarContent {
         if usesAirBuildArcChrome(for: tab) {
-            ToolbarItem(placement: .topBarLeading) {
-                AirBuildGlassCapsule {
-                    if offersNewItem(on: .agents) {
-                        AirBuildIconButton(systemImage: "plus", label: "New Agent") {
-                            startAgentRequest = StartAgentRequest(
-                                origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
-                        }
-                    }
-                    if usesSidebarNavigation {
+            if usesSidebarNavigation {
+                ToolbarItem(placement: .topBarLeading) {
+                    AirBuildGlassCapsule {
                         AirBuildIconButton(systemImage: "sidebar.left", label: "Hide Sidebar") {
                             withAnimation(reduceMotion ? nil : .snappy) {
                                 splitVisibilities[tab, default: ConsoleSplitVisibilityState()]
@@ -1248,6 +1248,36 @@ struct ConsoleView: View {
                             }
                         }
                     }
+                }
+                .toolbarItemBackground(.hidden)
+            }
+            ToolbarItem(placement: .principal) {
+                AirBuildGlassCapsule {
+                    AirBuildHeelerLogo()
+                        .frame(width: 40, height: 40)
+                }
+            }
+            .toolbarItemBackground(.hidden)
+            ToolbarItem(placement: .topBarTrailing) {
+                AirBuildGlassCapsule {
+                    Menu {
+                        if offersNewItem(on: .agents) {
+                            Button("New Agent", systemImage: "plus") {
+                                startAgentRequest = StartAgentRequest(
+                                    origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
+                            }
+                        }
+                        Button("Connect Computer", systemImage: "desktopcomputer") { presentHosts() }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(width: 40, height: 40)
+                            .contentShape(.circle)
+                    }
+                    .menuStyle(.button)
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+                    .accessibilityLabel("Add")
                 }
             }
             .toolbarItemBackground(.hidden)
@@ -1352,37 +1382,27 @@ struct ConsoleView: View {
     @ViewBuilder
     private func sidebarFooter(for tab: ConsoleTab) -> some View {
         if usesAirBuildArcChrome(for: tab) {
-            HStack(spacing: 8) {
-                AirBuildGlassCapsule {
-                    AirBuildIconButton(systemImage: "cloud", label: ConsoleTab.hosts.title) {
-                        showHosts()
+            if !usesSidebarNavigation {
+                HStack(spacing: 8) {
+                    AirBuildGlassCapsule {
+                        AirBuildIconButton(systemImage: "cloud", label: ConsoleTab.hosts.title) {
+                            showHosts()
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    AirBuildGlassCapsule {
+                        Button(action: showSettings) {
+                            AirBuildAccountMark()
+                                .frame(width: 34, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(ConsoleTab.settings.title)
                     }
                 }
-                Spacer(minLength: 0)
-                AirBuildGlassCapsule {
-                    AirBuildIconButton(systemImage: "magnifyingglass", label: "Search Agents") {
-                        isAgentSearchPresented = true
-                        focusedSearch = .agents
-                    }
-                    Button(action: showSettings) {
-                        Text("A")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(
-                                LinearGradient(
-                                    colors: [.orange, Color(red: 0.48, green: 0.17, blue: 0.1)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing),
-                                in: Circle())
-                            .frame(width: 34, height: 40)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(ConsoleTab.settings.title)
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
         } else {
             HStack(spacing: 4) {
                 Button(ConsoleTab.hosts.title, systemImage: "server.rack") { showHosts() }
@@ -1890,7 +1910,7 @@ struct ConsoleView: View {
                     showsCards: listPresentation.mode == .byWorkspace))
             .modifier(ConsoleSidebarListTint())
             .modifier(AirBuildScrollEdgeEffectStyle(isEnabled: listPresentation.mode == .arc))
-            .searchDrawerStartsTucked()
+            .searchDrawerStartsTucked(isDisabled: listPresentation.mode == .arc)
         }
     }
 

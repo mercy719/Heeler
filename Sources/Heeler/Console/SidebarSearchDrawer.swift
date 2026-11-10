@@ -13,8 +13,13 @@ extension View {
     /// the first time it shows there, as `searchDrawerStartsTucked()` does
     /// on an iPhone.
     /// `shownList` only prompts a new look once the switch has changed.
-    func sidebarSearchDrawer(following shownList: ConsoleTab) -> some View {
-        background { SidebarSearchDrawerBridge(shownList: shownList) }
+    @ViewBuilder
+    func sidebarSearchDrawer(following shownList: ConsoleTab, isDisabled: Bool = false) -> some View {
+        if isDisabled {
+            self
+        } else {
+            background { SidebarSearchDrawerBridge(shownList: shownList) }
+        }
     }
 }
 

@@ -107,9 +107,9 @@ enum ArcProjectLight {
 
         var color: Color {
             switch self {
-            case .blocked: .red
-            case .done: .green
-            case .working: .yellow
+            case .blocked: AirBuildStatusLamp.waiting.color
+            case .done: AirBuildStatusLamp.done.color
+            case .working: AirBuildStatusLamp.working.color
             }
         }
 
@@ -483,7 +483,9 @@ struct ArcAgentRow: View {
                 if let subtitle {
                     Text(verbatim: subtitle)
                         .font(.system(size: 11.5))
-                        .foregroundStyle(agent.agent.status == .blocked ? Color.orange : Color(uiColor: .tertiaryLabel))
+                        .foregroundStyle(
+                            agent.agent.status == .blocked
+                                ? AirBuildStatusLamp.waiting.color : Color(uiColor: .tertiaryLabel))
                         .lineLimit(1)
                 }
             }

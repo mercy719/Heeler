@@ -1140,13 +1140,23 @@ struct ArcProjectTests {
     func airBuildMenuGroups() {
         #expect(AirBuildChatMenuGroup.allCases == [.activity, .session, .navigation, .destructive])
         #expect(AirBuildChatMenuPolicy.items(in: .activity) == [
-            .agentTerminal, .openTerminal, .changes, .progress, .newAgent, .skills, .snippets,
+            .agentTerminal, .openTerminal, .changes, .progress,
         ])
-        #expect(AirBuildChatMenuPolicy.items(in: .session) == [.model, .permission])
+        #expect(AirBuildChatMenuPolicy.items(in: .session) == [
+            .model, .permission, .newAgent, .skills, .snippets,
+        ])
         #expect(AirBuildChatMenuPolicy.items(in: .navigation) == [
             .goTo, .rename, .renameAgent, .renameWorkspace, .worktreeDetails,
         ])
         #expect(AirBuildChatMenuPolicy.items(in: .destructive) == [.close])
+    }
+
+    @Test("v2 keeps the vertical bar limited to global actions")
+    func airBuildVerticalBarItems() {
+        #expect(AirBuildVerticalBarItem.allCases == [.workspace, .terminal, .account, .settings])
+        #expect(AirBuildVerticalBarItem.workspace.systemImage == "square.grid.2x2")
+        #expect(AirBuildVerticalBarItem.terminal.systemImage == "terminal")
+        #expect(AirBuildVerticalBarItem.settings.systemImage == "gearshape")
     }
 
     @Test("v2 formats the running clock as minutes and seconds")

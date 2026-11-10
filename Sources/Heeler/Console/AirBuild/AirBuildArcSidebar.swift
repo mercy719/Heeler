@@ -166,7 +166,7 @@ private struct AirBuildProjectTile: View {
                 .foregroundStyle(.white)
                 .frame(minWidth: 20, minHeight: 20)
                 .padding(.horizontal, count > 9 ? 4 : 0)
-                .background(.orange, in: Capsule())
+                .background(AirBuildStatusLamp.waiting.color, in: Capsule())
                 .overlay(Capsule().stroke(background, lineWidth: 2))
                 .offset(x: 4, y: -4)
                 .accessibilityHidden(true)
@@ -236,10 +236,10 @@ struct AirBuildAllProjectsView: View {
     }
 }
 
-/// The fixed 36-point session avatar and its Blocked, Done or Working mark.
+/// The fixed 40-point session avatar and its Blocked, Done or Working mark.
 struct AirBuildSessionAvatar: View {
     let agent: ConsoleAgent
-    var size: CGFloat = 36
+    var size: CGFloat = 40
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rotating = false
 
@@ -252,7 +252,7 @@ struct AirBuildSessionAvatar: View {
                 if agent.agent.status == .working {
                     Circle()
                         .trim(from: 0, to: 0.25)
-                        .stroke(.orange, lineWidth: 2)
+                        .stroke(AirBuildStatusLamp.working.color, lineWidth: 2)
                         .frame(width: size + 6, height: size + 6)
                         .rotationEffect(.degrees(rotating ? 360 : 0))
                         .animation(
@@ -263,7 +263,9 @@ struct AirBuildSessionAvatar: View {
             .overlay(alignment: .bottomTrailing) {
                 if agent.agent.status == .blocked || agent.agent.status == .done {
                     Circle()
-                        .fill(agent.agent.status == .blocked ? .orange : .green)
+                        .fill(
+                            agent.agent.status == .blocked
+                                ? AirBuildStatusLamp.waiting.color : AirBuildStatusLamp.done.color)
                         .frame(width: 14, height: 14)
                         .overlay(Circle().stroke(Color(uiColor: .systemGray4), lineWidth: 2))
                         .offset(x: 2, y: 2)
@@ -287,6 +289,41 @@ struct AirBuildSessionAvatar: View {
         case .working: String(localized: "Running")
         case .done: String(localized: "Agent status Done", defaultValue: "Done")
         default: agent.agent.status.displayTitle ?? ""
+        }
+    }
+}
+
+struct AirBuildAccountMark: View {
+    var size: CGFloat = 28
+
+    var body: some View {
+        Text("A")
+            .font(.system(size: size * 0.46, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(
+                LinearGradient(
+                    colors: [.orange, Color(red: 0.48, green: 0.17, blue: 0.1)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: Circle())
+            .accessibilityLabel("Account")
+    }
+}
+
+struct AirBuildHeelerLogo: View {
+    var body: some View {
+        if let icon = UIImage(named: "AppIcon60x60") ?? UIImage(named: "AppIcon") {
+            Image(uiImage: icon)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .accessibilityLabel("Heeler")
+        } else {
+            Text("H")
+                .font(.system(size: 17, weight: .bold))
+                .frame(width: 32, height: 32)
+                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 9))
+                .accessibilityLabel("Heeler")
         }
     }
 }

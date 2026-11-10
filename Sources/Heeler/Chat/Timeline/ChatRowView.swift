@@ -7,6 +7,11 @@ enum ChatTimelineMetrics {
     static let horizontalPadding: CGFloat = 16
 }
 
+extension EnvironmentValues {
+    /// Arc places its single live clock below the last message instead.
+    @Entry var chatShowsRunningTurnHeader = true
+}
+
 extension View {
     /// Chat's centered reading column.
     func chatContentColumn() -> some View {
@@ -343,9 +348,13 @@ private struct ChatTurnHeaderRow: View {
     let toggle: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.chatShowsRunningTurnHeader) private var showsRunningTurnHeader
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        if !showsRunningTurnHeader, case .working = header.state {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
             switch header.state {
             case .working(let since):
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -383,6 +392,7 @@ private struct ChatTurnHeaderRow: View {
                 .fill(Color(uiColor: .separator))
                 .frame(height: 1 / 3)
                 .accessibilityHidden(true)
+            }
         }
     }
 

@@ -416,6 +416,28 @@ private struct AgentDetailHeaderMenuItems: View {
     }
 }
 
+enum AirBuildVerticalBarItem: String, CaseIterable, Sendable {
+    case workspace
+    case terminal
+    case account
+    case settings
+
+    var systemImage: String {
+        switch self {
+        case .workspace: "square.grid.2x2"
+        case .terminal: "terminal"
+        case .account: "person.crop.circle"
+        case .settings: "gearshape"
+        }
+    }
+}
+
+@MainActor
+struct AirBuildGlobalActions {
+    let openHosts: () -> Void
+    let openSettings: () -> Void
+}
+
 #if compiler(>=6.4)
 @available(iOS 27.1, *)
 private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
@@ -442,6 +464,45 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
         }
         ToolbarOverflowMenu {
             AgentDetailHeaderMenuItems(actions: actions, isExpanded: $isExpanded)
+        }
+    }
+}
+
+@available(iOS 27.1, *)
+private struct AirBuildGlobalBarControls: ToolbarContent {
+    let surfaceSwitch: AgentDetailSurfaceSwitch?
+    @Binding var workspacePresented: Bool
+    let actions: AirBuildGlobalActions
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button("Workspace", systemImage: AirBuildVerticalBarItem.workspace.systemImage) {
+                workspacePresented.toggle()
+            }
+            .tint(workspacePresented ? Color.accentColor : nil)
+        }
+        .visibilityPriority(.high)
+        if let surfaceSwitch {
+            ToolbarItem(placement: .primaryAction) {
+                AgentDetailSurfaceButton(control: surfaceSwitch)
+            }
+            .axisBehavior(.verticalPreferred)
+            .visibilityPriority(.high)
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button("Switch Computer", systemImage: "desktopcomputer", action: actions.openHosts)
+            } label: {
+                AirBuildAccountMark(size: 28)
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .accessibilityLabel("Account")
+        }
+        ToolbarItem(placement: .primaryAction) {
+            Button(
+                "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
+                action: actions.openSettings)
         }
     }
 }
@@ -537,14 +598,23 @@ extension View {
         isExpanded: Binding<Bool>,
         actions: [AgentDetailHeaderAction],
         surfaceSwitch: AgentDetailSurfaceSwitch? = nil,
-        onBack: (() -> Void)? = nil
+        onBack: (() -> Void)? = nil,
+        airBuildWorkspace: Binding<Bool>? = nil,
+        airBuildActions: AirBuildGlobalActions? = nil
     ) -> some View {
         toolbar {
             #if compiler(>=6.4)
             if #available(iOS 27.1, *), placement == .verticalToolbar {
-                AgentDetailHeaderVerticalBarControls(
-                    isExpanded: isExpanded, actions: actions,
-                    surfaceSwitch: surfaceSwitch, onBack: onBack)
+                if let airBuildWorkspace, let airBuildActions {
+                    AirBuildGlobalBarControls(
+                        surfaceSwitch: surfaceSwitch,
+                        workspacePresented: airBuildWorkspace,
+                        actions: airBuildActions)
+                } else {
+                    AgentDetailHeaderVerticalBarControls(
+                        isExpanded: isExpanded, actions: actions,
+                        surfaceSwitch: surfaceSwitch, onBack: onBack)
+                }
             } else if placement == .horizontalToolbar {
                 AgentDetailHeaderBarControls(
                     palette: palette, isExpanded: isExpanded, actions: actions,
@@ -555,6 +625,27 @@ extension View {
                 AgentDetailHeaderBarControls(
                     palette: palette, isExpanded: isExpanded, actions: actions,
                     surfaceSwitch: surfaceSwitch)
+            }
+            #endif
+        }
+    }
+
+    /// Arc's global side bar, without adding the terminal header's horizontal controls to Chat.
+    func airBuildGlobalBarControls(
+        isVisible: Bool,
+        surfaceSwitch: AgentDetailSurfaceSwitch?,
+        workspace: Binding<Bool>?,
+        actions: AirBuildGlobalActions?
+    ) -> some View {
+        toolbar {
+            #if compiler(>=6.4)
+            if #available(iOS 27.1, *), isVisible,
+                let workspace, let actions
+            {
+                AirBuildGlobalBarControls(
+                    surfaceSwitch: surfaceSwitch,
+                    workspacePresented: workspace,
+                    actions: actions)
             }
             #endif
         }
@@ -618,6 +709,9 @@ extension EnvironmentValues {
     /// landscape. A detail's Back, surface switch and More controls then move
     /// from its floating header into the bar.
     @Entry var usesVerticalToolbar = false
+    /// Arc's shared workspace overlay and global Host/Settings actions.
+    @Entry var airBuildWorkspacePresented: Binding<Bool>? = nil
+    @Entry var airBuildGlobalActions: AirBuildGlobalActions? = nil
 }
 
 #if compiler(>=6.4)
