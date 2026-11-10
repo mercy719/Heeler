@@ -345,7 +345,7 @@ struct AgentComposerView: View {
                 VStack(spacing: 0) {
                     if airBuildStyle {
                         switcherRow
-                            .padding(.horizontal, 12)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .padding(.bottom, 4)
                     }
                     inputArea

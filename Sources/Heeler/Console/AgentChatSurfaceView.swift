@@ -211,6 +211,7 @@ struct AgentChatSurfaceView: View {
             presentedSurface
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
+        .navigationBarBackButtonHidden(true)
         .confirmationDialog(
             switchQuestion?.title ?? "", isPresented: switchQuestionShown, titleVisibility: .visible,
             presenting: switchQuestion
@@ -460,8 +461,6 @@ struct AgentChatSurfaceView: View {
                     drawer.openedFromHeader(
                         $isHeaderDrawerOpen,
                         panelTop: backHeaderTop + AgentDetailHeader.controlSize + 8)
-                } else {
-                    drawer
                 }
             }
         }
@@ -603,7 +602,7 @@ struct AgentChatSurfaceView: View {
             ChatTimelineView(
                 state: timeline.state, jumpRequest: jumpRequest, followRequest: followRequest,
                 collapseRequest: collapseRequest,
-                topObstruction: topInset + headerObstruction + bannerHeight,
+                topObstruction: topInset + headerObstruction + bannerHeight + 24,
                 bottomEdge: bottomEdge,
                 collapseControlClearance: collapseControlHeight,
                 textSize: ChatTextSettings.size(system: dynamicTypeSize, offset: textSizeOffset),
@@ -611,6 +610,7 @@ struct AgentChatSurfaceView: View {
                 hidesFromAccessibility: presentation != .timeline,
                 agent: agent,
                 actions: timelineActions)
+            .modifier(AirBuildScrollEdgeEffectStyle())
             .padding(.top, -topInset)
             .ignoresSafeArea(.container, edges: .bottom)
             // Check Again's answer may fill the timeline under the held
@@ -633,7 +633,9 @@ struct AgentChatSurfaceView: View {
                 }
                 .padding(.top, headerObstruction + bannerHeight)
             }
-            ChatScrollEdgeEffect(edge: .top, height: topInset + headerObstruction, solid: topInset)
+            ChatScrollEdgeEffect(
+                edge: .top, height: topInset + headerObstruction + 24,
+                solid: topInset + headerObstruction, usesCanvas: true)
                 .padding(.top, -topInset)
             banners
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bannerHeight = $0 }
@@ -1668,15 +1670,16 @@ private struct ChatScrollEdgeEffect: View {
     /// How much of the material shows at full strength: rows stay visible
     /// through it, softened rather than hidden.
     var strength: Double = 0.6
+    var usesCanvas = false
 
     var body: some View {
         Rectangle()
-            .fill(.ultraThinMaterial)
+            .fill(usesCanvas ? AnyShapeStyle(Color(uiColor: .systemBackground)) : AnyShapeStyle(.ultraThinMaterial))
             .mask {
                 LinearGradient(
                     stops: [
-                        .init(color: .black.opacity(strength), location: 0),
-                        .init(color: .black.opacity(strength), location: height > 0 ? min(1, max(0, solid / height)) : 1),
+                        .init(color: .black.opacity(usesCanvas ? 1 : strength), location: 0),
+                        .init(color: .black.opacity(usesCanvas ? 1 : strength), location: height > 0 ? min(1, max(0, solid / height)) : 1),
                         .init(color: .clear, location: 1),
                     ],
                     startPoint: edge == .top ? .top : .bottom,

@@ -1888,6 +1888,7 @@ struct ConsoleView: View {
                 ConsoleAgentListStyle(
                     showsCards: listPresentation.mode == .byWorkspace))
             .modifier(ConsoleSidebarListTint())
+            .modifier(AirBuildScrollEdgeEffectStyle(isEnabled: listPresentation.mode == .arc))
             .searchDrawerStartsTucked()
         }
     }
@@ -1941,7 +1942,7 @@ struct ConsoleView: View {
                 selected: arcSelectedProjectID,
                 onSelect: { arcSelect($0) },
                 onShowAll: { isShowingAllArcProjects = true })
-                .listRowInsets(EdgeInsets(top: usesSidebarNavigation ? 8 : 32, leading: 0, bottom: 12, trailing: 0))
+                .listRowInsets(EdgeInsets(top: usesSidebarNavigation ? 8 : 44, leading: 0, bottom: 12, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .selectionDisabled()

@@ -129,6 +129,10 @@ struct AppearanceSettingsView: View {
                 Spacer(minLength: 32)
             }
         }
+        .padding(12)
+        .background(
+            Color(uiColor: .systemBackground),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.top, 8)
     }
 }

@@ -505,7 +505,7 @@ struct ArcAgentRow: View {
 
     private var subtitle: String? {
         let said = now ?? agent.agent.terminalTitleStripped.flatMap { $0.isEmpty ? nil : $0 }
-        let scoped = [projectName, said].compactMap { $0 }.joined(separator: " · ")
+        let scoped = [projectName, said == title ? nil : said].compactMap { $0 }.joined(separator: " · ")
         guard agent.agent.status == .blocked else { return scoped.isEmpty ? nil : scoped }
         if scoped.isEmpty {
             return String(localized: "Waiting for your approval", defaultValue: "Waiting for approval")

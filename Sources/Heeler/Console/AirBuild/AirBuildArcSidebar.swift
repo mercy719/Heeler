@@ -307,6 +307,19 @@ struct AirBuildGlassCapsule<Content: View>: View {
     }
 }
 
+struct AirBuildScrollEdgeEffectStyle: ViewModifier {
+    var isEnabled = true
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled, #available(iOS 26.0, *) {
+            content.scrollEdgeEffectStyle(.soft, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
 struct AirBuildIconButton: View {
     let systemImage: String
     let label: String
