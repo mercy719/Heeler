@@ -6036,6 +6036,16 @@
         }
       }
     },
+    "All Projects" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部项目"
+          }
+        }
+      }
+    },
     "All Hosts" : {
       "localizations" : {
         "ja" : {

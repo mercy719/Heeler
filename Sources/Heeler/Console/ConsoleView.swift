@@ -148,6 +148,8 @@ struct ConsoleView: View {
     /// The project the arc list shows, by Host and Workspace id; empty until
     /// the list picks the first project that has Agents.
     @AppStorage("console.arc.selected-project") private var arcSelectionKey = ""
+    /// The arc list's full tile grid, opened from the collapsed row.
+    @State private var arcTilesExpanded = false
     /// Whether the arc list is falling back to the flat rows because a search
     /// or a status filter is on.
     private var arcIsNarrowed: Bool {
@@ -1791,15 +1793,31 @@ struct ConsoleView: View {
         agentHostIssueRows
         let groups = arcProjectGroups
         let selection = arcSelectedProjectID
-        ForEach(groups) { @Sendable group in
-            MainActorContent {
-                ArcProjectTilesRow(
-                    group: group, showsHostName: groups.count > 1,
-                    selected: selection) { id in arcSelect(id) }
+        if arcTilesExpanded || selection == nil {
+            ForEach(groups) { @Sendable group in
+                MainActorContent {
+                    ArcProjectTilesRow(
+                        group: group, showsHostName: groups.count > 1,
+                        selected: selection
+                    ) { id in
+                        arcSelect(id)
+                        withAnimation(reduceMotion ? nil : .snappy) { arcTilesExpanded = false }
+                    }
+                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .selectionDisabled()
+                }
             }
+        } else {
+            // Collapsed to one row, the selected project's Agents get the screen.
+            ArcProjectStrip(
+                groups: groups, selected: selection, onSelect: { arcSelect($0) },
+                onExpand: { withAnimation(reduceMotion ? nil : .snappy) { arcTilesExpanded = true } })
+                .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 6))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .selectionDisabled()
         }
     }
 

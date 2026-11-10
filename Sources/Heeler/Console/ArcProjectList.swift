@@ -204,7 +204,7 @@ struct ArcProjectTilesRow: View {
                     .foregroundStyle(.secondary)
             }
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], spacing: 8
+                columns: [GridItem(.adaptive(minimum: 60, maximum: 96), spacing: 6)], spacing: 6
             ) {
                 ForEach(group.projects) { @Sendable project in
                     MainActorContent {
@@ -215,8 +215,64 @@ struct ArcProjectTilesRow: View {
                     }
                 }            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
+    }
+}
+
+/// Every Host's projects as one scrolling row of tiles, so the selected
+/// project's card keeps the screen; the trailing button opens the full grid.
+struct ArcProjectStrip: View {
+    let groups: [ArcProjectGroup]
+    let selected: ConsoleWorkspaceSection.ID?
+    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+    let onExpand: () -> Void
+
+    private var count: Int { groups.reduce(0) { $0 + $1.projects.count } }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 6) {
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                            if index > 0 {
+                                Divider().frame(height: 32)
+                            }
+                            ForEach(group.projects) { project in
+                                ArcProjectTile(
+                                    label: project.label, statuses: project.statuses,
+                                    isSelected: project.id == selected,
+                                    action: { onSelect(project.id) })
+                                .frame(width: 64)
+                                .id(project.id)
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .onAppear { if let selected { proxy.scrollTo(selected, anchor: .center) } }
+                .onChange(of: selected) { _, id in
+                    if let id { withAnimation(.snappy) { proxy.scrollTo(id, anchor: .center) } }
+                }
+            }
+            Button(action: onExpand) {
+                VStack(spacing: 2) {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.body.weight(.semibold))
+                    Text(verbatim: "\(count)")
+                        .font(.caption2.weight(.semibold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(.tint)
+                .frame(width: 44, height: 54)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("All Projects"))
+            .accessibilityValue(Text(verbatim: "\(count)"))
+        }
+        .frame(height: 54)
+        .padding(.vertical, 4)
     }
 }
 
@@ -233,27 +289,29 @@ struct ArcProjectTile: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 5) {
-                ArcProjectBadge(label: label)
+            VStack(spacing: 3) {
+                ArcProjectBadge(label: label, size: 24)
                 Text(verbatim: label)
                     .font(.caption2.weight(isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 3)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 64)
+            .frame(height: 54)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(uiColor: .secondarySystemGroupedBackground))
                     .overlay {
                         if isSelected {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .fill(color.opacity(0.22))
                         }
                     }
                     .overlay {
                         if isSelected {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .strokeBorder(color, lineWidth: 1.5)
                         }
                     }
@@ -266,7 +324,7 @@ struct ArcProjectTile: View {
                         .padding(8)
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
