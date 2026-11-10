@@ -750,13 +750,6 @@ struct ArcProjectTests {
         #expect(indexes.allSatisfy { (0..<ArcProjectColor.palette.count).contains($0) })
     }
 
-    @Test("A badge shows the label's first letter, uppercase")
-    func badgeInitial() {
-        #expect(ArcProjectColor.initial(for: "freeRag") == "F")
-        #expect(ArcProjectColor.initial(for: "个人网站") == "个")
-        #expect(ArcProjectColor.initial(for: "") == "?")
-    }
-
     @Test("The dot takes the worst status it sees")
     func lightPriority() {
         #expect(ArcProjectLight.light(for: [.idle]) == nil)

@@ -94,12 +94,6 @@ enum ArcProjectColor {
     }
 
     static func color(for label: String) -> Color { palette[index(for: label)] }
-
-    /// The first letter a badge shows; a Workspace with no label yet gets a
-    /// placeholder rather than an empty square.
-    static func initial(for label: String) -> String {
-        label.first.map { String($0).uppercased() } ?? "?"
-    }
 }
 
 /// The light a project's mark carries: who in it needs the user, worst first.
@@ -250,43 +244,32 @@ enum ArcProjectMenu {
     }
 }
 
-/// A project's badge with its light on the top-right corner, as its menu
-/// item's image and on the sidebar's switcher.
+/// A project's light as a dot: beside its name on the sidebar's switcher,
+/// and as its menu item's image.
 struct ArcProjectMark: View {
-    let label: String
-    let light: ArcProjectLight.Light?
-    var size: CGFloat = 24
+    let light: ArcProjectLight.Light
+    var size: CGFloat = 10
 
     var body: some View {
-        ArcProjectBadge(label: label, size: size)
-            // Room for the light, so a rendered image keeps all of it.
-            .padding([.top, .trailing], size * 0.18)
-            .overlay(alignment: .topTrailing) {
-                if let light {
-                    Circle()
-                        .fill(light.color)
-                        .frame(width: size * 0.4, height: size * 0.4)
-                        .overlay(Circle().strokeBorder(.black.opacity(0.35), lineWidth: 1))
-                }
-            }
+        Circle()
+            .fill(light.color)
+            .frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 
-    /// The mark as a menu image: a menu keeps only a `UIImage`'s own colors,
+    /// The dot as a menu image: a menu keeps only a `UIImage`'s own colors,
     /// and only when it renders as original.
     @MainActor
-    static func image(label: String, light: ArcProjectLight.Light?, scale: CGFloat) -> UIImage? {
-        let key = "\(label)\u{1F}\(String(describing: light))\u{1F}\(scale)"
+    static func image(light: ArcProjectLight.Light, scale: CGFloat) -> UIImage? {
+        let key = "\(String(describing: light))\u{1F}\(scale)"
         if let cached = imageCache[key] { return cached }
-        let renderer = ImageRenderer(content: ArcProjectMark(label: label, light: light))
+        let renderer = ImageRenderer(content: ArcProjectMark(light: light))
         renderer.scale = scale
         let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal)
         imageCache[key] = image
         return image
     }
 
-    /// The list body runs on every status change; a project's mark only
-    /// changes with its light.
     @MainActor private static var imageCache: [String: UIImage] = [:]
 }
 
@@ -311,9 +294,8 @@ struct ArcProjectMenuContent: View {
                         Label {
                             Text(verbatim: item.project.label)
                         } icon: {
-                            if let image = ArcProjectMark.image(
-                                label: item.project.label, light: item.project.light,
-                                scale: displayScale)
+                            if let light = item.project.light,
+                                let image = ArcProjectMark.image(light: light, scale: displayScale)
                             {
                                 Image(uiImage: image)
                             }
@@ -343,12 +325,12 @@ struct ArcProjectSwitcher: View {
             Menu {
                 ArcProjectMenuContent(sections: sections, selected: project.id, onSelect: onSelect)
             } label: {
-                HStack(spacing: 10) {
-                    ArcProjectMark(label: project.label, light: project.light, size: 28)
+                HStack(spacing: 8) {
                     Text(verbatim: project.label)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(color)
                         .lineLimit(1)
+                    if let light = project.light { ArcProjectMark(light: light) }
                     Image(systemName: "chevron.down")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
@@ -371,23 +353,6 @@ struct ArcProjectSwitcher: View {
                 .accessibilityLabel("New Agent")
             }
         }
-    }
-}
-
-/// A project's first-letter badge, shared by its mark and its rows.
-struct ArcProjectBadge: View {
-    let label: String
-    var size: CGFloat = 28
-
-    var body: some View {
-        Text(verbatim: ArcProjectColor.initial(for: label))
-            .font(.system(size: size / 2, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(
-                ArcProjectColor.color(for: label),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .accessibilityHidden(true)
     }
 }
 
@@ -610,14 +575,8 @@ struct ArcWaitingRow: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    /// The project's 38-point badge with the Agent's mark over its lower
-    /// trailing corner, so a row says both where it belongs and what runs it.
     private var lead: some View {
-        ArcProjectBadge(label: projectName, size: 38)
-            .overlay(alignment: .bottomTrailing) {
-                AgentKindMarkView(kind: agent.agent.kind, diameter: 20)
-                    .offset(x: 4, y: 4)
-            }
+        AgentKindMarkView(kind: agent.agent.kind, diameter: 28)
             .accessibilityHidden(true)
     }
 }
@@ -785,7 +744,6 @@ struct ArcBoardHeader: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ArcProjectBadge(label: label, size: 34)
             Text(verbatim: label)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(ArcProjectColor.color(for: label))
@@ -989,7 +947,6 @@ struct ArcProgressProjectRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                ArcProjectBadge(label: row.project.label, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: row.project.label)
                         .font(.body.weight(.semibold))
