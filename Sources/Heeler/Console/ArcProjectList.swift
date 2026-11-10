@@ -457,9 +457,8 @@ struct ArcAgentLine: Equatable, Sendable {
     }
 }
 
-/// One conversation on the arc list's card: the program's mark, the title,
-/// and what the Agent is doing now, with its status at the trailing edge.
-/// The link around it carries the detail, menu and swipe actions.
+/// One AirBuild conversation row. The link around it still carries the
+/// detail, context menu and swipe actions.
 struct ArcAgentRow: View {
     let agent: ConsoleAgent
     let title: String
@@ -467,67 +466,66 @@ struct ArcAgentRow: View {
     let now: String?
     /// Named ahead of `now`, for a row under another project's card.
     var projectName: String?
+    var isSelected = false
+    @Environment(\.isSidebarColumn) private var isSidebarColumn
 
     var body: some View {
         HStack(spacing: 10) {
-            AgentKindMarkView(kind: agent.agent.kind, diameter: 28)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(verbatim: title)
-                    .font(.body)
+            AirBuildSessionAvatar(agent: agent)
+            VStack(alignment: .leading, spacing: 0) {
+                (Text(verbatim: title)
+                    .font(.system(size: 13.5, weight: .semibold))
                     .foregroundStyle(.primary)
+                + Text(verbatim: " @\(agent.agent.kind)")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.secondary))
                     .lineLimit(1)
-                if let said = subtitle, said != title {
-                    Text(verbatim: said)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                if let subtitle {
+                    Text(verbatim: subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(agent.agent.status == .blocked ? Color.orange : Color(uiColor: .tertiaryLabel))
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 4)
-            status
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 14)
+        .frame(height: 50)
+        .background {
+            if isSelected && !isSidebarColumn {
+                Color.white.opacity(0.1)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+        .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: accessibilityText))
     }
 
-    @ViewBuilder
-    private var status: some View {
-        switch agent.agent.status {
-        case .blocked:
-            Text(String(localized: "Blocked pill", defaultValue: "Waiting", comment: "Badge on a Blocked Agent's row"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.red)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .background(Color.red.opacity(0.16), in: Capsule())
-        case .working:
-            ProgressView()
-                .controlSize(.mini)
-                .tint(.yellow)
-                .accessibilityHidden(true)
-        case .done:
-            Circle()
-                .fill(.green)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-        default:
-            EmptyView()
+    private var subtitle: String? {
+        let said = now ?? agent.agent.terminalTitleStripped.flatMap { $0.isEmpty ? nil : $0 }
+        let scoped = [projectName, said].compactMap { $0 }.joined(separator: " · ")
+        guard agent.agent.status == .blocked else { return scoped.isEmpty ? nil : scoped }
+        if scoped.isEmpty {
+            return String(localized: "Waiting for your approval", defaultValue: "Waiting for approval")
         }
+        return String(localized: "Waiting for approval: \(scoped)")
     }
 
-    private var subtitle: String? {
-        switch (projectName, now) {
-        case (let project?, let now?): "\(project) · \(now)"
-        case (_?, nil): projectName
-        case (nil, _): now
+    private var statusText: String {
+        switch agent.agent.status {
+        case .blocked: String(localized: "Waiting on You")
+        case .working: String(localized: "Running")
+        case .done: String(localized: "Agent status Done", defaultValue: "Done")
+        default: agent.agent.status.displayTitle ?? ""
         }
     }
 
     private var accessibilityText: String {
-        [title, subtitle, agent.agent.status.displayTitle]
+        [title, "@\(agent.agent.kind)", subtitle, statusText]
             .compactMap { $0 }
+            .filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
 }

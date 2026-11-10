@@ -1025,4 +1025,57 @@ struct ArcProjectTests {
         #expect(ArcProjectMenu.subtitle(blocked: 0, working: 2) == "2 running")
         #expect(ArcProjectMenu.subtitle(blocked: 0, working: 0) == nil)
     }
+
+    @Test("AirBuild orders Blocked counts, then Working, and keeps at most two rows")
+    func airBuildOrderingAndTruncation() {
+        let host = Host.fixture(name: "alpha")
+        let agents = [
+            Self.agent("a1", on: host, workspace: "w1", status: .idle),
+            Self.agent("b1", on: host, workspace: "w2", status: .working),
+            Self.agent("c1", on: host, workspace: "w3", status: .blocked),
+            Self.agent("d1", on: host, workspace: "w4", status: .blocked),
+            Self.agent("d2", on: host, workspace: "w4", status: .blocked),
+            Self.agent("e1", on: host, workspace: "w5", status: .done),
+        ]
+        let projects = ArcProjectGroup.groups(
+            hosts: [host], agents: agents,
+            workspacesByHost: [host.id: (1...5).map {
+                ConsoleWorkspace(id: "w\($0)", label: ["A", "B", "C", "D", "E"][$0 - 1], order: $0)
+            }]).flatMap(\.projects)
+
+        let slots = AirBuildProjectLayout.slots(projects, columns: 2)
+        #expect(slots.map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "all"])
+        #expect(slots.last == .all(5))
+        #expect(AirBuildProjectLayout.columns(for: 300) == 3)
+        #expect(AirBuildProjectLayout.columns(for: 466) == 6)
+    }
+
+    @Test("AirBuild shows All only when the two rows cannot hold every project")
+    func airBuildAllSlotCondition() {
+        let host = Host.fixture(name: "alpha")
+        let workspaces = (1...4).map {
+            ConsoleWorkspace(id: "w\($0)", label: "P\($0)", order: $0)
+        }
+        let projects = ArcProjectGroup.groups(
+            hosts: [host], agents: [], workspacesByHost: [host.id: workspaces]
+        ).flatMap(\.projects)
+        #expect(AirBuildProjectLayout.slots(projects, columns: 2).map(\.id) == projects.map(\.id.storedText))
+        #expect(AirBuildProjectLayout.slots(projects, columns: 1).last == .all(4))
+        #expect(AirBuildProjectLayout.slots(projects, columns: 1).count == 2)
+    }
+
+    @Test("AirBuild badges count Blocked, show Done green, and leave Working unbadged")
+    func airBuildBadgeRules() {
+        let host = Host.fixture(name: "alpha")
+        func project(_ workspace: String, _ statuses: [AgentStatus]) -> ArcProjectGroup.Project {
+            ArcProjectGroup.Project(
+                id: .init(hostID: host.id, workspaceID: workspace), label: workspace,
+                agents: statuses.enumerated().map {
+                    Self.agent("p\($0.offset)", on: host, workspace: workspace, status: $0.element)
+                })
+        }
+        #expect(AirBuildProjectLayout.badge(for: project("a", [.done, .blocked, .blocked])) == .blocked(2))
+        #expect(AirBuildProjectLayout.badge(for: project("b", [.done, .working])) == .done)
+        #expect(AirBuildProjectLayout.badge(for: project("c", [.working, .idle])) == nil)
+    }
 }

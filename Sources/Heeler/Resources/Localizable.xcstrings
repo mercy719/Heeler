@@ -6086,6 +6086,16 @@
         }
       }
     },
+    "All Projects" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部项目"
+          }
+        }
+      }
+    },
     "All Status" : {
       "comment" : "Filter choice that shows Agents of every status.",
       "localizations" : {
@@ -47837,6 +47847,16 @@
         }
       }
     },
+    "Waiting for approval: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你批准：%@"
+          }
+        }
+      }
+    },
     "Waiting for authorization" : {
       "localizations" : {
         "ja" : {
@@ -48001,6 +48021,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在电脑上的 herdr arc 里打开一次进度面板"
+          }
+        }
+      }
+    },
+    "Waiting for your approval" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Waiting for approval"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你批准"
           }
         }
       }

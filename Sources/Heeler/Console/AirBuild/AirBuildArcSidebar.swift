@@ -1,0 +1,322 @@
+import SwiftUI
+
+/// The two-row project grid's ordering and overflow, kept pure for the arc tests.
+enum AirBuildProjectLayout {
+    enum Badge: Equatable, Sendable {
+        case blocked(Int)
+        case done
+    }
+
+    enum Slot: Identifiable, Equatable, Sendable {
+        case project(ArcProjectGroup.Project)
+        case all(Int)
+
+        var id: String {
+            switch self {
+            case .project(let project): project.id.storedText
+            case .all: "all"
+            }
+        }
+    }
+
+    static func columns(for width: CGFloat) -> Int {
+        max(1, Int(width / 76))
+    }
+
+    static func badge(for project: ArcProjectGroup.Project) -> Badge? {
+        let blocked = project.statuses.count { $0 == .blocked }
+        if blocked > 0 { return .blocked(blocked) }
+        return project.statuses.contains(.done) ? .done : nil
+    }
+
+    static func ordered(_ projects: [ArcProjectGroup.Project]) -> [ArcProjectGroup.Project] {
+        projects.enumerated().sorted { lhs, rhs in
+            let leftBlocked = lhs.element.statuses.count { $0 == .blocked }
+            let rightBlocked = rhs.element.statuses.count { $0 == .blocked }
+            if leftBlocked != rightBlocked { return leftBlocked > rightBlocked }
+            let leftWorking = lhs.element.statuses.contains(.working)
+            let rightWorking = rhs.element.statuses.contains(.working)
+            if leftWorking != rightWorking { return leftWorking }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    static func slots(_ projects: [ArcProjectGroup.Project], columns: Int) -> [Slot] {
+        let ordered = ordered(projects)
+        let capacity = max(1, columns) * 2
+        guard ordered.count > capacity else { return ordered.map(Slot.project) }
+        return ordered.prefix(capacity - 1).map(Slot.project) + [.all(ordered.count)]
+    }
+}
+
+struct AirBuildProjectGrid: View {
+    let projects: [ArcProjectGroup.Project]
+    let selected: ConsoleWorkspaceSection.ID?
+    var limitsToTwoRows = true
+    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+    var onShowAll: (() -> Void)?
+
+    @State private var width: CGFloat = 0
+
+    private var columns: Int { AirBuildProjectLayout.columns(for: width) }
+    private var slots: [AirBuildProjectLayout.Slot] {
+        if limitsToTwoRows { return AirBuildProjectLayout.slots(projects, columns: columns) }
+        return AirBuildProjectLayout.ordered(projects).map { .project($0) }
+    }
+
+    var body: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns),
+            spacing: 10
+        ) {
+            ForEach(slots) { @Sendable slot in
+                MainActorContent {
+                    switch slot {
+                    case .project(let project):
+                        AirBuildProjectTile(
+                            project: project, isSelected: project.id == selected,
+                            background: Color(uiColor: .systemGray4)
+                        ) { onSelect(project.id) }
+                    case .all(let count):
+                        Button {
+                            onShowAll?()
+                        } label: {
+                            VStack(spacing: 6) {
+                                VStack(spacing: 0) {
+                                    Text("All")
+                                    Text(verbatim: "\(count)")
+                                }
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 62, height: 62)
+                                .background(
+                                    Color(uiColor: .systemGray).opacity(0.2),
+                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                Text("All Projects")
+                                    .font(.system(size: 11.5, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("All Projects"))
+                        .accessibilityValue(Text(verbatim: "\(count)"))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+}
+
+private struct AirBuildProjectTile: View {
+    let project: ArcProjectGroup.Project
+    let isSelected: Bool
+    let background: Color
+    let action: () -> Void
+
+    private var initial: String { String(project.label.prefix(1)).uppercased() }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack(alignment: .topTrailing) {
+                    Text(verbatim: initial)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            ArcProjectColor.color(for: project.label),
+                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        .frame(width: 62, height: 62)
+                        .background(
+                            Color(uiColor: .systemGray5),
+                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                                    .stroke(.tint, lineWidth: 2.5)
+                                    .frame(width: 68, height: 68)
+                            }
+                        }
+                    badge
+                }
+                Text(verbatim: project.label)
+                    .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 70)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: accessibilityText))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var badge: some View {
+        switch AirBuildProjectLayout.badge(for: project) {
+        case .blocked(let count):
+            Text(verbatim: "\(count)")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .frame(minWidth: 20, minHeight: 20)
+                .padding(.horizontal, count > 9 ? 4 : 0)
+                .background(.orange, in: Capsule())
+                .overlay(Capsule().stroke(background, lineWidth: 2))
+                .offset(x: 4, y: -4)
+                .accessibilityHidden(true)
+        case .done:
+            Circle()
+                .fill(.green)
+                .frame(width: 14, height: 14)
+                .overlay(Circle().stroke(background, lineWidth: 2))
+                .offset(x: 2, y: -2)
+                .accessibilityHidden(true)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    private var accessibilityText: String {
+        var parts = [project.label]
+        switch AirBuildProjectLayout.badge(for: project) {
+        case .blocked(let count):
+            parts.append("\(String(localized: "Waiting on You")) \(count)")
+        case .done:
+            parts.append(String(localized: "Agent status Done", defaultValue: "Done"))
+        case nil:
+            break
+        }
+        return parts.joined(separator: ", ")
+    }
+}
+
+struct AirBuildAllProjectsView: View {
+    let groups: [ArcProjectGroup]
+    let selected: ConsoleWorkspaceSection.ID?
+    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(groups) { @Sendable group in
+                        MainActorContent {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(verbatim: group.hostName)
+                                    .font(.headline)
+                                    .padding(.horizontal, 16)
+                                AirBuildProjectGrid(
+                                    projects: group.projects, selected: selected,
+                                    limitsToTwoRows: false,
+                                    onSelect: { id in
+                                        onSelect(id)
+                                        dismiss()
+                                    })
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 12)
+            }
+            .navigationTitle("All Projects")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+/// The fixed 36-point session avatar and its Blocked, Done or Working mark.
+struct AirBuildSessionAvatar: View {
+    let agent: ConsoleAgent
+    var size: CGFloat = 36
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rotating = false
+
+    private var seed: String { "\(agent.hostID.uuidString):\(agent.agent.paneID)" }
+
+    var body: some View {
+        OBPlushAvatar(seed: seed, size: size)
+            .clipShape(Circle())
+            .overlay {
+                if agent.agent.status == .working {
+                    Circle()
+                        .trim(from: 0, to: 0.25)
+                        .stroke(.orange, lineWidth: 2)
+                        .frame(width: size + 6, height: size + 6)
+                        .rotationEffect(.degrees(rotating ? 360 : 0))
+                        .animation(
+                            reduceMotion ? nil : .linear(duration: 1.8).repeatForever(autoreverses: false),
+                            value: rotating)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if agent.agent.status == .blocked || agent.agent.status == .done {
+                    Circle()
+                        .fill(agent.agent.status == .blocked ? .orange : .green)
+                        .frame(width: 14, height: 14)
+                        .overlay(Circle().stroke(Color(uiColor: .systemGray4), lineWidth: 2))
+                        .offset(x: 2, y: 2)
+                }
+            }
+            .frame(width: size + 6, height: size + 6)
+            .accessibilityLabel(Text(verbatim: "\(agent.agent.displayName), \(statusText)"))
+            .onAppear { rotating = agent.agent.status == .working && !reduceMotion }
+            .onDisappear { rotating = false }
+            .onChange(of: reduceMotion) { _, reduce in
+                if reduce { rotating = false }
+            }
+            .onChange(of: agent.agent.status) { _, status in
+                rotating = status == .working && !reduceMotion
+            }
+    }
+
+    private var statusText: String {
+        switch agent.agent.status {
+        case .blocked: String(localized: "Waiting on You")
+        case .working: String(localized: "Running")
+        case .done: String(localized: "Agent status Done", defaultValue: "Done")
+        default: agent.agent.status.displayTitle ?? ""
+        }
+    }
+}
+
+struct AirBuildGlassCapsule<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 0, content: content)
+            .frame(height: 40)
+            .background {
+                if #available(iOS 26.0, *) {
+                    Color.clear.glassEffect(.regular, in: Capsule())
+                } else {
+                    Capsule().fill(.ultraThinMaterial)
+                }
+            }
+    }
+}
+
+struct AirBuildIconButton: View {
+    let systemImage: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(LocalizedStringKey(label), systemImage: systemImage, action: action)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.plain)
+            .frame(width: 40, height: 40)
+            .contentShape(Rectangle())
+    }
+}

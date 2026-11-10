@@ -70,6 +70,7 @@ struct ConsoleView: View {
     /// Hosts and Settings, in every width: sheets the list's toolbar presents.
     @State private var isShowingHostsSheet = false
     @State private var isShowingSettingsSheet = false
+    @State private var isShowingAllArcProjects = false
     /// A Host added in Settings, or one whose Host Helper Settings opens,
     /// waits for that sheet to close before the Hosts sheet can present
     /// onboarding and its trust alert.
@@ -190,33 +191,39 @@ struct ConsoleView: View {
     }
 
     private var tabs: some View {
-        TabView(selection: tabViewSelection) {
-            Tab(ConsoleTab.agents.title, systemImage: ConsoleTab.agents.systemImage, value: ConsoleTab.agents) {
-                splitView(for: usesSidebarNavigation ? shownListTab : .agents)
-            }
-            Tab(ConsoleTab.waiting.title, systemImage: ConsoleTab.waiting.systemImage, value: ConsoleTab.waiting) {
-                waitingTab
-            }
-            .badge(arcBlockedCount)
-            Tab(ConsoleTab.progress.title, systemImage: ConsoleTab.progress.systemImage, value: ConsoleTab.progress) {
-                progressTab
-            }
-            Tab(value: ConsoleTab.terminals) {
-                // Beside an iPad's sidebar the Terminals list shows in the
-                // Agents tab's split view; see `tabViewSelection`.
-                if !usesSidebarNavigation {
-                    splitView(for: .terminals)
-                } else {
-                    // Still asking for the bar hidden: a tab's request
-                    // vanishing reads to SwiftUI as asking for the bar, and
-                    // one left by a compact detail would bring it back.
-                    Color.clear.toolbarVisibility(.hidden, for: .tabBar)
+        Group {
+            if listPresentation.mode == .arc {
+                splitView(for: .agents)
+            } else {
+                TabView(selection: tabViewSelection) {
+                    Tab(ConsoleTab.agents.title, systemImage: ConsoleTab.agents.systemImage, value: ConsoleTab.agents) {
+                        splitView(for: usesSidebarNavigation ? shownListTab : .agents)
+                    }
+                    Tab(ConsoleTab.waiting.title, systemImage: ConsoleTab.waiting.systemImage, value: ConsoleTab.waiting) {
+                        waitingTab
+                    }
+                    .badge(arcBlockedCount)
+                    Tab(ConsoleTab.progress.title, systemImage: ConsoleTab.progress.systemImage, value: ConsoleTab.progress) {
+                        progressTab
+                    }
+                    Tab(value: ConsoleTab.terminals) {
+                        // Beside an iPad's sidebar the Terminals list shows in the
+                        // Agents tab's split view; see `tabViewSelection`.
+                        if !usesSidebarNavigation {
+                            splitView(for: .terminals)
+                        } else {
+                            // Still asking for the bar hidden: a tab's request
+                            // vanishing reads to SwiftUI as asking for the bar, and
+                            // one left by a compact detail would bring it back.
+                            Color.clear.toolbarVisibility(.hidden, for: .tabBar)
+                        }
+                    } label: {
+                        // The tab bar fills symbols; filled, this one is a solid
+                        // block beside the other tabs' line icons.
+                        Label(ConsoleTab.terminals.title, systemImage: "terminal")
+                            .environment(\.symbolVariants, .none)
+                    }
                 }
-            } label: {
-                // The tab bar fills symbols; filled, this one is a solid
-                // block beside the other tabs' line icons.
-                Label(ConsoleTab.terminals.title, systemImage: "terminal")
-                    .environment(\.symbolVariants, .none)
             }
         }
         // `lastListTab` is every window's; this window keeps the list tab it
@@ -337,6 +344,11 @@ struct ConsoleView: View {
                 settingsView(onDone: { isShowingSettingsSheet = false })
                     .modifier(ConsoleSheetPresentationModifier(presentation: presentation))
             }
+        }
+        .sheet(isPresented: $isShowingAllArcProjects) {
+            AirBuildAllProjectsView(
+                groups: arcProjectGroups, selected: arcSelectedProjectID,
+                onSelect: { arcSelect($0) })
         }
         // Progress beside a sidebar; a project picked there opens in it.
         .sheet(isPresented: $isShowingProgressSheet, onDismiss: { progressSheetPath = [] }) {
@@ -634,7 +646,8 @@ struct ConsoleView: View {
         ) {
             ArcAgentRow(
                 agent: agent, title: arcAgentTitle(agent),
-                now: arcAgentNow(agent), projectName: projectName)
+                now: arcAgentNow(agent), projectName: projectName,
+                isSelected: selectedItem.wrappedValue == .agent(agent.id))
         } preview: {
             AgentCardView(
                 agent: agent,
@@ -646,7 +659,8 @@ struct ConsoleView: View {
                 hiddenTokens: [])
         }
         .listRowSeparator(.hidden)
-        .modifier(ListRowVerticalInsets(2))
+        .listRowInsets(EdgeInsets())
+        .navigationLinkIndicatorVisibility(.hidden)
     }
 
     /// What the Agent is doing now, from its Host's board; nil where its
@@ -675,7 +689,14 @@ struct ConsoleView: View {
     /// Usage, on Progress: pushed on the tab's stack, or on the sheet's
     /// beside a sidebar.
     private func showUsage() {
-        if usesSidebarNavigation {
+        if listPresentation.mode == .arc {
+            progressSheetPath = [.usage]
+            if isShowingHostsSheet || isShowingSettingsSheet {
+                opensProgressSheetAfterDismiss = true
+            } else {
+                isShowingProgressSheet = true
+            }
+        } else if usesSidebarNavigation {
             progressSheetPath = [.usage]
             if isShowingHostsSheet || isShowingSettingsSheet {
                 opensProgressSheetAfterDismiss = true
@@ -918,31 +939,21 @@ struct ConsoleView: View {
                     // The sidebar column reports a compact size class even
                     // beside a detail, so the lists are told outright.
                     .environment(\.isSidebarColumn, presentation.usesRegularColumns)
-                    .environment(\.consoleListShowsDisclosure, !presentation.usesRegularColumns)
+                    .environment(\.consoleListShowsDisclosure, !presentation.usesRegularColumns && listPresentation.mode != .arc)
                     .navigationTitle(listTitle(for: tab))
-                    // Compact width's project list is titled with the project
-                    // on show, and the title switches it.
-                    .toolbarTitleMenu {
-                        if showsArcTitleMenu(for: tab) {
-                            ArcProjectMenuContent(
-                                sections: ArcProjectMenu.sections(arcProjectGroups),
-                                selected: arcSelectedProjectID, onSelect: { arcSelect($0) })
-                        }
-                    }
                     .navigationSplitViewColumnWidth(
-                        min: presentation.sidebarWidth.minimum,
-                        ideal: presentation.sidebarWidth.ideal,
-                        max: presentation.sidebarWidth.maximum)
+                        min: usesAirBuildArcChrome(for: tab) ? 300 : presentation.sidebarWidth.minimum,
+                        ideal: usesAirBuildArcChrome(for: tab) ? 300 : presentation.sidebarWidth.ideal,
+                        max: usesAirBuildArcChrome(for: tab) ? 300 : presentation.sidebarWidth.maximum)
                     // A title menu shows only on an inline title; a large
                     // or inline-large one drops it.
                     .navigationBarTitleDisplayMode(
-                        usesSidebarNavigation || showsArcTitleMenu(for: tab) ? .inline : .automatic)
+                        usesAirBuildArcChrome(for: tab) || usesSidebarNavigation ? .inline : .automatic)
                     .toolbar { toolbar(for: tab) }
-                    // `toolbar(for:)` puts the list's title at the bar's
-                    // leading edge itself.
-                    .toolbar(removing: usesSidebarNavigation ? .title : nil)
+                    // AirBuild's project grid replaces the list title.
+                    .toolbar(removing: usesAirBuildArcChrome(for: tab) || usesSidebarNavigation ? .title : nil)
                     .bottomBar {
-                        if usesSidebarNavigation {
+                        if usesAirBuildArcChrome(for: tab) || usesSidebarNavigation {
                             sidebarFooter(for: tab)
                         }
                     }
@@ -1089,6 +1100,8 @@ struct ConsoleView: View {
                     text: $agentSearchText, isPresented: $isAgentSearchPresented,
                     focus: $focusedSearch, tab: .agents,
                     prompt: "Search Agents", showsField: !usesSidebarNavigation))
+                .scrollContentBackground(listPresentation.mode == .arc ? .hidden : .automatic)
+                .background(listPresentation.mode == .arc ? Color(uiColor: .systemGray4) : Color.clear)
         case .terminals:
             if hosts.consoleHosts.isEmpty {
                 noHostsView
@@ -1217,6 +1230,27 @@ struct ConsoleView: View {
 
     @ToolbarContentBuilder
     private func toolbar(for tab: ConsoleTab) -> some ToolbarContent {
+        if usesAirBuildArcChrome(for: tab) {
+            ToolbarItem(placement: .topBarLeading) {
+                AirBuildGlassCapsule {
+                    if offersNewItem(on: .agents) {
+                        AirBuildIconButton(systemImage: "plus", label: "New Agent") {
+                            startAgentRequest = StartAgentRequest(
+                                origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
+                        }
+                    }
+                    if usesSidebarNavigation {
+                        AirBuildIconButton(systemImage: "sidebar.left", label: "Hide Sidebar") {
+                            withAnimation(reduceMotion ? nil : .snappy) {
+                                splitVisibilities[tab, default: ConsoleSplitVisibilityState()]
+                                    .hideSidebar()
+                            }
+                        }
+                    }
+                }
+            }
+            .toolbarItemBackground(.hidden)
+        } else {
         // An iPad sidebar's title, always at the bar's leading edge: the
         // bar's own title centers itself wherever it fits, so it would move
         // as the list, and the title's width, changes.
@@ -1289,6 +1323,7 @@ struct ConsoleView: View {
                 newItemButton(for: tab).hoverEffect(.highlight)
             }
         }
+        }
     }
 
     /// One button for both lists, so a sidebar switching lists keeps its
@@ -1311,27 +1346,62 @@ struct ConsoleView: View {
             listsTerminals: tab == .terminals, capabilities: { console.capabilities(for: $0.id) })
     }
 
-    /// An iPad sidebar's foot, standing in for the tab bar: Hosts and
-    /// Settings, then the list's menus.
+    /// Hosts, search and Settings flank the AirBuild list; other sidebars
+    /// keep their existing list menus.
+    @ViewBuilder
     private func sidebarFooter(for tab: ConsoleTab) -> some View {
-        HStack(spacing: 4) {
-            Button(ConsoleTab.hosts.title, systemImage: "server.rack") { showHosts() }
-            Button(ConsoleTab.settings.title, systemImage: "gearshape") { showSettings() }
-            Spacer(minLength: 0)
-            // A menu's pointer target is its own, not its button style's
-            // label, so it takes the round highlight here.
-            if offersFilters(for: tab), !foldsListFilters {
-                filterButton(for: tab).roundPointerHighlight()
+        if usesAirBuildArcChrome(for: tab) {
+            HStack(spacing: 8) {
+                AirBuildGlassCapsule {
+                    AirBuildIconButton(systemImage: "cloud", label: ConsoleTab.hosts.title) {
+                        showHosts()
+                    }
+                }
+                Spacer(minLength: 0)
+                AirBuildGlassCapsule {
+                    AirBuildIconButton(systemImage: "magnifyingglass", label: "Search Agents") {
+                        isAgentSearchPresented = true
+                        focusedSearch = .agents
+                    }
+                    Button(action: showSettings) {
+                        Text("A")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                LinearGradient(
+                                    colors: [.orange, Color(red: 0.48, green: 0.17, blue: 0.1)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing),
+                                in: Circle())
+                            .frame(width: 34, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(ConsoleTab.settings.title)
+                }
             }
-            if !hosts.consoleHosts.isEmpty {
-                presentationMenu(for: tab).roundPointerHighlight()
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+        } else {
+            HStack(spacing: 4) {
+                Button(ConsoleTab.hosts.title, systemImage: "server.rack") { showHosts() }
+                Button(ConsoleTab.settings.title, systemImage: "gearshape") { showSettings() }
+                Spacer(minLength: 0)
+                // A menu's pointer target is its own, not its button style's
+                // label, so it takes the round highlight here.
+                if offersFilters(for: tab), !foldsListFilters {
+                    filterButton(for: tab).roundPointerHighlight()
+                }
+                if !hosts.consoleHosts.isEmpty {
+                    presentationMenu(for: tab).roundPointerHighlight()
+                }
             }
+            .labelStyle(.iconOnly)
+            .buttonStyle(SidebarIconButtonStyle())
+            .menuStyle(.button)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
         }
-        .labelStyle(.iconOnly)
-        .buttonStyle(SidebarIconButtonStyle())
-        .menuStyle(.button)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
     }
 
     private var terminalPresentationBinding: Binding<TerminalListPresentationMode> {
@@ -1809,8 +1879,7 @@ struct ConsoleView: View {
             }
             .modifier(
                 ConsoleAgentListStyle(
-                    showsCards: listPresentation.mode == .byWorkspace
-                        || listPresentation.mode == .arc))
+                    showsCards: listPresentation.mode == .byWorkspace))
             .modifier(ConsoleSidebarListTint())
             .searchDrawerStartsTucked()
         }
@@ -1860,10 +1929,17 @@ struct ConsoleView: View {
         if arcIsNarrowed {
             flatAgentListRows
         } else {
-            arcSwitcherRow
+            AirBuildProjectGrid(
+                projects: arcProjectGroups.flatMap(\.projects),
+                selected: arcSelectedProjectID,
+                onSelect: { arcSelect($0) },
+                onShowAll: { isShowingAllArcProjects = true })
+                .listRowInsets(EdgeInsets(top: usesSidebarNavigation ? 8 : 32, leading: 0, bottom: 12, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .selectionDisabled()
             agentHostIssueRows
             arcSelectedProjectRows
-            arcWaitingRows
         }
     }
 
@@ -1885,24 +1961,20 @@ struct ConsoleView: View {
         }
     }
 
-    /// The selected project's card: its Agents, as the other presentations'
-    /// rows. The title or the switcher above names the project.
+    /// The selected project's conversations, without a card around them.
     @ViewBuilder
     private var arcSelectedProjectRows: some View {
         if let project = arcSelectedProject {
-            let color = ArcProjectColor.color(for: project.label)
-            Section {
-                if project.agents.isEmpty {
-                    ArcProjectEmptyRow {
-                        startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
-                    }
-                    .listRowBackground(color.opacity(0.13))
-                } else {
-                    ForEach(project.agents) { @Sendable agent in
-                        MainActorContent {
-                            arcAgentRow(agent)
-                                .listRowBackground(color.opacity(0.13))
-                        }
+            if project.agents.isEmpty {
+                ArcProjectEmptyRow {
+                    startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(project.agents) { @Sendable agent in
+                    MainActorContent {
+                        arcAgentRow(agent)
+                            .listRowBackground(Color.clear)
                     }
                 }
             }
@@ -2493,16 +2565,11 @@ struct ConsoleView: View {
         arcSelectionKey = id.storedText
     }
 
-    /// Whether the list's title is the shown project, opening the switcher:
-    /// compact width only, where a sidebar's first row does not.
-    private func showsArcTitleMenu(for tab: ConsoleTab) -> Bool {
-        !usesSidebarNavigation && tab == .agents && listPresentation.mode == .arc
-            && arcSelectedProject != nil
+    private func usesAirBuildArcChrome(for tab: ConsoleTab) -> Bool {
+        tab == .agents && listPresentation.mode == .arc
     }
 
-    private func listTitle(for tab: ConsoleTab) -> String {
-        showsArcTitleMenu(for: tab) ? arcSelectedProject?.label ?? tab.title : tab.title
-    }
+    private func listTitle(for tab: ConsoleTab) -> String { tab.title }
 
     /// The other projects' Blocked Agents: the ones the waiting section
     /// lists, and nothing from the project on screen.
