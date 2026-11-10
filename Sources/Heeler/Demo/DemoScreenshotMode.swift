@@ -1750,9 +1750,10 @@
                 // under its `projects/`, so the markers can be refused.
                 let chatClaude = DemoChatSample.home + "/.claude"
                 guard path != chatClaude + "/projects", path != chatClaude + "/.claude.json" else { return nil }
-                return DemoChatSample.status(atPath: path)
+                return DemoChatSample.statusWithArc(atPath: path)
             }
-            return DemoUsageSample.accountFileStatus(atPath: path) ?? DemoChatSample.status(atPath: path)
+            return DemoUsageSample.accountFileStatus(atPath: path)
+                ?? DemoChatSample.statusWithArc(atPath: path)
         }
 
         func listFiles(_ request: RemoteFileListingRequest) async throws -> RemoteFileListing? {
@@ -1765,7 +1766,7 @@
         private var holdsAccountDirectories: Bool { hostID == DemoScreenshotFixture.studioHostID }
 
         func readHostFileRange(_ range: RemoteFileRange) async throws -> RemoteFileSlice {
-            DemoChatSample.read(range)
+            DemoChatSample.readWithArc(range)
         }
 
         func queryOpenCode(_ query: OpenCodeQuery) async throws -> OpenCodeQueryResponse {

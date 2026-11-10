@@ -60,6 +60,8 @@ struct ConsoleView: View {
     /// Progress waits for that sheet to close, as a sheet asked for while
     /// another one leaves never shows.
     @State private var opensProgressSheetAfterDismiss = false
+    /// Which scope the Progress page opens on.
+    @State private var progressScope = ArcProgressScope.project
     /// The Host the Usage page reads; nil reads every Host.
     @State private var usageScopeHostID: Host.ID?
     @State private var usageMetric = AgentUsageMetric.cost
@@ -145,6 +147,9 @@ struct ConsoleView: View {
     @State private var pendingSavedChatRemoval: ConsoleAgent?
     /// Owns presentation mode and Host/Workspace collapse state.
     @State private var listPresentation = ConsoleListPresentationStore()
+    /// The desktop arc board's per-Host caches: what every Agent is doing
+    /// now, and each project's board.
+    @State private var arcBoard = ArcBoardStore()
     /// The project the arc list shows, by Host and Workspace id; empty until
     /// the list picks the first project that has Agents.
     @AppStorage("console.arc.selected-project") private var arcSelectionKey = ""
@@ -220,6 +225,16 @@ struct ConsoleView: View {
         // opened on even when another window picks a different one.
         .onAppear {
             if listTab == nil { listTab = shownListTab }
+        }
+        // The board's now text, while the Console is on screen. A Host
+        // without the board answers nothing, which reads as no text.
+        .task {
+            while !Task.isCancelled {
+                await arcBoard.refreshNow(hosts: hosts.consoleHosts) { [console] id in
+                    console.chatHostFiles(for: id)
+                }
+                do { try await Task.sleep(for: ArcBoardStore.nowInterval) } catch { return }
+            }
         }
         // The detail's actions can present these even while the sidebar is hidden.
         .sheet(item: $titleRename) { store in
@@ -566,6 +581,7 @@ struct ConsoleView: View {
                 blocked: ArcWaitingList.entries(groups, status: .blocked),
                 done: ArcWaitingList.entries(groups, status: .done),
                 agentTitle: { arcAgentTitle($0) },
+                now: { arcAgentNow($0) },
                 onSelect: { id in
                     selectedTab.wrappedValue = .agents
                     selectAgent(id)
@@ -578,10 +594,24 @@ struct ConsoleView: View {
     private func progressPage(
         onSelect: @escaping (ConsoleWorkspaceSection.ID) -> Void
     ) -> some View {
-        ArcProgressPage(
-            rows: ArcProgressRow.rows(arcAllGroups) { arcAgentTitle($0) },
+        let rows = ArcProgressRow.rows(arcAllGroups) { arcAgentTitle($0) }
+        // Progress beside a sidebar opens as a sheet, which has no tab bar.
+        return ArcProgressPage(
+            scope: $progressScope,
+            rows: rows,
+            selected: rows.first { $0.id == arcSelectedProjectID },
+            board: arcSelectedProjectID.flatMap { ArcBoardLookup.board(for: $0, in: arcBoard.boards) },
+            boards: arcBoard.boards,
             showsUsage: console.isUsageEnabled,
-            onSelect: onSelect
+            onSelect: { id in
+                progressScope = .project
+                onSelect(id)
+            },
+            refresh: {
+                await arcBoard.refreshBoards(hosts: hosts.consoleHosts) { [console] id in
+                    console.chatHostFiles(for: id)
+                }
+            }
         ) {
             AgentUsageDashboard(
                 entries: usageEntries, scopeHostID: $usageScopeHostID, metric: $usageMetric,
@@ -594,6 +624,37 @@ struct ConsoleView: View {
                 }
                 .environment(\.hostAccounts, HostAccountsProvider { [console] in console.hostAccountsStore(for: $0) })
         }
+    }
+
+    /// The arc list's light conversation row, wrapped in the same link as
+    /// the full card so its detail, menu and swipes stay.
+    private func arcAgentRow(_ agent: ConsoleAgent, projectName: String? = nil) -> some View {
+        agentLink(
+            agent, isSaved: console.savedChatEntries[agent.id] != nil,
+            background: ConsoleRowSelectionBackground(
+                isSelected: selectedItem.wrappedValue == .agent(agent.id))
+        ) {
+            ArcAgentRow(
+                agent: agent, title: arcAgentTitle(agent),
+                now: arcAgentNow(agent), projectName: projectName)
+        } preview: {
+            AgentCardView(
+                agent: agent,
+                layout: console.rowLayout(for: agent.hostID),
+                isPinned: console.pins.isPinned(
+                    hostID: agent.hostID, paneID: agent.agent.paneID),
+                qualifier: nil,
+                saved: console.savedChatEntries[agent.id],
+                hiddenTokens: [])
+        }
+        .listRowSeparator(.hidden)
+        .modifier(ListRowVerticalInsets(2))
+    }
+
+    /// What the Agent is doing now, from its Host's board; nil where its
+    /// Host never ran the board.
+    private func arcAgentNow(_ agent: ConsoleAgent) -> String? {
+        ArcAgentNowLookup.now(for: agent, in: arcBoard.now)?.text
     }
 
     /// An Agent's title as its list row heads it, beside a project the row
@@ -1825,8 +1886,6 @@ struct ConsoleView: View {
     /// presentations' rows.
     @ViewBuilder
     private var arcSelectedProjectRows: some View {
-        let qualifiers = agentTitleQualifiers
-        let saved = console.savedChatEntries
         if let project = arcSelectedProject {
             let color = ArcProjectColor.color(for: project.label)
             Section {
@@ -1838,12 +1897,10 @@ struct ConsoleView: View {
                 } else {
                     ForEach(project.agents) { @Sendable agent in
                         MainActorContent {
-                            // The card's header names the project already.
-                            agentRow(
-                                agent, qualifier: qualifiers[agent.id], saved: saved[agent.id],
-                                hiding: [.workspace]
-                            )
-                            .listRowBackground(color.opacity(0.13))
+                            // The card's header names the project already;
+                            // the row says what the Agent is doing instead.
+                            arcAgentRow(agent)
+                                .listRowBackground(color.opacity(0.13))
                         }
                     }
                 }
@@ -1858,14 +1915,18 @@ struct ConsoleView: View {
     /// The other projects' Blocked Agents, under a count of them.
     @ViewBuilder
     private var arcWaitingRows: some View {
-        let qualifiers = agentTitleQualifiers
-        let saved = console.savedChatEntries
         let waiting = arcWaitingAgents
         if !waiting.isEmpty {
             Section {
                 ForEach(waiting) { @Sendable agent in
                     MainActorContent {
-                        agentRow(agent, qualifier: qualifiers[agent.id], saved: saved[agent.id])
+                        // Another project's conversation; the row says which,
+                        // with the label the workspace list gives it.
+                        arcAgentRow(
+                            agent,
+                            projectName: agent.workspaceLabel.flatMap {
+                                $0.isEmpty ? nil : $0
+                            } ?? agent.agent.workspaceID)
                     }
                 }
             } header: {

@@ -426,6 +426,7 @@ struct ArcWaitingPage: View {
     let blocked: [ArcWaitingList.Entry]
     let done: [ArcWaitingList.Entry]
     let agentTitle: (ConsoleAgent) -> String
+    let now: (ConsoleAgent) -> String?
     let onSelect: (ConsoleAgent.ID) -> Void
 
     var body: some View {
@@ -458,20 +459,114 @@ struct ArcWaitingPage: View {
             MainActorContent {
                 ArcWaitingRow(
                     agent: entry.agent, projectName: entry.projectLabel,
-                    title: agentTitle(entry.agent)
+                    title: agentTitle(entry.agent),
+                    now: now(entry.agent)
                 ) { onSelect(entry.id) }
             }
         }
     }
 }
 
+/// The desktop board's reading of one conversation, for an arc row's second
+/// line and a status: what its Agent is doing now, and where that leaves it.
+struct ArcAgentLine: Equatable, Sendable {
+    let now: String?
+    let status: ArcProjectLight.Light?
+
+    init(agent: ConsoleAgent, now: [Host.ID: [String: ArcAgentNow]]) {
+        self.now = ArcAgentNowLookup.now(for: agent, in: now)?.text
+        switch agent.agent.status {
+        case .blocked: status = .blocked
+        case .working: status = .working
+        case .done: status = .done
+        default: status = nil
+        }
+    }
+}
+
+/// One conversation on the arc list's card: the program's mark, the title,
+/// and what the Agent is doing now, with its status at the trailing edge.
+/// The link around it carries the detail, menu and swipe actions.
+struct ArcAgentRow: View {
+    let agent: ConsoleAgent
+    let title: String
+    /// What the Agent is doing now, else its terminal's own title.
+    let now: String?
+    /// Named ahead of `now`, for a row under another project's card.
+    var projectName: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            AgentKindMarkView(kind: agent.agent.kind, diameter: 28)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(verbatim: title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if let said = subtitle, said != title {
+                    Text(verbatim: said)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            status
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: accessibilityText))
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        switch agent.agent.status {
+        case .blocked:
+            Text(String(localized: "Blocked pill", defaultValue: "Waiting", comment: "Badge on a Blocked Agent's row"))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.red)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Color.red.opacity(0.16), in: Capsule())
+        case .working:
+            ProgressView()
+                .controlSize(.mini)
+                .tint(.yellow)
+                .accessibilityHidden(true)
+        case .done:
+            Circle()
+                .fill(.green)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+        default:
+            EmptyView()
+        }
+    }
+
+    private var subtitle: String? {
+        switch (projectName, now) {
+        case (let project?, let now?): "\(project) · \(now)"
+        case (_?, nil): projectName
+        case (nil, _): now
+        }
+    }
+
+    private var accessibilityText: String {
+        [title, subtitle, agent.agent.status.displayTitle]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+}
+
 /// One conversation on the Waiting page: its project's badge with the
-/// Agent's own mark, its title, where it lives, and what its terminal last
-/// said.
+/// Agent's own mark, its title, where it lives, and what it is doing now.
 struct ArcWaitingRow: View {
     let agent: ConsoleAgent
     let projectName: String
     let title: String
+    /// What the Agent is doing now; the terminal's own title stands in.
+    let now: String?
     let action: () -> Void
 
     var body: some View {
@@ -487,9 +582,9 @@ struct ArcWaitingRow: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if let said = agent.agent.terminalTitleStripped, !said.isEmpty,
-                        said != title
-                    {
+                    if let said = now ?? agent.agent.terminalTitleStripped.flatMap({
+                        $0.isEmpty ? nil : $0
+                    }), said != title {
                         Text(verbatim: said)
                             .font(.footnote)
                             .foregroundStyle(.tertiary)
@@ -524,25 +619,55 @@ enum ArcProgressDestination: Hashable, Sendable {
     case usage
 }
 
-/// The Progress page: every project, the ones that wait on the user first,
-/// each with its counts; then Usage. A row opens its project on the
-/// Projects tab.
+/// The Progress page's two scopes: the project the list shows, or every one.
+enum ArcProgressScope: String, CaseIterable, Identifiable, Sendable {
+    case project
+    case all
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .project: String(localized: "This Project")
+        case .all: String(localized: "All")
+        }
+    }
+}
+
+/// The Progress page: the selected project's board, or every project's
+/// counts, then Usage. A project row opens that project on the Projects tab.
 struct ArcProgressPage<Usage: View>: View {
+    let scope: Binding<ArcProgressScope>
     let rows: [ArcProgressRow]
+    /// The project the page's own scope shows: the arc list's selection.
+    let selected: ArcProgressRow?
+    let board: ArcProjectBoard?
+    /// Every Host's boards, by space, for the all-projects rows' first ask.
+    let boards: [Host.ID: [String: ArcProjectBoard]]
     let showsUsage: Bool
     let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+    /// Reads the boards again: a pull down, or a first look.
+    let refresh: () async -> Void
     @ViewBuilder let usage: () -> Usage
 
     var body: some View {
         List {
-            if !rows.isEmpty {
-                Section("Projects") {
-                    ForEach(rows) { @Sendable row in
-                        MainActorContent {
-                            ArcProgressProjectRow(row: row) { onSelect(row.id) }
-                        }
+            Section {
+                Picker("Progress scope", selection: scope) {
+                    ForEach(ArcProgressScope.allCases) { @Sendable item in
+                        Text(item.title).tag(item)
                     }
                 }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                .listRowSeparator(.hidden)
+            }
+            switch scope.wrappedValue {
+            case .project:
+                projectBoard
+            case .all:
+                allProjects
             }
             if showsUsage {
                 Section(ConsoleTab.usage.title) {
@@ -555,58 +680,230 @@ struct ArcProgressPage<Usage: View>: View {
         .listStyle(.insetGrouped)
         .navigationTitle(ConsoleTab.progress.title)
         .navigationDestination(for: ArcProgressDestination.self) { _ in usage() }
-    }
-}
-
-/// One project on the Progress page: badge, name, the Agent it is busy
-/// with, and a pill per status it has.
-struct ArcProgressProjectRow: View {
-    let row: ArcProgressRow
-    let action: () -> Void
-
-    private var counts: [(light: ArcProjectLight.Light, count: Int)] {
-        [(.blocked, row.blocked), (.working, row.working), (.done, row.done)]
-            .filter { $0.count > 0 }
+        .refreshable { await refresh() }
+        .task { await refresh() }
     }
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                ArcProjectBadge(label: row.project.label, size: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: row.project.label)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    if let subtitle = row.subtitle {
-                        Text(verbatim: subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+    @ViewBuilder
+    private var projectBoard: some View {
+        if let selected {
+            if let board, !board.isEmpty {
+                ArcBoardSections(project: selected.project, board: board)
+            } else {
+                Section {
+                    ContentUnavailableView {
+                        Label("No board for this project", systemImage: "chart.bar.doc.horizontal")
+                    } description: {
+                        Text("Open the progress panel once in herdr arc on your computer.")
                     }
                 }
-                Spacer(minLength: 8)
-                HStack(spacing: 4) {
-                    ForEach(counts, id: \.light) { @Sendable item in
-                        MainActorContent {
-                            ArcCountPill(light: item.light, count: item.count)
-                        }
+                .listRowBackground(Color.clear)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var allProjects: some View {
+        if !rows.isEmpty {
+            Section("Projects") {
+                ForEach(rows) { @Sendable row in
+                    MainActorContent {
+                        ArcProgressProjectRow(
+                            row: row,
+                            board: ArcBoardLookup.board(for: row.id, in: boards)
+                        ) { onSelect(row.id) }
                     }
                 }
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .hoverEffect(.highlight)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: accessibilityText))
-        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// One project's board: the header with its counts, then whoever waits on
+/// the user, the next step, what can ship, and when it was written.
+struct ArcBoardSections: View {
+    let project: ArcProjectGroup.Project
+    let board: ArcProjectBoard
+
+    private var blocked: Int { project.statuses.count { $0 == .blocked } }
+
+    var body: some View {
+        Section {
+            ArcBoardHeader(
+                label: project.label, blocked: blocked, asks: board.asks.count,
+                shippable: board.gates.count { $0.ok == true })
+        }
+        if !board.asks.isEmpty {
+            Section("Waiting on You") {
+                ForEach(board.asks) { @Sendable ask in
+                    MainActorContent {
+                        ArcBoardAskRow(
+                            icon: ask.kind == .decision ? "arrow.triangle.branch" : "hand.raised",
+                            tint: ask.kind == .decision ? .red : .orange,
+                            title: ask.title, detail: ask.detail, since: ask.since)
+                    }
+                }
+            }
+        }
+        if let next = board.next {
+            Section("Next Step") {
+                ArcBoardNextRow(next: next)
+            }
+        }
+        if !board.gates.isEmpty {
+            Section("Shipping") {
+                ForEach(board.gates) { @Sendable gate in
+                    MainActorContent { ArcBoardGateRow(gate: gate) }
+                }
+            }
+        }
+        if let at = board.at {
+            Section {
+                Text(verbatim: ArcBoardText.updated(at))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// A board's head: the project's badge, its name, and how many wait on the
+/// user, how many asks there are, and how much can ship.
+struct ArcBoardHeader: View {
+    let label: String
+    let blocked: Int
+    let asks: Int
+    let shippable: Int
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ArcProjectBadge(label: label, size: 34)
+            Text(verbatim: label)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(ArcProjectColor.color(for: label))
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            HStack(spacing: 4) {
+                if blocked > 0 { ArcCountPill(light: .blocked, count: blocked) }
+                if asks > 0 {
+                    ArcTaggedCountPill(count: asks, systemImage: "text.bubble", tint: .orange)
+                }
+                if shippable > 0 {
+                    ArcTaggedCountPill(count: shippable, systemImage: "shippingbox", tint: .green)
+                }
+            }
+        }
+        .textCase(nil)
+    }
+}
+
+/// One thing waiting on the user: what it is, its detail, and how long it
+/// has waited.
+struct ArcBoardAskRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let detail: String?
+    let since: Date?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 22, height: 22)
+                .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 6))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: title)
+                    .font(.subheadline)
+                    .lineLimit(3)
+                if let detail {
+                    Text(verbatim: detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                }
+            }
+            Spacer(minLength: 4)
+            if let since {
+                Text(verbatim: since.formatted(.relative(presentation: .named)))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// The board's next step: a flag, the sentence, and how long it should take.
+struct ArcBoardNextRow: View {
+    let next: ArcProjectBoard.Next
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "flag")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.blue)
+                .frame(width: 22, height: 22)
+                .background(Color.blue.opacity(0.16), in: RoundedRectangle(cornerRadius: 6))
+                .accessibilityHidden(true)
+            Text(verbatim: next.text)
+                .font(.subheadline)
+                .lineLimit(4)
+            Spacer(minLength: 4)
+            if let eta = next.eta {
+                Text(verbatim: eta)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// One item that can ship, or cannot yet: its mark, what it is, and why.
+struct ArcBoardGateRow: View {
+    let gate: ArcProjectBoard.Gate
+
+    private var mark: (icon: String, tint: Color) {
+        switch gate.ok {
+        case true: ("checkmark.circle.fill", .green)
+        case false: ("xmark.circle", .red)
+        case nil: ("circle.dotted", .gray)
+        }
     }
 
-    private var accessibilityText: String {
-        ([row.project.label, row.subtitle].compactMap { $0 }
-            + counts.map { "\($0.light.status.displayTitle ?? "") \($0.count)" })
-            .joined(separator: ", ")
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: mark.icon)
+                .foregroundStyle(mark.tint)
+                .accessibilityLabel(Text(statusText))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: gate.title)
+                    .font(.subheadline)
+                    .lineLimit(3)
+                if let why = gate.why {
+                    Text(verbatim: why)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                }
+            }
+        }
+    }
+
+    private var statusText: String {
+        switch gate.ok {
+        case true: String(localized: "Can ship")
+        case false: String(localized: "Cannot ship yet")
+        case nil: String(localized: "Needs checking")
+        }
+    }
+}
+
+/// The board's own wording: the footer's update line.
+enum ArcBoardText {
+    static func updated(_ date: Date) -> String {
+        String(localized: "Updated \(date.formatted(.relative(presentation: .named)))")
     }
 }
 
@@ -634,5 +931,91 @@ struct ArcCountPill: View {
         .padding(.vertical, 3)
         .background(light.color.opacity(0.16), in: Capsule())
         .accessibilityHidden(true)
+    }
+}
+
+/// An all-projects row's second line: the first thing waiting on the user,
+/// else the Agent the project is busy with.
+enum ArcProgressSubtitle {
+    static func text(for row: ArcProgressRow, board: ArcProjectBoard?) -> String? {
+        board?.asks.first.map { String(localized: "Waiting: \($0.title)") } ?? row.subtitle
+    }
+}
+
+/// A count in a board color, with its own symbol: asks waiting and gates
+/// that can ship.
+struct ArcTaggedCountPill: View {
+    let count: Int
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: systemImage)
+            Text(verbatim: "\(count)")
+        }
+        .font(.caption.weight(.semibold).monospacedDigit())
+        .foregroundStyle(tint)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(tint.opacity(0.16), in: Capsule())
+        .accessibilityHidden(true)
+    }
+}
+
+/// Every project's row on Progress: its badge, its name, the first ask that
+/// waits on the user (else what a working Agent does), and its counts.
+struct ArcProgressProjectRow: View {
+    let row: ArcProgressRow
+    /// The board that names its first ask, where there is one.
+    let board: ArcProjectBoard?
+    let action: () -> Void
+
+    private var counts: [(light: ArcProjectLight.Light, count: Int)] {
+        [(.blocked, row.blocked), (.working, row.working), (.done, row.done)]
+            .filter { $0.count > 0 }
+    }
+
+    private var subtitle: String? { ArcProgressSubtitle.text(for: row, board: board) }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ArcProjectBadge(label: row.project.label, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: row.project.label)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let subtitle {
+                        Text(verbatim: subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(
+                                AnyShapeStyle(board?.asks.isEmpty == false ? .red : .secondary))
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    ForEach(counts, id: \.light) { @Sendable item in
+                        MainActorContent {
+                            ArcCountPill(light: item.light, count: item.count)
+                        }
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: accessibilityText))
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var accessibilityText: String {
+        ([row.project.label, subtitle].compactMap { $0 }
+            + counts.map { "\($0.light.status.displayTitle ?? "") \($0.count)" })
+            .joined(separator: ", ")
     }
 }

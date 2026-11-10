@@ -479,6 +479,7 @@
 		74257FA18D6431785BFECE9A /* TerminalInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1E30B96F852EFC3C322C9EB /* TerminalInputController.swift */; };
 		745597578F4E92FCC065823A /* GitBranchNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233075006FC2C8907BBFF40F /* GitBranchNameTests.swift */; };
 		745A30266F85F25CE919BBC2 /* HostOnboardingCoreStartTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE0D4897C97D900DE5E413FF /* HostOnboardingCoreStartTests.swift */; };
+		747D0C7F98B589BC27081F9F /* ArcBoardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEB98FEDD53D2BADB81556DB /* ArcBoardStore.swift */; };
 		7555D2F687F17FB912B68076 /* OpenCodeTranscriptReducer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B939955A4C35E06974573291 /* OpenCodeTranscriptReducer.swift */; };
 		756E9AA79887E6B832522BF3 /* GrokTranscriptLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6703B081C69091FC1C76D9D2 /* GrokTranscriptLocatorTests.swift */; };
 		75A8255D9FA3B634C315DBAE /* GridReportSettling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EEA346C23330237A2A79EB /* GridReportSettling.swift */; };
@@ -944,6 +945,7 @@
 		E1EA171B83B12B665B89586D /* UsageWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30773AA9AE9CD8B9488525D4 /* UsageWidgetSnapshot.swift */; };
 		E2651A270B5EE9203B508E3F /* GenericDialogCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B850B34406603B1EC21E871A /* GenericDialogCardView.swift */; };
 		E2F51D71F8D6E3AF5FD1B9E8 /* SealedEnvelopeCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE9C95E2AC313465A7B38FD /* SealedEnvelopeCodec.swift */; };
+		E30009F6C88F2FE75466BD30 /* ArcActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2A3A94A41E89810C5CFEF2 /* ArcActivity.swift */; };
 		E342AA28F1D4A22E526BECAD /* BlockedCardStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F53ECA125F1F72654BA7E53 /* BlockedCardStoreTests.swift */; };
 		E34670DFEB409862038D71B4 /* UsageAccountFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED32C93B802B888CC6FA9BD /* UsageAccountFile.swift */; };
 		E34C3883C2F7B2D4AB8C1D8C /* AgentDetailSurfaceSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F97FC39A499128368E2005 /* AgentDetailSurfaceSettingsTests.swift */; };
@@ -1623,6 +1625,7 @@
 		7E8AB621459A7895E1AA969B /* HerdrCoreAttachTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreAttachTests.swift; sourceTree = "<group>"; };
 		7EA83366C03C1D15B1DE8D1E /* TerminalOrphanSurfaceLayers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalOrphanSurfaceLayers.swift; sourceTree = "<group>"; };
 		7F1B6BC64B14451DF7F1D929 /* CodexLineHygieneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexLineHygieneTests.swift; sourceTree = "<group>"; };
+		7F2A3A94A41E89810C5CFEF2 /* ArcActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcActivity.swift; sourceTree = "<group>"; };
 		7FC1C5701C464ADBBAE0525D /* HostOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostOnboardingView.swift; sourceTree = "<group>"; };
 		7FCA00B5F2A05A599D74FCCE /* DeviceKeyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceKeyStoreTests.swift; sourceTree = "<group>"; };
 		80814D611E6B27213B94DFB1 /* HerdrCoreProgramChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreProgramChatTests.swift; sourceTree = "<group>"; };
@@ -2139,6 +2142,7 @@
 		FE30EA02E9CF206CF221AFF7 /* VoiceInputSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputSession.swift; sourceTree = "<group>"; };
 		FE31FD98C71EC0A9939EE0AB /* ChatRowBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRowBuilder.swift; sourceTree = "<group>"; };
 		FE62169C67E1ED1082DB98B9 /* HeelerSSHTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeelerSSHTransport.swift; sourceTree = "<group>"; };
+		FEB98FEDD53D2BADB81556DB /* ArcBoardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArcBoardStore.swift; sourceTree = "<group>"; };
 		FF5F7088D1B393599B6DA1EB /* HerdrAppControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrAppControl.swift; sourceTree = "<group>"; };
 		FF744C06B0CAE716C1EDFAF4 /* AgentFocusCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFocusCoordinatorTests.swift; sourceTree = "<group>"; };
 		FFE4F4F852F91D9F13D5931A /* HarnessConfigEditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarnessConfigEditTests.swift; sourceTree = "<group>"; };
@@ -2979,6 +2983,8 @@
 				0BEA52CA148F77EBDC7BA41F /* AgentTitleRenameStore.swift */,
 				029887EC83335A8AED8C8ABC /* AgentUsageStrip.swift */,
 				996FEB63446D29BFF498378F /* AgentWindowDrag.swift */,
+				7F2A3A94A41E89810C5CFEF2 /* ArcActivity.swift */,
+				FEB98FEDD53D2BADB81556DB /* ArcBoardStore.swift */,
 				13203D88011B45D6509B6BE3 /* ArcProjectList.swift */,
 				5870640477FDEB252DEE80B7 /* AttachLinkIndex.swift */,
 				FBE2F11B705B68BB1FBE993D /* AttachRestorationTrace.swift */,
@@ -3804,10 +3810,10 @@
 			projectRoot = "";
 			targets = (
 				081A3B29EFF2C7B2FCAA3248 /* Heeler */,
-				4E3ED42B1AF2AE6B521A235A /* HeelerLiveTests */,
 				DFFB82C74B73FA5CBCE6D5D2 /* HeelerNotificationService */,
-				9806EA6C63028F1217417282 /* HeelerTests */,
 				134E6CD1AC1396155DAB93E2 /* HeelerWidgets */,
+				9806EA6C63028F1217417282 /* HeelerTests */,
+				4E3ED42B1AF2AE6B521A235A /* HeelerLiveTests */,
 			);
 		};
 /* End PBXProject section */
@@ -4001,6 +4007,8 @@
 				54D3A4F4FBF8F3F6C154BACE /* AppActivityCoordinator.swift in Sources */,
 				8D9ED28E1DB5A72B471CBD45 /* AppAppearanceSettings.swift in Sources */,
 				8852391AB553C278DECC94AB /* AppearanceSettingsView.swift in Sources */,
+				E30009F6C88F2FE75466BD30 /* ArcActivity.swift in Sources */,
+				747D0C7F98B589BC27081F9F /* ArcBoardStore.swift in Sources */,
 				68F1CA1443F471BC7A35A62D /* ArcProjectList.swift in Sources */,
 				76EAFFA9DAD45987F02DC536 /* AsyncDeadline.swift in Sources */,
 				3C5AFE8D3844A13198DDBEEA /* AttachLinkIndex.swift in Sources */,

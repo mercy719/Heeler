@@ -858,4 +858,119 @@ struct ArcProjectTests {
         #expect(!ConsoleTab.waiting.isList)
         #expect(!ConsoleTab.progress.isList)
     }
+    @Test("now.json reads each Agent's sentence, skipping blank and broken entries")
+    func parsesAgentNow() {
+        let data = Data(
+            #"""
+            {"agents": {
+              "t5": {"fp": "780e9afca50416de", "now": "检查 FRS 后台进程运行状态", "now_ms": 1794280535230},
+              "cn/t1g": {"fp": "x", "now": "  Trim me  ", "now_ms": null},
+              "t9": {"now": "   "},
+              "t10": {"fp": "no text"},
+              "t11": "not an object"
+            }}
+            """#.utf8)
+        let parsed = ArcAgentNow.parse(data)
+        #expect(parsed["t5"]?.text == "检查 FRS 后台进程运行状态")
+        #expect(parsed["t5"]?.at == Date(timeIntervalSince1970: 1_794_280_535.230))
+        #expect(parsed["cn/t1g"]?.text == "Trim me")
+        #expect(parsed["cn/t1g"]?.at == nil)
+        #expect(parsed["t9"] == nil)
+        #expect(parsed["t10"] == nil)
+        #expect(parsed["t11"] == nil)
+        // A file that is not the board's is no Agents, not a crash.
+        #expect(ArcAgentNow.parse(Data("[]".utf8)).isEmpty)
+        #expect(ArcAgentNow.parse(Data("not json".utf8)).isEmpty)
+    }
+
+    @Test("arc-board.json reads each space's asks, next and gates; missing parts stay empty")
+    func parsesProjectBoard() {
+        let data = Data(
+            #"""
+            {"spaces": {
+              "spe78da": {"fp": "a", "at": 1794278848413, "ai": {
+                "asks": [
+                  {"kind": "decision", "title": "删不删半句", "detail": "需用户定。", "since": 1794278831079},
+                  {"kind": "assist", "title": "签名交接", "detail": "", "since": null},
+                  {"title": "  "},
+                  {"kind": "unknown", "title": "assist by default"}
+                ],
+                "next": {"text": "发 test 通道", "eta": "~20 分钟"},
+                "gates": [
+                  {"ok": true, "title": "指定参数", "why": "已真机"},
+                  {"ok": false, "title": "切会话卡顿", "why": "2 条测试红"},
+                  {"ok": null, "title": "45 秒版", "why": "需用户看片"},
+                  {"ok": true},
+                  {"title": "no verdict"}
+                ],
+                "pr_notes": {"#954": {"packaged": "已在 b71 中修复"}}
+              }},
+              "sp3809": {"fp": "b", "ai": {"asks": [], "next": {"text": ""}, "gates": []}}
+            }}
+            """#.utf8)
+        let parsed = ArcProjectBoard.parse(data)
+        let board = parsed["spe78da"]
+        #expect(board?.asks.map(\.kind) == [.decision, .assist, .assist])
+        #expect(board?.asks.map(\.title) == ["删不删半句", "签名交接", "assist by default"])
+        #expect(board?.asks[1].detail == nil)
+        #expect(board?.asks[1].since == nil)
+        #expect(board?.next == ArcProjectBoard.Next(text: "发 test 通道", eta: "~20 分钟"))
+        // A gate with no verdict reads as one to check; one with no title
+        // has nothing to show and drops.
+        #expect(board?.gates.map(\.ok) == [true, false, nil, nil])
+        #expect(board?.gates.map(\.title) == ["指定参数", "切会话卡顿", "45 秒版", "no verdict"])
+        #expect(board?.at == Date(timeIntervalSince1970: 1_794_278_848.413))
+        // A space with nothing to say is empty rather than absent.
+        #expect(parsed["sp3809"]?.isEmpty == true)
+        #expect(parsed["sp3809"]?.asks.isEmpty == true)
+    }
+
+    @Test("A board's space is the Workspace id without its prefix, on that Host only")
+    func boardLookup() {
+        #expect(ArcBoardLookup.spaceID(forWorkspace: "space-spe78da") == "spe78da")
+        // A derived Workspace (d-…) is no space, and stays as it is.
+        #expect(ArcBoardLookup.spaceID(forWorkspace: "d-1234") == "d-1234")
+
+        let host = Host.fixture(name: "alpha")
+        let other = Host.fixture(name: "beta")
+        let board = ArcProjectBoard(asks: [], next: nil, gates: [], at: nil)
+        let boards = [host.id: ["spe78da": board]]
+        #expect(
+            ArcBoardLookup.board(
+                for: .init(hostID: host.id, workspaceID: "space-spe78da"), in: boards) != nil)
+        #expect(
+            ArcBoardLookup.board(
+                for: .init(hostID: other.id, workspaceID: "space-spe78da"), in: boards) == nil)
+        // Another Host's file never answers for this one's Agent.
+        let now = [host.id: ["t5": ArcAgentNow(text: "now", at: nil)]]
+        #expect(ArcAgentNowLookup.now(for: Self.agent("t5", on: host, workspace: "w1", status: .working), in: now)?.text == "now")
+        #expect(ArcAgentNowLookup.now(for: Self.agent("t5", on: other, workspace: "w1", status: .working), in: now) == nil)
+    }
+
+    @Test("A gate reads as shipped, blocked or to check")
+    func gateStates() {
+        #expect(ArcProjectBoard.Gate(id: 0, ok: true, title: "a", why: nil).ok == true)
+        #expect(ArcProjectBoard.Gate(id: 0, ok: false, title: "a", why: nil).ok == false)
+        #expect(ArcProjectBoard.Gate(id: 0, ok: nil, title: "a", why: nil).ok == nil)
+    }
+
+    @Test("The All page names the first ask in red, else the working Agent")
+    func allPageSubtitle() {
+        let host = Host.fixture(name: "alpha")
+        let agents = [
+            Self.agent("p1", on: host, workspace: "w1", status: .working),
+        ]
+        let groups = ArcProjectGroup.groups(
+            hosts: [host], agents: agents,
+            workspacesByHost: [host.id: [ConsoleWorkspace(id: "w1", label: "A", order: 0)]])
+        let row = ArcProgressRow.rows(groups) { $0.agent.paneID }[0]
+        // Without a board the row keeps the Agent it is busy with.
+        #expect(row.subtitle == "p1")
+        let board = ArcProjectBoard(
+            asks: [.init(id: 0, kind: .decision, title: "Ship it?", detail: nil, since: nil)],
+            next: nil, gates: [], at: nil)
+        #expect(
+            ArcProgressSubtitle.text(for: row, board: board) == "Waiting: Ship it?")
+        #expect(ArcProgressSubtitle.text(for: row, board: nil) == "p1")
+    }
 }

@@ -46,11 +46,77 @@
                 attachConversation(),
         ].merging(DemoPiChatSample.files) { original, _ in original }
 
+        /// The desktop arc board's caches, so the demo's cards and Progress
+        /// page show what the screenshots need without a live herdr.
+        static let arcFiles: [String: Data] = [
+            home + "/.cache/herdr-agent-board/now.json": Data(
+                #"""
+                {"agents": {
+                  "mobile:p1": {"now": "Running AttachViewTests, 24 passed", "now_ms": 1794280535230},
+                  "docs:p2": {"now": "Refresh the setup guide's screenshots", "now_ms": 1794280535230},
+                  "checkout:p3": {"now": "Waiting for the answer before the UI test", "now_ms": 1794280535230}
+                }}
+                """#.utf8),
+            home + "/.cache/herdr-agent-board/arc-board.json": Data(
+                #"""
+                {"spaces": {
+                  "mobile": {
+                    "at": 1794280535230,
+                    "ai": {
+                      "asks": [
+                        {"kind": "decision", "title": "Ship the new Attach layout?", "detail": "The tests pass; the screenshots are the old ones.", "since": 1794278831079}
+                      ],
+                      "next": {"text": "Record new screenshots and cut the beta.", "eta": "~20 min"},
+                      "gates": [
+                        {"ok": true, "title": "VoiceOver labels", "why": "Audited on device."},
+                        {"ok": false, "title": "Attach reconnects", "why": "Two tests still red."},
+                        {"ok": null, "title": "Landscape layout", "why": "Needs a look on the Duo."}
+                      ]
+                    }
+                  },
+                  "checkout": {
+                    "at": 1794280535230,
+                    "ai": {
+                      "asks": [
+                        {"kind": "assist", "title": "Run the targeted UI test", "detail": "Then the review can close.", "since": 1794278831079}
+                      ],
+                      "next": {"text": "Run CheckoutFlowTests and commit.", "eta": ""},
+                      "gates": [{"ok": true, "title": "Cart survives retry", "why": "Covered by tests."}]
+                    }
+                  },
+                  "api": {
+                    "at": 1794280535230,
+                    "ai": {
+                      "asks": [],
+                      "next": {"text": "Finish the retry matrix.", "eta": "~1 h"},
+                      "gates": [{"ok": null, "title": "Webhook retries", "why": "12 of 16 cases pass."}]
+                    }
+                  }
+                }}
+                """#.utf8),
+        ]
+
         /// Chat's Host file operations over `files`, and its OpenCode store
         /// queries over `DemoOpenCodeChatSample`.
         static let hostFiles = ChatHostFiles(
             status: { status(atPath: $0) }, list: { list($0) }, read: { read($0) }, home: { home },
             queryOpenCode: { DemoOpenCodeChatSample.response($0) })
+
+        /// Chat's files plus the arc board's caches.
+        static func statusWithArc(atPath path: String) -> RemoteFileStatus? {
+            if let data = arcFiles[path] {
+                return RemoteFileStatus(
+                    kind: .regular, size: UInt64(data.count), modificationTime: modificationTime)
+            }
+            return status(atPath: path)
+        }
+
+        static func readWithArc(_ range: RemoteFileRange) -> RemoteFileSlice {
+            guard let data = arcFiles[range.path] else { return read(range) }
+            let start = Int(min(range.offset, UInt64(data.count)))
+            let end = min(data.count, start + max(0, range.maxBytes))
+            return RemoteFileSlice(data: data.subdata(in: start..<end), length: UInt64(data.count))
+        }
 
         /// Every sample is as old as the demo's day.
         private static let modificationTime: UInt32 = 1_791_320_000
