@@ -197,13 +197,29 @@ struct AgentChatSurfaceView: View {
             agents: [agent])
     }
 
-    private var airBuildProgressPanel: some View {
+    private func airBuildProgressPanel(inSheet: Bool) -> some View {
         AirBuildProgressPanel(
             project: airBuildProject, board: arcBoard,
             refresh: { await arcRefreshBoard?() },
             onClose: { isShowingAirBuildPanel = false },
             onOpenTerminal: { showAgentTerminal() },
-            onOpenUsage: onOpenUsage)
+            onOpenUsage: onOpenUsage,
+            inSheet: inSheet)
+    }
+
+    /// Unfolded, the progress panel slides over the chat's trailing edge. Not
+    /// `.inspector`: inside the split view's detail it re-laid both columns
+    /// on every pass and the Duo hung in one endless layout (2026-11-11).
+    @ViewBuilder
+    private var airBuildSidePanel: some View {
+        if !showsBackButton && isShowingAirBuildPanel {
+            airBuildProgressPanel(inSheet: false)
+                .frame(width: 320)
+                .frame(maxHeight: .infinity)
+                .background(Color(uiColor: .systemGroupedBackground))
+                .overlay(alignment: .leading) { Divider() }
+                .transition(.move(edge: .trailing))
+        }
     }
 
     var body: some View {
@@ -551,6 +567,8 @@ struct AgentChatSurfaceView: View {
                 .ignoresSafeArea(.all, edges: surfaceEdges)
         }
         .ignoresSafeArea(.container, edges: .top)
+        .overlay(alignment: .trailing) { airBuildSidePanel }
+        .animation(reduceMotion ? nil : .snappy(duration: 0.24), value: isShowingAirBuildPanel)
         .navigationBarBackButtonHidden(true)
         .interactivePopGestureEnabled(showsBackButton)
         .navigationTitle("")
@@ -558,16 +576,10 @@ struct AgentChatSurfaceView: View {
         .toolbarBackground(Color.clear, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
-        .inspector(isPresented: Binding(
-            get: { !showsBackButton && isShowingAirBuildPanel },
-            set: { isShowingAirBuildPanel = $0 })) {
-            airBuildProgressPanel
-                .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
-        }
         .sheet(isPresented: Binding(
             get: { showsBackButton && isShowingAirBuildPanel },
             set: { isShowingAirBuildPanel = $0 })) {
-            airBuildProgressPanel
+            airBuildProgressPanel(inSheet: true)
         }
         .prioritizesVerticalDetailToolbar()
     }

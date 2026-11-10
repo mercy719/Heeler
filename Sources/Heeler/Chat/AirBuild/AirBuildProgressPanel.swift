@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The selected project's live arc board in the chat inspector. PR and Files
+/// The selected project's live arc board beside the chat, or in a sheet when folded. PR and Files
 /// stay hidden until the board has data for them; no placeholder counts.
 struct AirBuildProgressPanel: View {
     let project: ArcProjectGroup.Project
@@ -9,6 +9,9 @@ struct AirBuildProgressPanel: View {
     let onClose: () -> Void
     let onOpenTerminal: () -> Void
     var onOpenUsage: (() -> Void)?
+    /// A sheet brings its own navigation bar; beside the chat the panel sits
+    /// inside the detail's stack, which must not nest another one.
+    var inSheet = true
 
     @State private var query = ""
 
@@ -29,7 +32,14 @@ struct AirBuildProgressPanel: View {
     }
 
     var body: some View {
-        NavigationStack {
+        if inSheet {
+            NavigationStack { panel }
+        } else {
+            panel
+        }
+    }
+
+    private var panel: some View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -94,7 +104,6 @@ struct AirBuildProgressPanel: View {
             .navigationTitle(Text(verbatim: "\(project.label) · \(ConsoleTab.progress.title)"))
             .navigationBarTitleDisplayMode(.inline)
             .task { await refresh() }
-        }
     }
 
     private var search: some View {
