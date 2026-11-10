@@ -973,4 +973,63 @@ struct ArcProjectTests {
             ArcProgressSubtitle.text(for: row, board: board) == "Waiting: Ship it?")
         #expect(ArcProgressSubtitle.text(for: row, board: nil) == "p1")
     }
+
+    @Test("The switcher lists busy projects first, most Blocked first, then each Host's others")
+    func switcherSections() {
+        let alpha = Host.fixture(name: "alpha")
+        let beta = Host.fixture(name: "beta")
+        let agents = [
+            Self.agent("a1", on: alpha, workspace: "w1", status: .working),
+            Self.agent("a2", on: alpha, workspace: "w2", status: .done),
+            Self.agent("a3", on: alpha, workspace: "w3", status: .blocked),
+            Self.agent("b1", on: beta, workspace: "w1", status: .blocked),
+            Self.agent("b2", on: beta, workspace: "w1", status: .blocked),
+            Self.agent("b3", on: beta, workspace: "w1", status: .working),
+        ]
+        let groups = ArcProjectGroup.groups(
+            hosts: [alpha, beta], agents: agents,
+            workspacesByHost: [
+                alpha.id: [
+                    ConsoleWorkspace(id: "w1", label: "FRS", order: 0),
+                    ConsoleWorkspace(id: "w2", label: "Docs", order: 1),
+                    ConsoleWorkspace(id: "w3", label: "Heeler", order: 2),
+                    ConsoleWorkspace(id: "w4", label: "Quiet", order: 3),
+                ],
+                beta.id: [
+                    ConsoleWorkspace(id: "w1", label: "EBHD", order: 0),
+                    ConsoleWorkspace(id: "w2", label: "Rag", order: 1),
+                ],
+            ])
+
+        let sections = ArcProjectMenu.sections(groups)
+        #expect(sections.map(\.hostID) == [nil, alpha.id, beta.id])
+        #expect(sections.map(\.title) == ["Active", "alpha", "beta"])
+        // Two Blocked beat one; one Blocked beats none; ties keep herdr order.
+        #expect(sections[0].items.map(\.project.label) == ["EBHD", "Heeler", "FRS"])
+        #expect(sections[1].items.map(\.project.label) == ["Docs", "Quiet"])
+        #expect(sections[2].items.map(\.project.label) == ["Rag"])
+        #expect(sections[0].items.map(\.subtitle) == ["2 waiting · 1 running", "1 waiting", "1 running"])
+        #expect(sections[1].items.map(\.subtitle) == [nil, nil])
+
+        // Nothing busy: no leading section; a Host with every project busy
+        // gets none either.
+        let quiet = ArcProjectMenu.sections(
+            ArcProjectGroup.groups(
+                hosts: [alpha], agents: [],
+                workspacesByHost: [alpha.id: [ConsoleWorkspace(id: "w1", label: "FRS", order: 0)]]))
+        #expect(quiet.map(\.hostID) == [alpha.id])
+        let busy = ArcProjectMenu.sections(
+            ArcProjectGroup.groups(
+                hosts: [alpha], agents: [Self.agent("a1", on: alpha, workspace: "w1", status: .working)],
+                workspacesByHost: [alpha.id: [ConsoleWorkspace(id: "w1", label: "FRS", order: 0)]]))
+        #expect(busy.map(\.hostID) == [nil])
+    }
+
+    @Test("The switcher's subtitle counts Blocked and working Agents, leaving zeros out")
+    func switcherSubtitle() {
+        #expect(ArcProjectMenu.subtitle(blocked: 1, working: 1) == "1 waiting · 1 running")
+        #expect(ArcProjectMenu.subtitle(blocked: 3, working: 0) == "3 waiting")
+        #expect(ArcProjectMenu.subtitle(blocked: 0, working: 2) == "2 running")
+        #expect(ArcProjectMenu.subtitle(blocked: 0, working: 0) == nil)
+    }
 }

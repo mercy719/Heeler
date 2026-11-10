@@ -153,8 +153,6 @@ struct ConsoleView: View {
     /// The project the arc list shows, by Host and Workspace id; empty until
     /// the list picks the first project that has Agents.
     @AppStorage("console.arc.selected-project") private var arcSelectionKey = ""
-    /// The arc list's full tile grid, opened from the collapsed row.
-    @State private var arcTilesExpanded = false
     /// Whether the arc list is falling back to the flat rows because a search
     /// or a status filter is on.
     private var arcIsNarrowed: Bool {
@@ -921,12 +919,24 @@ struct ConsoleView: View {
                     // beside a detail, so the lists are told outright.
                     .environment(\.isSidebarColumn, presentation.usesRegularColumns)
                     .environment(\.consoleListShowsDisclosure, !presentation.usesRegularColumns)
-                    .navigationTitle(tab.title)
+                    .navigationTitle(listTitle(for: tab))
+                    // Compact width's project list is titled with the project
+                    // on show, and the title switches it.
+                    .toolbarTitleMenu {
+                        if showsArcTitleMenu(for: tab) {
+                            ArcProjectMenuContent(
+                                sections: ArcProjectMenu.sections(arcProjectGroups),
+                                selected: arcSelectedProjectID, onSelect: { arcSelect($0) })
+                        }
+                    }
                     .navigationSplitViewColumnWidth(
                         min: presentation.sidebarWidth.minimum,
                         ideal: presentation.sidebarWidth.ideal,
                         max: presentation.sidebarWidth.maximum)
-                    .navigationBarTitleDisplayMode(usesSidebarNavigation ? .inline : .automatic)
+                    // A title menu shows only on an inline title; a large
+                    // or inline-large one drops it.
+                    .navigationBarTitleDisplayMode(
+                        usesSidebarNavigation || showsArcTitleMenu(for: tab) ? .inline : .automatic)
                     .toolbar { toolbar(for: tab) }
                     // `toolbar(for:)` puts the list's title at the bar's
                     // leading edge itself.
@@ -1227,6 +1237,15 @@ struct ConsoleView: View {
                     Button(ConsoleTab.settings.title, systemImage: ConsoleTab.settings.systemImage) {
                         showSettings()
                     }
+                    // The project list's title names the project, so its New
+                    // Agent sits here, starting in that project.
+                    if !hosts.consoleHosts.isEmpty, offersNewItem(on: .agents) {
+                        Button("New Agent", systemImage: "plus") {
+                            startAgentRequest = StartAgentRequest(
+                                origin: listPresentation.mode == .arc
+                                    ? arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) } : nil)
+                        }
+                    }
                 }
                 .hoverEffect(.highlight)
             }
@@ -1265,7 +1284,7 @@ struct ConsoleView: View {
                 .buttonStyle(SidebarIconButtonStyle())
             }
             .toolbarItemBackground(.hidden)
-        } else if !hosts.consoleHosts.isEmpty {
+        } else if !hosts.consoleHosts.isEmpty, tab != .agents {
             ToolbarItem(placement: .primaryAction) {
                 newItemButton(for: tab).hoverEffect(.highlight)
             }
@@ -1841,40 +1860,24 @@ struct ConsoleView: View {
         if arcIsNarrowed {
             flatAgentListRows
         } else {
-            arcProjectTileRows
+            arcSwitcherRow
+            agentHostIssueRows
             arcSelectedProjectRows
             arcWaitingRows
         }
     }
 
-    /// Every Host's projects as tiles, one row per Host so each keeps its
-    /// own grid.
+    /// A sidebar has no title of its own to switch projects with, so its
+    /// first row does.
     @ViewBuilder
-    private var arcProjectTileRows: some View {
-        agentHostIssueRows
-        let groups = arcProjectGroups
-        let selection = arcSelectedProjectID
-        if arcTilesExpanded || selection == nil {
-            ForEach(groups) { @Sendable group in
-                MainActorContent {
-                    ArcProjectTilesRow(
-                        group: group, showsHostName: groups.count > 1,
-                        selected: selection
-                    ) { id in
-                        arcSelect(id)
-                        withAnimation(reduceMotion ? nil : .snappy) { arcTilesExpanded = false }
-                    }
-                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .selectionDisabled()
-                }
-            }
-        } else {
-            // Collapsed to one row, the selected project's Agents get the screen.
-            ArcProjectStrip(
-                groups: groups, selected: selection, onSelect: { arcSelect($0) },
-                onExpand: { withAnimation(reduceMotion ? nil : .snappy) { arcTilesExpanded = true } })
+    private var arcSwitcherRow: some View {
+        if usesSidebarNavigation, let project = arcSelectedProject {
+            ArcProjectSwitcher(
+                project: project, sections: ArcProjectMenu.sections(arcProjectGroups),
+                onSelect: { arcSelect($0) },
+                onNewAgent: offersNewItem(on: .agents)
+                    ? { startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project)) }
+                    : nil)
                 .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 6))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -1882,8 +1885,8 @@ struct ConsoleView: View {
         }
     }
 
-    /// The selected project's card: its header and its Agents, as the other
-    /// presentations' rows.
+    /// The selected project's card: its Agents, as the other presentations'
+    /// rows. The title or the switcher above names the project.
     @ViewBuilder
     private var arcSelectedProjectRows: some View {
         if let project = arcSelectedProject {
@@ -1897,16 +1900,10 @@ struct ConsoleView: View {
                 } else {
                     ForEach(project.agents) { @Sendable agent in
                         MainActorContent {
-                            // The card's header names the project already;
-                            // the row says what the Agent is doing instead.
                             arcAgentRow(agent)
                                 .listRowBackground(color.opacity(0.13))
                         }
                     }
-                }
-            } header: {
-                ArcProjectHeader(label: project.label) {
-                    startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
                 }
             }
         }
@@ -2494,6 +2491,17 @@ struct ConsoleView: View {
 
     private func arcSelect(_ id: ConsoleWorkspaceSection.ID) {
         arcSelectionKey = id.storedText
+    }
+
+    /// Whether the list's title is the shown project, opening the switcher:
+    /// compact width only, where a sidebar's first row does not.
+    private func showsArcTitleMenu(for tab: ConsoleTab) -> Bool {
+        !usesSidebarNavigation && tab == .agents && listPresentation.mode == .arc
+            && arcSelectedProject != nil
+    }
+
+    private func listTitle(for tab: ConsoleTab) -> String {
+        showsArcTitleMenu(for: tab) ? arcSelectedProject?.label ?? tab.title : tab.title
     }
 
     /// The other projects' Blocked Agents: the ones the waiting section

@@ -102,7 +102,7 @@ enum ArcProjectColor {
     }
 }
 
-/// The dot a project's tile carries: who in it needs the user, worst first.
+/// The light a project's mark carries: who in it needs the user, worst first.
 /// herdr has a blue "finished a scheduled run" state too, but nothing in the
 /// app reports it yet.
 enum ArcProjectLight {
@@ -139,7 +139,7 @@ enum ArcProjectLight {
 }
 
 /// One Host's projects for the arc list: every Workspace it reports, in
-/// snapshot order, with the Agents' statuses that paint the tiles' dots.
+/// snapshot order, with the Agents' statuses that light their marks.
 struct ArcProjectGroup: Identifiable, Equatable, Sendable {
     struct Project: Identifiable, Equatable, Sendable {
         let id: ConsoleWorkspaceSection.ID
@@ -188,156 +188,193 @@ struct ArcProjectGroup: Identifiable, Equatable, Sendable {
     }
 }
 
-/// One Host's project tiles: a row of squares whose columns follow the
-/// width, the Host's name above them when several Hosts list.
-struct ArcProjectTilesRow: View {
-    let group: ArcProjectGroup
-    let showsHostName: Bool
-    let selected: ConsoleWorkspaceSection.ID?
-    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+/// The project switcher's menu, shared by the compact title and the
+/// sidebar's switcher: projects where someone waits or works first, then
+/// each Host's other projects.
+enum ArcProjectMenu {
+    struct Item: Identifiable, Equatable, Sendable {
+        let project: ArcProjectGroup.Project
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if showsHostName {
-                Text(verbatim: group.hostName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        var id: ConsoleWorkspaceSection.ID { project.id }
+        var blocked: Int { project.statuses.filter { $0 == .blocked }.count }
+        var working: Int { project.statuses.filter { $0 == .working }.count }
+        var subtitle: String? { ArcProjectMenu.subtitle(blocked: blocked, working: working) }
+    }
+
+    struct Section: Identifiable, Equatable, Sendable {
+        /// The Host whose other projects the section lists; nil for the
+        /// leading section of busy projects.
+        let hostID: Host.ID?
+        let title: String
+        let items: [Item]
+
+        var id: String { hostID?.uuidString ?? "active" }
+    }
+
+    /// Busy projects, most Blocked first, ties in herdr order; then one
+    /// section per Host of its remaining projects, in herdr order.
+    static func sections(_ groups: [ArcProjectGroup]) -> [Section] {
+        let active = groups.flatMap(\.projects).map(Item.init).enumerated()
+            .filter { $0.element.blocked + $0.element.working > 0 }
+            .sorted { lhs, rhs in
+                lhs.element.blocked != rhs.element.blocked
+                    ? lhs.element.blocked > rhs.element.blocked
+                    : lhs.offset < rhs.offset
             }
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 60, maximum: 96), spacing: 6)], spacing: 6
-            ) {
-                ForEach(group.projects) { @Sendable project in
-                    MainActorContent {
-                        ArcProjectTile(
-                            label: project.label, statuses: project.statuses,
-                            isSelected: project.id == selected,
-                            action: { onSelect(project.id) })
-                    }
-                }            }
+            .map(\.element)
+        let activeIDs = Set(active.map(\.id))
+        var sections = active.isEmpty ? [] : [
+            Section(
+                hostID: nil,
+                title: String(
+                    localized: "Arc menu active", defaultValue: "Active",
+                    comment: "Project switcher section of projects with Agents waiting or working"),
+                items: active),
+        ]
+        for group in groups {
+            let rest = group.projects.filter { !activeIDs.contains($0.id) }.map(Item.init)
+            if !rest.isEmpty {
+                sections.append(Section(hostID: group.id, title: group.hostName, items: rest))
+            }
         }
-        .padding(.vertical, 4)
+        return sections
+    }
+
+    /// "1 waiting · 1 running", leaving out a zero count; nil when both are.
+    static func subtitle(blocked: Int, working: Int) -> String? {
+        let parts = [
+            blocked > 0 ? String(localized: "\(blocked) waiting") : nil,
+            working > 0 ? String(localized: "\(working) running") : nil,
+        ].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
-/// Every Host's projects as one scrolling row of tiles, so the selected
-/// project's card keeps the screen; the trailing button opens the full grid.
-struct ArcProjectStrip: View {
-    let groups: [ArcProjectGroup]
-    let selected: ConsoleWorkspaceSection.ID?
-    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
-    let onExpand: () -> Void
-
-    private var count: Int { groups.reduce(0) { $0 + $1.projects.count } }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 6) {
-                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                            if index > 0 {
-                                Divider().frame(height: 32)
-                            }
-                            ForEach(group.projects) { project in
-                                ArcProjectTile(
-                                    label: project.label, statuses: project.statuses,
-                                    isSelected: project.id == selected,
-                                    action: { onSelect(project.id) })
-                                .frame(width: 64)
-                                .id(project.id)
-                            }
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-                .onAppear { if let selected { proxy.scrollTo(selected, anchor: .center) } }
-                .onChange(of: selected) { _, id in
-                    if let id { withAnimation(.snappy) { proxy.scrollTo(id, anchor: .center) } }
-                }
-            }
-            Button(action: onExpand) {
-                VStack(spacing: 2) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.body.weight(.semibold))
-                    Text(verbatim: "\(count)")
-                        .font(.caption2.weight(.semibold))
-                        .monospacedDigit()
-                }
-                .foregroundStyle(.tint)
-                .frame(width: 44, height: 54)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("All Projects"))
-            .accessibilityValue(Text(verbatim: "\(count)"))
-        }
-        .frame(height: 54)
-        .padding(.vertical, 4)
-    }
-}
-
-/// One project's tile: its badge, its name, and a dot for whoever needs the
-/// user. Selected, it takes the project's color.
-struct ArcProjectTile: View {
+/// A project's badge with its light on the top-right corner, as its menu
+/// item's image and on the sidebar's switcher.
+struct ArcProjectMark: View {
     let label: String
-    let statuses: [AgentStatus]
-    let isSelected: Bool
-    let action: () -> Void
-
-    private var color: Color { ArcProjectColor.color(for: label) }
-    private var light: ArcProjectLight.Light? { ArcProjectLight.light(for: statuses) }
+    let light: ArcProjectLight.Light?
+    var size: CGFloat = 24
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 3) {
-                ArcProjectBadge(label: label, size: 24)
-                Text(verbatim: label)
-                    .font(.caption2.weight(isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, 3)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 54)
-            .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                    .overlay {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(color.opacity(0.22))
-                        }
-                    }
-                    .overlay {
-                        if isSelected {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(color, lineWidth: 1.5)
-                        }
-                    }
-            }
+        ArcProjectBadge(label: label, size: size)
+            // Room for the light, so a rendered image keeps all of it.
+            .padding([.top, .trailing], size * 0.18)
             .overlay(alignment: .topTrailing) {
                 if let light {
                     Circle()
                         .fill(light.color)
-                        .frame(width: 9, height: 9)
-                        .padding(8)
+                        .frame(width: size * 0.4, height: size * 0.4)
+                        .overlay(Circle().strokeBorder(.black.opacity(0.35), lineWidth: 1))
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.highlight)
-        .accessibilityLabel(accessibilityText)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityHidden(true)
     }
 
-    private var accessibilityText: String {
-        [label, light?.status.displayTitle].compactMap { $0 }.joined(separator: ", ")
+    /// The mark as a menu image: a menu keeps only a `UIImage`'s own colors,
+    /// and only when it renders as original.
+    @MainActor
+    static func image(label: String, light: ArcProjectLight.Light?, scale: CGFloat) -> UIImage? {
+        let key = "\(label)\u{1F}\(String(describing: light))\u{1F}\(scale)"
+        if let cached = imageCache[key] { return cached }
+        let renderer = ImageRenderer(content: ArcProjectMark(label: label, light: light))
+        renderer.scale = scale
+        let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal)
+        imageCache[key] = image
+        return image
+    }
+
+    /// The list body runs on every status change; a project's mark only
+    /// changes with its light.
+    @MainActor private static var imageCache: [String: UIImage] = [:]
+}
+
+/// The switcher menu's items: one section per `ArcProjectMenu` section, the
+/// shown project checked.
+struct ArcProjectMenuContent: View {
+    let sections: [ArcProjectMenu.Section]
+    let selected: ConsoleWorkspaceSection.ID?
+    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        ForEach(sections) { section in
+            Section {
+                ForEach(section.items) { item in
+                    Toggle(
+                        isOn: Binding(
+                            get: { item.id == selected }, set: { _ in onSelect(item.id) })
+                    ) {
+                        // A menu reads a Text after the Label as its subtitle.
+                        Label {
+                            Text(verbatim: item.project.label)
+                        } icon: {
+                            if let image = ArcProjectMark.image(
+                                label: item.project.label, light: item.project.light,
+                                scale: displayScale)
+                            {
+                                Image(uiImage: image)
+                            }
+                        }
+                        if let subtitle = item.subtitle { Text(verbatim: subtitle) }
+                    }
+                }
+            } header: {
+                Text(verbatim: section.title)
+            }
+        }
     }
 }
 
-/// A project's first-letter badge, shared by its tile and its card header.
+/// The sidebar's first row: the shown project's mark and name opening the
+/// switcher menu, and New Agent beside them.
+struct ArcProjectSwitcher: View {
+    let project: ArcProjectGroup.Project
+    let sections: [ArcProjectMenu.Section]
+    let onSelect: (ConsoleWorkspaceSection.ID) -> Void
+    let onNewAgent: (() -> Void)?
+
+    private var color: Color { ArcProjectColor.color(for: project.label) }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Menu {
+                ArcProjectMenuContent(sections: sections, selected: project.id, onSelect: onSelect)
+            } label: {
+                HStack(spacing: 10) {
+                    ArcProjectMark(label: project.label, light: project.light, size: 28)
+                    Text(verbatim: project.label)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(color)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Switch project, current \(project.label)"))
+            if let onNewAgent {
+                Button(action: onNewAgent) {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(color)
+                .hoverEffect(.highlight)
+                .accessibilityLabel("New Agent")
+            }
+        }
+    }
+}
+
+/// A project's first-letter badge, shared by its mark and its rows.
 struct ArcProjectBadge: View {
     let label: String
     var size: CGFloat = 28
@@ -351,35 +388,6 @@ struct ArcProjectBadge: View {
                 ArcProjectColor.color(for: label),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .accessibilityHidden(true)
-    }
-}
-
-/// The selected project's card header: its badge, its name in the project's
-/// color, and the New Agent button.
-struct ArcProjectHeader: View {
-    let label: String
-    let onNewAgent: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ArcProjectBadge(label: label)
-            Text(verbatim: label)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(ArcProjectColor.color(for: label))
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Button(action: onNewAgent) {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(ArcProjectColor.color(for: label))
-            .hoverEffect(.highlight)
-            .accessibilityLabel("New Agent")
-        }
-        .textCase(nil)
     }
 }
 

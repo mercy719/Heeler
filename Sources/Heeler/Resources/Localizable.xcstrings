@@ -2877,6 +2877,23 @@
         }
       }
     },
+    "%lld running" : {
+      "comment" : "Count of a project's working Agents in the project switcher",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行中 %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在跑 %lld"
+          }
+        }
+      }
+    },
     "%lld running · %@" : {
       "comment" : "Background Work bar: running count, then the first one's name",
       "localizations" : {
@@ -3094,6 +3111,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 个变量"
+          }
+        }
+      }
+    },
+    "%lld waiting" : {
+      "comment" : "Count of a project's Blocked Agents in the project switcher",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなた待ち %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你 %lld"
           }
         }
       }
@@ -6036,16 +6070,6 @@
         }
       }
     },
-    "All Projects" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部项目"
-          }
-        }
-      }
-    },
     "All Hosts" : {
       "localizations" : {
         "ja" : {
@@ -6805,6 +6829,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "“附备注批准”会选择“%@”。"
+          }
+        }
+      }
+    },
+    "Arc menu active" : {
+      "comment" : "Project switcher section of projects with Agents waiting or working",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Active"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動きあり"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有事的"
           }
         }
       }
@@ -36194,6 +36242,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "左右滑动以切换键盘页面"
+          }
+        }
+      }
+    },
+    "Switch project, current %@" : {
+      "comment" : "VoiceOver label of the sidebar's project switcher",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトを切り替え、現在 %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换项目，当前 %@"
           }
         }
       }
