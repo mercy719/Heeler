@@ -225,6 +225,29 @@ struct AgentComposerLinkPresentation: Equatable {
     }
 }
 
+/// The key caps in AirBuild's Add menu; raw values use Chat's existing key grammar.
+enum AirBuildComposerKey: String, CaseIterable, Sendable {
+    case escape = "esc"
+    case tab = "tab"
+    case shiftTab = "shift+tab"
+    case up = "up"
+    case down = "down"
+    case enter = "enter"
+    case controlC = "ctrl+c"
+
+    var title: String {
+        switch self {
+        case .escape: "Esc"
+        case .tab: "Tab"
+        case .shiftTab: "⇧Tab"
+        case .up: "↑"
+        case .down: "↓"
+        case .enter: "Enter"
+        case .controlC: "Ctrl-C"
+        }
+    }
+}
+
 /// The native, local-first input surface beneath the live terminal. Drafting
 /// stays on device; Send emits one `agent.prompt` request except when Agent
 /// Status is Blocked, in which case it inserts the draft into Attach without
@@ -300,6 +323,8 @@ struct AgentComposerView: View {
     var offersSend = true
     /// AirBuild's compact capsule; terminal Composer keeps its original card.
     var airBuildStyle = false
+    /// Chat's existing key delivery, named in herdr's grammar (Esc, Tab, Ctrl-C…).
+    var sendAgentKey: ((String) -> Void)? = nil
     /// The app's microphone owner; absent in previews and tests, which
     /// leaves the mic out.
     @Environment(VoiceInputSession.self) private var voiceInput: VoiceInputSession?
@@ -334,20 +359,17 @@ struct AgentComposerView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                AgentDetailStatusChrome(
-                    status: status,
-                    hostTelemetry: hostTelemetry,
-                    changes: changes,
-                    session: session,
-                    sessionControls: sessionControls,
-                    chromeColorScheme: chromeColorScheme)
+                if !airBuildStyle {
+                    AgentDetailStatusChrome(
+                        status: status,
+                        hostTelemetry: hostTelemetry,
+                        changes: changes,
+                        session: session,
+                        sessionControls: sessionControls,
+                        chromeColorScheme: chromeColorScheme)
+                }
 
                 VStack(spacing: 0) {
-                    if airBuildStyle {
-                        switcherRow
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .padding(.bottom, 4)
-                    }
                     inputArea
                         .modifier(ComposerInputReplacement(replacement: inputReplacement))
                         .padding(inputAreaInsets)
@@ -355,7 +377,7 @@ struct AgentComposerView: View {
                             if airBuildStyle {
                                 Color(uiColor: .secondarySystemBackground)
                                     .clipShape(RoundedRectangle(
-                                        cornerRadius: isCollapsed ? 20 : 16, style: .continuous))
+                                        cornerRadius: airBuildStyle ? 23 : (isCollapsed ? 20 : 16), style: .continuous))
                             }
                         }
 
@@ -504,7 +526,7 @@ struct AgentComposerView: View {
                 noticeLabel(stopNotice)
                     .accessibilityIdentifier("composer.stop-notice")
             }
-            if !isCollapsed {
+            if !isCollapsed && !airBuildStyle {
                 actionRow
             }
         }
@@ -538,7 +560,7 @@ struct AgentComposerView: View {
     /// would drop the focus and any keyboard handoff in flight.
     private var editorRow: some View {
         HStack(spacing: 8) {
-            if isCollapsed, offersAdd {
+            if isCollapsed || airBuildStyle, offersAdd {
                 addMenu
                     .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             }
@@ -572,11 +594,11 @@ struct AgentComposerView: View {
                     .allowsHitTesting(false)
                 }
             }
-            .frame(minHeight: 36, alignment: .topLeading)
+            .frame(minHeight: airBuildStyle ? 46 : 36, alignment: .topLeading)
             .accessibilityElement(children: .contain)
             .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
-            if isCollapsed {
-                if !airBuildStyle || store.draft.isEmpty || isVoiceBarShown {
+            if isCollapsed || airBuildStyle {
+                if !airBuildStyle || (store.draft.isEmpty && primaryControl != .stop) || isVoiceBarShown {
                     voiceButton
                 }
                 if !airBuildStyle || !store.draft.isEmpty || primaryControl == .stop {
@@ -598,7 +620,7 @@ struct AgentComposerView: View {
 
     /// While folded, the recording bar takes Add's and the draft's place.
     private var coversEditorRow: Bool {
-        isCollapsed && isVoiceBarShown
+        (isCollapsed || airBuildStyle) && isVoiceBarShown
     }
 
     private func failureRow(
@@ -787,6 +809,25 @@ struct AgentComposerView: View {
             AgentActionMenuContent(
                 actions: actions,
                 sections: AgentActionMenuPolicy.composerAddSections)
+            if airBuildStyle {
+                if commandMenu != nil {
+                    Button("Slash Commands", systemImage: "chevron.left.slash.chevron.right") {
+                        store.insertIntoDraft("/")
+                        isSuggestionsDismissed = false
+                        isInputFocused = true
+                    }
+                }
+                if sendAgentKey != nil {
+                    Divider()
+                    Menu("Keys", systemImage: "keyboard") {
+                        ForEach(AirBuildComposerKey.allCases, id: \.self) { @Sendable key in
+                            MainActorContent {
+                                Button(key.title) { sendAgentKey?(key.rawValue) }
+                            }
+                        }
+                    }
+                }
+            }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 15, weight: .semibold))
@@ -796,7 +837,7 @@ struct AgentComposerView: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .tint(secondaryActionTint)
-        .frame(minWidth: airBuildStyle ? 30 : 44, minHeight: airBuildStyle ? 30 : 44)
+        .frame(minWidth: airBuildStyle ? 36 : 44, minHeight: airBuildStyle ? 36 : 44)
         .accessibilityHint("Adds an image or file to the draft")
     }
 
@@ -1159,7 +1200,7 @@ private struct AgentComposerSendButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(
                 airBuildStyle ? .white : Color(uiColor: isEnabled ? .systemBackground : .secondaryLabel))
-            .frame(width: airBuildStyle ? 30 : 32, height: airBuildStyle ? 30 : 32)
+            .frame(width: airBuildStyle ? 36 : 32, height: airBuildStyle ? 36 : 32)
             .background(
                 airBuildStyle
                     ? Color.accentColor.opacity(isEnabled ? 1 : 0.35)
@@ -1167,7 +1208,7 @@ private struct AgentComposerSendButtonStyle: ButtonStyle {
                         ? Color(uiColor: .label)
                         : Color(uiColor: .label).opacity(0.12),
                 in: Circle())
-            .frame(width: airBuildStyle ? 30 : 44, height: airBuildStyle ? 30 : 44)
+            .frame(width: airBuildStyle ? 36 : 44, height: airBuildStyle ? 36 : 44)
             .opacity(configuration.isPressed && isEnabled ? 0.72 : 1)
             .contentShape(.circle)
     }
@@ -1225,9 +1266,9 @@ private struct AgentComposerStopButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
-            .frame(width: airBuildStyle ? 30 : 32, height: airBuildStyle ? 30 : 32)
-            .background(Color(uiColor: .systemRed), in: Circle())
-            .frame(width: airBuildStyle ? 30 : 44, height: airBuildStyle ? 30 : 44)
+            .frame(width: airBuildStyle ? 36 : 32, height: airBuildStyle ? 36 : 32)
+            .background(airBuildStyle ? Color.accentColor : Color(uiColor: .systemRed), in: Circle())
+            .frame(width: airBuildStyle ? 36 : 44, height: airBuildStyle ? 36 : 44)
             .opacity(configuration.isPressed ? 0.72 : 1)
             .contentShape(.circle)
     }

@@ -115,6 +115,7 @@ struct AgentChatSurfaceView: View {
     @Environment(\.sceneWindow) private var sceneWindow
     @Environment(\.detailCrossfade) private var detailCrossfade
     @Environment(\.revealDetailSidebar) private var revealDetailSidebar
+    @Environment(\.detailSidebarIsHidden) private var detailSidebarIsHidden
     @Environment(\.showsDetailBackButton) private var showsBackButton
     @Environment(\.usesVerticalToolbar) private var usesVerticalToolbar
     @Environment(\.detailTopChromeInset) private var topChromeInset
@@ -197,6 +198,24 @@ struct AgentChatSurfaceView: View {
             agents: [agent])
     }
 
+    private var airBuildWaitingAgents: [ConsoleAgent] {
+        AirBuildWaitingSummary.blocked(console.chatDisplayAgents)
+    }
+
+    private var airBuildChangesSummary: String? {
+        guard let store = console.rowChanges.store(for: agent),
+            let badge = ChangesBadge(
+                phase: store.phase, timedOutKeepingContent: store.timedOutKeepingContent),
+            !badge.showsFiles
+        else { return nil }
+        return "\(badge.addedText()) \(badge.removedText())"
+    }
+
+    private var revealHiddenSidebar: (() -> Void)? {
+        guard detailSidebarIsHidden else { return nil }
+        return revealDetailSidebar
+    }
+
     private func airBuildProgressPanel(inSheet: Bool) -> some View {
         AirBuildProgressPanel(
             project: airBuildProject, board: arcBoard,
@@ -219,6 +238,33 @@ struct AgentChatSurfaceView: View {
                 .background(Color(uiColor: .systemGroupedBackground))
                 .overlay(alignment: .leading) { Divider() }
                 .transition(.move(edge: .trailing))
+        }
+    }
+
+    private var airBuildHeader: some View {
+        AirBuildChatHeader(
+            project: airBuildProject,
+            status: agent.agent.status,
+            isHostConnected: isHostConnected,
+            onBack: showsBackButton ? { dismiss() } : nil,
+            onToggleSidebar: revealHiddenSidebar,
+            waitingAgents: airBuildWaitingAgents,
+            onSelectWaiting: switchToAgent,
+            onOpenTerminal: { showAgentTerminal() },
+            additionalActions: backHeaderActions,
+            onShowChanges: showChanges,
+            changesSummary: airBuildChangesSummary,
+            onRename: console.offersTitleRename(for: agent)
+                ? { titleRename = console.titleRenameStore(for: agent) } : nil,
+            onShowProject: { backToConsole() },
+            actions: composerActions,
+            onTogglePanel: { isShowingAirBuildPanel.toggle() },
+            sessionSettings: sessionSettings,
+            sessionControls: sessionControls)
+        .padding(.horizontal, 12)
+        .padding(.top, backHeaderTop)
+        .onChange(of: isBackHeaderExpanded) { _, expanded in
+            if !expanded { isHeaderDrawerOpen = false }
         }
     }
 
@@ -523,27 +569,7 @@ struct AgentChatSurfaceView: View {
             .accessibilityHidden(composerKeyboardPresentation != .tools)
         }
         .padding(.top, topInset)
-        .overlay(alignment: .top) {
-            AirBuildChatHeader(
-                project: airBuildProject,
-                isHostConnected: isHostConnected,
-                onBack: showsBackButton ? { dismiss() } : nil,
-                onOpenTerminal: { showAgentTerminal() },
-                additionalActions: backHeaderActions,
-                onShowChanges: showChanges,
-                onRename: console.offersTitleRename(for: agent)
-                    ? { titleRename = console.titleRenameStore(for: agent) } : nil,
-                onShowProject: { backToConsole() },
-                onClose: { composerActions.closeAgent?() },
-                onTogglePanel: { isShowingAirBuildPanel.toggle() },
-                sessionSettings: sessionSettings,
-                sessionControls: sessionControls)
-            .padding(.horizontal, 12)
-            .padding(.top, backHeaderTop)
-            .onChange(of: isBackHeaderExpanded) { _, expanded in
-                if !expanded { isHeaderDrawerOpen = false }
-            }
-        }
+        .overlay(alignment: .top) { airBuildHeader }
         .onWindowControlsHeightChange { windowControlsHeight = $0 }
         .background {
             // Keyboard geometry and the status bar inset follow this view's
@@ -573,7 +599,7 @@ struct AgentChatSurfaceView: View {
         .interactivePopGestureEnabled(showsBackButton)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.clear, for: .navigationBar)
+        .toolbarBackground(Color(uiColor: .clear), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
         .sheet(isPresented: Binding(
@@ -652,6 +678,13 @@ struct AgentChatSurfaceView: View {
             banners
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bannerHeight = $0 }
                 .padding(.top, headerObstruction)
+        }
+        .overlay(alignment: .bottomLeading) {
+            if agent.agent.status == .working, let startedAt = chat?.turnStartedAt {
+                AirBuildRunningCapsule(startedAt: startedAt)
+                    .padding(.leading, 46)
+                    .padding(.bottom, 6)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .modifier(CheckAgainTiming(hold: $checkAgain, chat: chat))
@@ -1100,7 +1133,10 @@ struct AgentChatSurfaceView: View {
             collapsesWithoutKeyboard: true,
             keyboardIsLeaving: keyboardIsLeaving,
             interrupt: stopInterrupt,
-            airBuildStyle: true)
+            airBuildStyle: true,
+            sendAgentKey: { name in
+                Task { _ = await agentKeys.deliver([name]) }
+            })
         .frame(maxWidth: ChatTimelineMetrics.maximumContentWidth)
         .frame(maxWidth: .infinity)
         // The transcript records the mode as snapshots, and not every change
@@ -1626,15 +1662,6 @@ struct AgentChatSurfaceView: View {
                     isBackHeaderExpanded = true
                     isHeaderDrawerOpen.toggle()
                 }
-            })
-        }
-        if let showChanges {
-            actions.append(AgentDetailHeaderAction(
-                title: "Changes", systemImage: "arrow.triangle.branch", perform: showChanges))
-        }
-        if console.offersTitleRename(for: agent) {
-            actions.append(AgentDetailHeaderAction(title: "Rename", systemImage: "pencil") {
-                titleRename = console.titleRenameStore(for: agent)
             })
         }
         return actions

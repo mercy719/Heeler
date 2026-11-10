@@ -978,6 +978,7 @@ struct ConsoleView: View {
                                 \.detailBarRow, horizontalSizeClass == .regular ? detailBar : nil)
                             .environment(\.detailSurfaceEdges, detailSurfaceEdges(for: tab))
                             .environment(\.revealDetailSidebar, sidebarReveal(for: tab))
+                            .environment(\.detailSidebarIsHidden, splitVisibility(for: tab).isSidebarVisible == false)
                             .environment(
                                 \.showsDetailBackButton, !presentation.usesRegularColumns)
                             .toolbar {
@@ -3634,6 +3635,8 @@ extension EnvironmentValues {
     /// edge swipe for the split view's; nil where the detail has no sidebar
     /// to show.
     @Entry var revealDetailSidebar: (@MainActor @Sendable () -> Void)? = nil
+    /// The regular-width sidebar is hidden, so the detail's top line offers its reveal control.
+    @Entry var detailSidebarIsHidden = false
     /// The detail is pushed over the list, on an iPhone or in a compact iPad
     /// window, so its floating header carries a Back button. A window's
     /// resize edge takes touches near its side, so in a narrow iPad window an

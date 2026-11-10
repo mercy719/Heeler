@@ -17200,6 +17200,16 @@
         }
       }
     },
+    "Go to" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往"
+          }
+        }
+      }
+    },
     "Go to Project" : {
       "localizations" : {
         "zh-Hans" : {
@@ -26677,6 +26687,16 @@
         }
       }
     },
+    "Open Shell Terminal" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Shell 终端"
+          }
+        }
+      }
+    },
     "Open Sign-In Link" : {
       "localizations" : {
         "ja" : {
@@ -35136,6 +35156,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳过所有权限提示？"
+          }
+        }
+      }
+    },
+    "Slash Commands" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "斜杠命令"
           }
         }
       }

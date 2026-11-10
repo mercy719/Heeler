@@ -122,6 +122,27 @@ enum HostedMenu {
         return menus
     }
 
+    /// Opens a top-level menu and returns its UIKit model for nested-menu assertions.
+    static func presentation(
+        labeled label: String, in window: UIWindow
+    ) async throws -> (controller: UIViewController, menu: UIMenu) {
+        let element = try await poll("a menu labeled \(label)") {
+            accessibleElement(labeled: label, in: window)
+        }
+        return try await open(element, in: window)
+    }
+
+    /// Finds a nested item in the presented UIKit menu model.
+    static func element(titled title: String, in menu: UIMenu) -> UIMenuElement? {
+        for child in menu.children {
+            if child.title == title { return child }
+            if let nested = child as? UIMenu, let found = element(titled: title, in: nested) {
+                return found
+            }
+        }
+        return nil
+    }
+
     /// Runs `item` from the first menu labeled `label` that offers it, as a tap
     /// on its row does: the menu closes and the item's action runs.
     static func select(_ item: String, labeled label: String, in window: UIWindow) async throws {
@@ -152,7 +173,7 @@ enum HostedMenu {
         }
     }
 
-    private static func close(_ presented: UIViewController, in window: UIWindow) async throws {
+    static func close(_ presented: UIViewController, in window: UIWindow) async throws {
         presented.dismiss(animated: false)
         _ = try await poll("the menu to close") {
             window.rootViewController?.presentedViewController == nil ? true : nil

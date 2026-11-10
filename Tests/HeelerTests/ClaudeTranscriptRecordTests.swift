@@ -309,40 +309,35 @@ struct AgentSessionSettingsTests {
                     budget.charge()
                 }
                 try #require(await transport.agentReadCount > 0)
-                #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue == "Permission")
+                #expect(try await settingValue("Permission", in: window) == "Permission")
                 // The screen finishes painting without another status event.
                 await transport.setPaneText(screen, paneID: info.paneID)
             }
             var budget = PollBudget(.seconds(3))
             while budget.hasTimeLeft {
                 if chat.conversation.phase == .unavailable(.awaitingFirstMessage(.claude)),
-                    accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue == "bypass",
-                    accessibleElement(labeled: "Agent settings", in: window)?.accessibilityValue == "Sonnet 5.5" { break }
+                    try await settingValue("Permission", in: window) == "bypass",
+                    try await settingValue("Model", in: window) == "Sonnet 5.5" { break }
                 try await Task.sleep(for: .milliseconds(20))
                 budget.charge()
             }
             #expect(chat.conversation.phase == .unavailable(.awaitingFirstMessage(.claude)))
-            #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue == "bypass")
-            #expect(accessibleElement(labeled: "Agent settings", in: window)?.accessibilityValue == "Sonnet 5.5")
-            let model = try #require(accessibleElement(labeled: "Agent settings", in: window))
-            let permission = try #require(accessibleElement(labeled: "Permission mode", in: window))
-            #expect(model.accessibilityFrame.maxY < permission.accessibilityFrame.minY)
-            // The title is a button that opens the model grid, enabled while the Agent waits.
-            #expect(model.accessibilityTraits.contains(.button))
-            #expect(!model.accessibilityTraits.contains(.notEnabled))
+            #expect(try await settingValue("Permission", in: window) == "bypass")
+            #expect(try await settingValue("Model", in: window) == "Sonnet 5.5")
+            #expect(try await settingDisabled("Model", in: window) == false)
 
-            try await HostedMenu.select("plan", labeled: "Permission mode", in: window)
+            try await HostedMenu.select("plan", labeled: "More", in: window)
             budget = PollBudget(.seconds(2))
-            while accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue != "Switching from bypass", budget.hasTimeLeft {
+            while try await settingValue("Permission", in: window) != "Switching from bypass", budget.hasTimeLeft {
                 try await Task.sleep(for: .milliseconds(20))
                 budget.charge()
             }
             // Stale terminal frames must leave the last confirmed mode visible.
             try await Task.sleep(for: .milliseconds(300))
-            #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue == "Switching from bypass")
-            #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityTraits.contains(.notEnabled) == true)
-            #expect(accessibleElement(labeled: "Agent settings", in: window)?.accessibilityTraits.contains(.notEnabled) == false)
-            // The title still opens the grid; the grid takes no taps while a switch runs (`isEnabled`).
+            #expect(try await settingValue("Permission", in: window) == "Switching from bypass")
+            #expect(try await settingDisabled("Permission", in: window) == true)
+            #expect(try await settingDisabled("Model", in: window) == false)
+            // The model submenu keeps its value while a permission switch runs.
             if !initiallyEmpty {
                 await transport.setPaneText(
                     screen.replacingOccurrences(of: "⏵⏵ bypass permissions on", with: "⏸ plan mode on"),
@@ -351,24 +346,58 @@ struct AgentSessionSettingsTests {
             // One case confirms the switch; the other times out on the old footer.
             let finalMode = initiallyEmpty ? "bypass" : "plan"
             budget = PollBudget(.seconds(4))
-            while accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue != finalMode, budget.hasTimeLeft {
+            while try await settingValue("Permission", in: window) != finalMode, budget.hasTimeLeft {
                 try await Task.sleep(for: .milliseconds(20))
                 budget.charge()
             }
-            #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityValue == finalMode)
-            #expect(accessibleElement(labeled: "Permission mode", in: window)?.accessibilityTraits.contains(.notEnabled) == false)
-            #expect(accessibleElement(labeled: "Agent settings", in: window)?.accessibilityTraits.contains(.notEnabled) == false)
+            #expect(try await settingValue("Permission", in: window) == finalMode)
+            #expect(try await settingDisabled("Permission", in: window) == false)
+            #expect(try await settingDisabled("Model", in: window) == false)
 
             let reply = #"{"type":"assistant","uuid":"a1","parentUuid":null,"effort":"high","message":{"id":"m1","model":"claude-opus-5-5","content":[{"type":"text","text":"Hello"}]}}"#
             await files.write(Data((reply + "\n").utf8), at: "/home/dev/.claude/projects/-home-dev-proj/\(sessionID).jsonl")
             chat.retry()
             budget = PollBudget(.seconds(3))
-            while accessibleElement(labeled: "Agent settings", in: window)?.accessibilityValue != "Opus 5.5 · high", budget.hasTimeLeft {
+            while try await settingValue("Model", in: window) != "Opus 5.5 · high", budget.hasTimeLeft {
                 try await Task.sleep(for: .milliseconds(20))
                 budget.charge()
             }
-            #expect(accessibleElement(labeled: "Agent settings", in: window)?.accessibilityValue == "Opus 5.5 · high")
+            #expect(try await settingValue("Model", in: window) == "Opus 5.5 · high")
         }
+    }
+
+    @MainActor
+    private func settingValue(_ title: String, in window: UIWindow) async throws -> String? {
+        let presented = try await HostedMenu.presentation(labeled: "More", in: window)
+        let accessibility = accessibleElement(labeled: title, in: presented.controller.view)
+        let item = HostedMenu.element(titled: title, in: presented.menu)
+        let value = accessibility?.accessibilityValue ?? item?.subtitle
+        presented.controller.dismiss(animated: false)
+        try await Task.sleep(for: .milliseconds(20))
+        return value
+    }
+
+    @MainActor
+    private func settingDisabled(_ title: String, in window: UIWindow) async throws -> Bool? {
+        let presented = try await HostedMenu.presentation(labeled: "More", in: window)
+        let accessibility = accessibleElement(labeled: title, in: presented.controller.view)
+        let item = HostedMenu.element(titled: title, in: presented.menu)
+        let value = accessibility.map {
+            $0.accessibilityTraits.contains(.notEnabled)
+        } ?? item.flatMap(menuElementDisabled)
+        presented.controller.dismiss(animated: false)
+        try await Task.sleep(for: .milliseconds(20))
+        return value
+    }
+
+    private func menuElementDisabled(_ element: UIMenuElement) -> Bool? {
+        if let action = element as? UIAction { return action.attributes.contains(.disabled) }
+        if let command = element as? UICommand { return command.attributes.contains(.disabled) }
+        if let menu = element as? UIMenu {
+            let states = menu.children.compactMap(menuElementDisabled)
+            return states.isEmpty ? nil : states.allSatisfy { $0 }
+        }
+        return nil
     }
 
     @Test("An old transcript cannot offer bypass without a current launch opt-in")
@@ -1077,5 +1106,55 @@ struct ArcProjectTests {
         #expect(AirBuildProjectLayout.badge(for: project("a", [.done, .blocked, .blocked])) == .blocked(2))
         #expect(AirBuildProjectLayout.badge(for: project("b", [.done, .working])) == .done)
         #expect(AirBuildProjectLayout.badge(for: project("c", [.working, .idle])) == nil)
+    }
+
+    @Test("v2 counts every Blocked conversation across projects")
+    func airBuildWaitingSummary() {
+        let alpha = Host.fixture(name: "alpha")
+        let beta = Host.fixture(name: "beta")
+        let agents = [
+            Self.agent("a1", on: alpha, workspace: "w1", status: .working),
+            Self.agent("a2", on: alpha, workspace: "w2", status: .blocked),
+            Self.agent("b1", on: beta, workspace: "w1", status: .done),
+            Self.agent("b2", on: beta, workspace: "w2", status: .blocked),
+        ]
+        #expect(AirBuildWaitingSummary.blocked(agents).map(\.id) == [agents[1].id, agents[3].id])
+        #expect(AirBuildWaitingSummary.blocked([]).isEmpty)
+    }
+
+    @Test("v2 maps the status lamp to its color, shape and spoken state")
+    func airBuildStatusLamps() {
+        #expect(AirBuildStatusLamp(status: .working).rgb == 0xFF9F0A)
+        #expect(AirBuildStatusLamp(status: .blocked).rgb == 0xBF5AF2)
+        #expect(AirBuildStatusLamp(status: .done).rgb == 0x30D158)
+        #expect(AirBuildStatusLamp(status: .idle).rgb == 0x8E8E93)
+        #expect(AirBuildStatusLamp(status: .working, isHostConnected: false) == .disconnected)
+        #expect(AirBuildStatusLamp(status: .blocked, isHostConnected: false).isHollow)
+        #expect(AirBuildStatusLamp(status: .working).accessibilityLabel == "Running")
+        #expect(AirBuildStatusLamp(status: .blocked).accessibilityLabel == "Waiting on You")
+        #expect(AirBuildStatusLamp(status: .done).accessibilityLabel == "Done")
+        #expect(AirBuildStatusLamp(status: .idle).accessibilityLabel == "Idle")
+    }
+
+    @Test("v2 keeps the chat menu in four fixed groups")
+    func airBuildMenuGroups() {
+        #expect(AirBuildChatMenuGroup.allCases == [.activity, .session, .navigation, .destructive])
+        #expect(AirBuildChatMenuPolicy.items(in: .activity) == [
+            .agentTerminal, .openTerminal, .changes, .progress, .newAgent, .skills, .snippets,
+        ])
+        #expect(AirBuildChatMenuPolicy.items(in: .session) == [.model, .permission])
+        #expect(AirBuildChatMenuPolicy.items(in: .navigation) == [
+            .goTo, .rename, .renameAgent, .renameWorkspace, .worktreeDetails,
+        ])
+        #expect(AirBuildChatMenuPolicy.items(in: .destructive) == [.close])
+    }
+
+    @Test("v2 formats the running clock as minutes and seconds")
+    func airBuildRunningClock() {
+        let start = Date(timeIntervalSince1970: 100)
+        #expect(AirBuildRunningClock.text(startedAt: start, now: start) == "0:00")
+        #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(42)) == "0:42")
+        #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(125)) == "2:05")
+        #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(-2)) == "0:00")
     }
 }

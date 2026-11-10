@@ -47,7 +47,7 @@ struct ComposerVoiceButton: View {
         // and the mic should only gain its spinner.
         .allowsHitTesting(!isWaiting)
         .accessibilityRespondsToUserInteraction(!isWaiting)
-        .frame(minWidth: compact ? 30 : 44, minHeight: compact ? 30 : 44)
+        .frame(minWidth: compact ? 36 : 44, minHeight: compact ? 36 : 44)
         .accessibilityLabel("Voice Input")
         .accessibilityValue(accessibilityValue)
         .accessibilityHint(accessibilityHint)
