@@ -6,11 +6,18 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     let terminal: TerminalSettings
     let appearance: AppAppearanceSettings
+    @AppStorage(AppAccentColor.defaultsKey) private var accentColor = AppAccentColor.defaultRawValue
 
     var body: some View {
         Form {
             Section {
                 themePicker
+            }
+            Section {
+                accentPicker
+                accentSample
+            } header: {
+                Text("Accent Color")
             }
             TerminalAppearanceSection(terminal: terminal)
             ChatAppearanceSection()
@@ -20,20 +27,109 @@ struct AppearanceSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// The app's own light/dark override. A menu picker, not a pushed
-    /// screen: three options do not earn a navigation level.
+    /// Three live-looking thumbnails, wired to the existing appearance store.
     private var themePicker: some View {
-        Picker(
-            selection: Binding(
-                get: { appearance.selection },
-                set: { appearance.select($0) })
-        ) {
+        HStack(spacing: 12) {
             ForEach(AppAppearanceOption.allCases) { @Sendable option in
-                Text(option.title).tag(option)
+                MainActorContent {
+                    Button {
+                        appearance.select(option)
+                    } label: {
+                        VStack(spacing: 7) {
+                            HStack(spacing: 0) {
+                                thumbnailColors(option).0
+                                thumbnailColors(option).1
+                            }
+                            .frame(width: 92, height: 58)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay {
+                                if appearance.selection == option {
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(.tint, lineWidth: 2.5)
+                                        .frame(width: 98, height: 64)
+                                }
+                            }
+                            Text(option.title)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(verbatim: option.title))
+                    .accessibilityAddTraits(appearance.selection == option ? .isSelected : [])
+                }
             }
-        } label: {
-            Text("Theme")
         }
+        .padding(.vertical, 4)
+    }
+
+    private func thumbnailColors(_ option: AppAppearanceOption) -> (Color, Color) {
+        let light = Color(red: 0.91, green: 0.93, blue: 0.96)
+        let dark = Color(red: 0.16, green: 0.16, blue: 0.17)
+        switch option {
+        case .system: return (light, dark)
+        case .light: return (light, Color(red: 0.97, green: 0.97, blue: 0.98))
+        case .dark: return (dark, Color(red: 0.1, green: 0.1, blue: 0.11))
+        }
+    }
+
+    private var accentPicker: some View {
+        HStack(spacing: 9) {
+            ForEach(AppAccentColor.allCases) { @Sendable option in
+                MainActorContent {
+                    Button {
+                        accentColor = option.rawValue
+                    } label: {
+                        Circle()
+                            .fill(option.color)
+                            .frame(width: 24, height: 24)
+                            .overlay {
+                                if accentColor == option.rawValue {
+                                    Circle()
+                                        .stroke(.primary, lineWidth: 2)
+                                        .frame(width: 31, height: 31)
+                                }
+                            }
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(verbatim: option.rawValue))
+                    .accessibilityAddTraits(accentColor == option.rawValue ? .isSelected : [])
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var accentSample: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Spacer()
+                Text("Is it done?")
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 9)
+                    .background(AppAccentColor.color(for: accentColor), in: RoundedRectangle(cornerRadius: 16))
+            }
+            HStack(alignment: .bottom, spacing: 10) {
+                OBPlushAvatar(seed: "appearance-preview", size: 34)
+                    .clipShape(Circle())
+                    .accessibilityLabel("Appearance")
+                Text("Done. The load test is running.")
+                    .font(.system(size: 13.5))
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 9)
+                    .background(
+                        Color(uiColor: .secondarySystemBackground),
+                        in: RoundedRectangle(cornerRadius: 16))
+                Spacer(minLength: 32)
+            }
+        }
+        .padding(.top, 8)
     }
 }
 

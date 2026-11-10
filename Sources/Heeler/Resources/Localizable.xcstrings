@@ -4432,6 +4432,16 @@
         }
       }
     },
+    "Accent Color" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强调色"
+          }
+        }
+      }
+    },
     "Account" : {
       "localizations" : {
         "ja" : {
@@ -14350,6 +14360,16 @@
         }
       }
     },
+    "Done. The load test is running." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修完了，压测在跑"
+          }
+        }
+      }
+    },
     "Dot Folders Hidden" : {
       "localizations" : {
         "ja" : {
@@ -16945,6 +16965,16 @@
         }
       }
     },
+    "Frequently Used" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常用"
+          }
+        }
+      }
+    },
     "From %@" : {
       "comment" : "Changes row: the path a file was renamed from",
       "localizations" : {
@@ -17166,6 +17196,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全局"
+          }
+        }
+      }
+    },
+    "Go to Project" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往项目"
           }
         }
       }
@@ -21083,6 +21123,16 @@
         }
       }
     },
+    "Is it done?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修完了吗"
+          }
+        }
+      }
+    },
     "It is not on the SSH PATH or at ~/.local/bin/herdr-core, or where its installer puts it on native Windows" : {
       "localizations" : {
         "ja" : {
@@ -23116,6 +23166,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你和 Agent 发送的消息会显示在这里。"
+          }
+        }
+      }
+    },
+    "Message…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入消息…"
           }
         }
       }
@@ -32881,6 +32941,16 @@
         }
       }
     },
+    "Search" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索"
+          }
+        }
+      }
+    },
     "Search Agents" : {
       "localizations" : {
         "ja" : {
@@ -34121,6 +34191,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示预估 API 费用"
+          }
+        }
+      }
+    },
+    "Show Project" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示项目"
           }
         }
       }

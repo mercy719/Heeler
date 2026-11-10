@@ -1708,8 +1708,15 @@ struct ConsoleView: View {
                     },
                     repeatLandings: notificationRouter.repeatLandings,
                     shellRoute: shellRoute(over: id),
-                    composerSession: detailCores.session(for: agent, console: console)
-                )
+                    composerSession: detailCores.session(for: agent, console: console),
+                    arcProject: arcProject(for: agent),
+                    arcBoard: arcBoardSnapshot(for: agent),
+                    arcRefreshBoard: {
+                        await arcBoard.refreshBoards(hosts: hosts.consoleHosts) { [console] id in
+                            console.chatHostFiles(for: id)
+                        }
+                    },
+                    onOpenUsage: console.isUsageEnabled ? { showUsage() } : nil)
                 // Selecting another Agent must tear down the previous terminal
                 // pipeline; without the explicit identity the detail column
                 // would reuse the old view's state.
@@ -2545,6 +2552,18 @@ struct ConsoleView: View {
         ArcProjectGroup.groups(
             hosts: hosts.consoleHosts, agents: console.chatDisplayAgents,
             workspacesByHost: console.workspacesByHost)
+    }
+
+    private func arcProject(for agent: ConsoleAgent) -> ArcProjectGroup.Project? {
+        arcAllGroups.lazy.flatMap(\.projects).first {
+            $0.id.hostID == agent.hostID && $0.id.workspaceID == agent.agent.workspaceID
+        }
+    }
+
+    private func arcBoardSnapshot(for agent: ConsoleAgent) -> ArcProjectBoard? {
+        ArcBoardLookup.board(
+            for: .init(hostID: agent.hostID, workspaceID: agent.agent.workspaceID),
+            in: arcBoard.boards)
     }
 
     /// The selected project's identity, read back from the saved key or, the

@@ -32,6 +32,11 @@ struct AgentChatSurfaceView: View {
     private let workspaceDrawer: WorkspaceTerminalDrawer?
     /// Swaps the detail back to the Agent terminal.
     private let selectSurface: (AgentDetailSurface) -> Void
+    private let arcProject: ArcProjectGroup.Project?
+    private let arcBoard: ArcProjectBoard?
+    private let arcRefreshBoard: (() async -> Void)?
+    private let onOpenUsage: (() -> Void)?
+    @State private var isShowingAirBuildPanel = false
 
     @State private var timeline = ChatTimelineModel()
     @State private var skillsStore: SkillsPaneStore?
@@ -133,7 +138,11 @@ struct AgentChatSurfaceView: View {
         openTerminal: @escaping () -> Void,
         showChanges: (() -> Void)?,
         workspaceDrawer: WorkspaceTerminalDrawer?,
-        selectSurface: @escaping (AgentDetailSurface) -> Void
+        selectSurface: @escaping (AgentDetailSurface) -> Void,
+        arcProject: ArcProjectGroup.Project? = nil,
+        arcBoard: ArcProjectBoard? = nil,
+        arcRefreshBoard: (() async -> Void)? = nil,
+        onOpenUsage: (() -> Void)? = nil
     ) {
         self.agent = agent
         self.program = program
@@ -152,6 +161,10 @@ struct AgentChatSurfaceView: View {
         self.showChanges = showChanges
         self.workspaceDrawer = workspaceDrawer
         self.selectSurface = selectSurface
+        self.arcProject = arcProject
+        self.arcBoard = arcBoard
+        self.arcRefreshBoard = arcRefreshBoard
+        self.onOpenUsage = onOpenUsage
         // Chat lists only the skills its `/` menu sends, in the menu, the
         // Skills sheet and the tools keyboard alike.
         _skillsStore = State(
@@ -175,6 +188,22 @@ struct AgentChatSurfaceView: View {
     /// The Agent's Chat; nil while its Host is not in the catalog.
     private var chat: AgentChatStore? {
         console.chatStore(for: agent, program: program)
+    }
+
+    private var airBuildProject: ArcProjectGroup.Project {
+        arcProject ?? ArcProjectGroup.Project(
+            id: .init(hostID: agent.hostID, workspaceID: agent.agent.workspaceID),
+            label: agent.workspaceLabel ?? agent.agent.workspaceID,
+            agents: [agent])
+    }
+
+    private var airBuildProgressPanel: some View {
+        AirBuildProgressPanel(
+            project: airBuildProject, board: arcBoard,
+            refresh: { await arcRefreshBoard?() },
+            onClose: { isShowingAirBuildPanel = false },
+            onOpenTerminal: { showAgentTerminal() },
+            onOpenUsage: onOpenUsage)
     }
 
     var body: some View {
@@ -480,17 +509,20 @@ struct AgentChatSurfaceView: View {
         }
         .padding(.top, topInset)
         .overlay(alignment: .top) {
-            AgentDetailHeader(
-                palette: .system,
-                isExpanded: $isBackHeaderExpanded,
-                onBack: showsBackButton && !usesVerticalToolbar ? { dismiss() } : nil,
-                actions: backHeaderActions,
-                surfaceSwitch: terminalSurfaceSwitch,
-                title: AgentDetailHeaderTitle(agent),
-                statusTitle: console.connectionRecoveryTitle(for: agent.hostID),
+            AirBuildChatHeader(
+                project: airBuildProject,
+                isHostConnected: isHostConnected,
+                onBack: showsBackButton ? { dismiss() } : nil,
+                onOpenTerminal: { showAgentTerminal() },
+                additionalActions: backHeaderActions,
+                onShowChanges: showChanges,
+                onRename: console.offersTitleRename(for: agent)
+                    ? { titleRename = console.titleRenameStore(for: agent) } : nil,
+                onShowProject: { backToConsole() },
+                onClose: { composerActions.closeAgent?() },
+                onTogglePanel: { isShowingAirBuildPanel.toggle() },
                 sessionSettings: sessionSettings,
-                sessionControls: sessionControls,
-                controlPlacement: headerControlPlacement)
+                sessionControls: sessionControls)
             .padding(.horizontal, 12)
             .padding(.top, backHeaderTop)
             .onChange(of: isBackHeaderExpanded) { _, expanded in
@@ -527,13 +559,17 @@ struct AgentChatSurfaceView: View {
         .toolbarBackground(Color.clear, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar(.visible, for: .navigationBar)
-        .detailHeaderBarControls(
-            headerControlPlacement,
-            palette: .system,
-            isExpanded: $isBackHeaderExpanded,
-            actions: backHeaderActions,
-            surfaceSwitch: terminalSurfaceSwitch,
-            onBack: showsBackButton && usesVerticalToolbar ? { dismiss() } : nil)
+        .inspector(isPresented: Binding(
+            get: { !showsBackButton && isShowingAirBuildPanel },
+            set: { isShowingAirBuildPanel = $0 })) {
+            airBuildProgressPanel
+                .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+        }
+        .sheet(isPresented: Binding(
+            get: { showsBackButton && isShowingAirBuildPanel },
+            set: { isShowingAirBuildPanel = $0 })) {
+            airBuildProgressPanel
+        }
         .prioritizesVerticalDetailToolbar()
     }
 
@@ -573,6 +609,7 @@ struct AgentChatSurfaceView: View {
                 textSize: ChatTextSettings.size(system: dynamicTypeSize, offset: textSizeOffset),
                 font: chatFont,
                 hidesFromAccessibility: presentation != .timeline,
+                agent: agent,
                 actions: timelineActions)
             .padding(.top, -topInset)
             .ignoresSafeArea(.container, edges: .bottom)
@@ -654,7 +691,7 @@ struct AgentChatSurfaceView: View {
     /// The back header's band over the conversation's top edge. Level with
     /// the bar, the header can sit wholly above that edge.
     private var headerObstruction: CGFloat {
-        max(0, backHeaderTop + AgentDetailHeader.controlSize + 4 - topInset)
+        max(0, backHeaderTop + AirBuildChatHeader.height + 4 - topInset)
     }
 
     @ViewBuilder
@@ -1048,7 +1085,8 @@ struct AgentChatSurfaceView: View {
             focusRequest: chat?.blocked.composerFocusRequest ?? 0,
             collapsesWithoutKeyboard: true,
             keyboardIsLeaving: keyboardIsLeaving,
-            interrupt: stopInterrupt)
+            interrupt: stopInterrupt,
+            airBuildStyle: true)
         .frame(maxWidth: ChatTimelineMetrics.maximumContentWidth)
         .frame(maxWidth: .infinity)
         // The transcript records the mode as snapshots, and not every change

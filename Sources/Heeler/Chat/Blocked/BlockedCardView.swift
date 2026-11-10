@@ -736,7 +736,7 @@ struct BlockedCardHeader: View {
                 .foregroundStyle(.orange)
                 .accessibilityHidden(true)
             Text(verbatim: title)
-                .font(.headline)
+                .font(.system(size: 14, weight: .semibold))
                 .lineLimit(lineLimit)
                 .accessibilityAddTraits(.isHeader)
             if let detail {
@@ -835,16 +835,23 @@ enum BlockedOptionEmphasis: Equatable {
 struct BlockedOptionButton: View {
     let label: String
     let detail: String?
+    let ordinal: Int?
     let emphasis: BlockedOptionEmphasis
     let action: () -> Void
 
     init(option: DialogOption, emphasis: BlockedOptionEmphasis, action: @escaping () -> Void) {
-        self.init(label: option.label, detail: option.detail, emphasis: emphasis, action: action)
+        self.init(
+            label: option.label, detail: option.detail, ordinal: option.ordinal,
+            emphasis: emphasis, action: action)
     }
 
-    init(label: String, detail: String? = nil, emphasis: BlockedOptionEmphasis, action: @escaping () -> Void) {
+    init(
+        label: String, detail: String? = nil, ordinal: Int? = nil,
+        emphasis: BlockedOptionEmphasis, action: @escaping () -> Void
+    ) {
         self.label = label
         self.detail = detail
+        self.ordinal = ordinal
         self.emphasis = emphasis
         self.action = action
     }
@@ -852,15 +859,34 @@ struct BlockedOptionButton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button(action: action) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: label)
-                        .font(.body.weight(emphasis == .primary ? .semibold : .regular))
-                        .multilineTextAlignment(.leading)
-                    if let detail, !detail.isEmpty, detail != label {
-                        Text(verbatim: detail)
-                            .font(.caption)
-                            .opacity(0.75)
+                HStack(spacing: 10) {
+                    if let ordinal {
+                        Text(verbatim: "\(ordinal)")
+                            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(
+                                Color(uiColor: .tertiarySystemFill),
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .accessibilityHidden(true)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: label)
+                            .font(.system(size: 13.5, weight: emphasis == .primary ? .semibold : .regular))
                             .multilineTextAlignment(.leading)
+                        if let detail, !detail.isEmpty, detail != label {
+                            Text(verbatim: detail)
+                                .font(.caption)
+                                .opacity(0.75)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    if emphasis == .primary {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
@@ -883,14 +909,18 @@ private struct BlockedOptionStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
         return configuration.label
             .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 9)
             .background(fill, in: shape)
             .overlay {
-                if isRaised { shape.strokeBorder(Color(uiColor: .separator), lineWidth: 0.5) }
+                if emphasis == .primary {
+                    shape.strokeBorder(.tint, lineWidth: 1.5)
+                } else if isRaised {
+                    shape.strokeBorder(Color(uiColor: .separator), lineWidth: 0.5)
+                }
             }
             .contentShape(shape)
             .opacity(configuration.isPressed ? 0.6 : isEnabled ? 1 : 0.45)
@@ -905,15 +935,14 @@ private struct BlockedOptionStyle: ButtonStyle {
 
     private var foreground: Color {
         switch emphasis {
-        case .primary: .white
+        case .primary, .plain, .caution: .primary
         case .destructive: .red
-        case .plain, .caution: .primary
         }
     }
 
     private var fill: Color {
         switch emphasis {
-        case .primary: .accentColor
+        case .primary: Color(uiColor: .secondarySystemBackground)
         case .destructive: .red.opacity(0.12)
         case .plain, .caution: Color(uiColor: .secondarySystemGroupedBackground)
         }

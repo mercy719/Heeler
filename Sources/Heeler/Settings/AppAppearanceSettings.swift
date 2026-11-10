@@ -30,6 +30,35 @@ enum AppAppearanceOption: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// AirBuild's ten accent choices, persisted as their hex value by `@AppStorage`.
+enum AppAccentColor: String, CaseIterable, Identifiable, Sendable {
+    static let defaultsKey = "app-accent-color"
+    static let defaultRawValue = "#3b9bff"
+
+    case blue = "#3b9bff"
+    case purple = "#bf5af2"
+    case pink = "#ff375f"
+    case red = "#ff453a"
+    case orange = "#ff9f0a"
+    case yellow = "#d4a20a"
+    case green = "#30d158"
+    case cyan = "#40c8e0"
+    case indigo = "#5e5ce6"
+    case gray = "#48484a"
+
+    var id: String { rawValue }
+    var color: Color { Self.color(for: rawValue) }
+
+    static func color(for rawValue: String) -> Color {
+        let value = UInt64(rawValue.dropFirst(), radix: 16) ?? 0x3b9bff
+        return Color(
+            .sRGB,
+            red: Double((value >> 16) & 0xff) / 255,
+            green: Double((value >> 8) & 0xff) / 255,
+            blue: Double(value & 0xff) / 255)
+    }
+}
+
 /// The app-wide light/dark override, applied once at the root view. Everything
 /// downstream — including the terminal surfaces, which resolve their theme
 /// against `\.colorScheme` — follows from that single `preferredColorScheme`.

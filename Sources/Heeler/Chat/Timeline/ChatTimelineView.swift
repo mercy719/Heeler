@@ -24,6 +24,7 @@ struct ChatTimelineView: UIViewControllerRepresentable {
     /// tree, rows the screen doesn't show (hc-lab, a refused Send's
     /// "Sending…" under Can't Tell the Conversation).
     var hidesFromAccessibility = false
+    var agent: ConsoleAgent?
     let actions: ChatTimelineActions
 
     func makeCoordinator() -> Coordinator {
@@ -32,6 +33,7 @@ struct ChatTimelineView: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> ChatTimelineController {
         let controller = ChatTimelineController(actions: actions)
+        controller.agent = agent
         controller.setTypography(size: textSize, font: font)
         controller.setTopObstruction(topObstruction)
         bottomEdge.controller = controller
@@ -43,6 +45,7 @@ struct ChatTimelineView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: ChatTimelineController, context: Context) {
         controller.actions = actions
+        controller.agent = agent
         controller.setTypography(size: textSize, font: font)
         controller.setTopObstruction(topObstruction)
         bottomEdge.controller = controller

@@ -51,6 +51,10 @@ struct AgentDetailView: View {
     @State private var isOwnViewer = false
     @State private var attachReference: AgentDetailAttachReference
     private let permitsRetention: Bool
+    private let arcProject: ArcProjectGroup.Project?
+    private let arcBoard: ArcProjectBoard?
+    private let arcRefreshBoard: (() async -> Void)?
+    private let onOpenUsage: (() -> Void)?
     @State private var isResolvingTerminal = false
     @State private var isChoosingTerminal = false
     @State private var terminalOpenFailure: String?
@@ -97,7 +101,11 @@ struct AgentDetailView: View {
         composerSession: AgentComposerSession? = nil,
         attachStore: AgentAttachStore? = nil,
         openTerminalStore: AgentOpenTerminalStore? = nil,
-        changesPresentation: AgentChangesPresentation? = nil
+        changesPresentation: AgentChangesPresentation? = nil,
+        arcProject: ArcProjectGroup.Project? = nil,
+        arcBoard: ArcProjectBoard? = nil,
+        arcRefreshBoard: (() async -> Void)? = nil,
+        onOpenUsage: (() -> Void)? = nil
     ) {
         self.agent = agent
         self.console = console
@@ -128,6 +136,10 @@ struct AgentDetailView: View {
         let ownerID = UUID()
         _retentionOwnerID = State(initialValue: ownerID)
         permitsRetention = attachStore == nil && openTerminalStore == nil
+        self.arcProject = arcProject
+        self.arcBoard = arcBoard
+        self.arcRefreshBoard = arcRefreshBoard
+        self.onOpenUsage = onOpenUsage
         _retainedAgent = State(initialValue: nil)
         let retainsSessions = permitsRetention
         let attach = attachStore
@@ -421,7 +433,11 @@ struct AgentDetailView: View {
                     openTerminal: { openWorkspaceTerminal() },
                     showChanges: offersChanges ? { changes.open() } : nil,
                     workspaceDrawer: workspaceDrawer,
-                    selectSurface: { selectSurface($0) })
+                    selectSurface: { selectSurface($0) },
+                    arcProject: arcProject,
+                    arcBoard: arcBoard,
+                    arcRefreshBoard: arcRefreshBoard,
+                    onOpenUsage: onOpenUsage)
             } else {
                 AgentTerminalView(
                     agent: agent,

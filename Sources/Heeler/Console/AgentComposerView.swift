@@ -298,6 +298,8 @@ struct AgentComposerView: View {
     /// False on a Host that cannot deliver a draft yet: no Send, no Stop, and
     /// Return and ⌘↩ send nothing.
     var offersSend = true
+    /// AirBuild's compact capsule; terminal Composer keeps its original card.
+    var airBuildStyle = false
     /// The app's microphone owner; absent in previews and tests, which
     /// leaves the mic out.
     @Environment(VoiceInputSession.self) private var voiceInput: VoiceInputSession?
@@ -319,6 +321,16 @@ struct AgentComposerView: View {
         AgentComposerKeyboardPresentation.toolsDockReleasesFocus
     }
 
+    private var switcherRow: some View {
+        TerminalAgentSwitcherRow(
+            switcher: focusPreservingSwitcher,
+            isKeyboardUp: isKeyboardPresented,
+            toggleKeyboard: dismissOrPresentKeyboard,
+            isToolsKeyboardPresented: isToolsKeyboardPresented,
+            switchKeyboard: keyboardSwitchAction,
+            modeControl: modeControl)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
@@ -331,22 +343,32 @@ struct AgentComposerView: View {
                     chromeColorScheme: chromeColorScheme)
 
                 VStack(spacing: 0) {
+                    if airBuildStyle {
+                        switcherRow
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 4)
+                    }
                     inputArea
                         .modifier(ComposerInputReplacement(replacement: inputReplacement))
                         .padding(inputAreaInsets)
+                        .background {
+                            if airBuildStyle {
+                                Color(uiColor: .secondarySystemBackground)
+                                    .clipShape(RoundedRectangle(
+                                        cornerRadius: isCollapsed ? 20 : 16, style: .continuous))
+                            }
+                        }
 
-                    TerminalAgentSwitcherRow(
-                        switcher: focusPreservingSwitcher,
-                        isKeyboardUp: isKeyboardPresented,
-                        toggleKeyboard: dismissOrPresentKeyboard,
-                        isToolsKeyboardPresented: isToolsKeyboardPresented,
-                        switchKeyboard: keyboardSwitchAction,
-                        modeControl: modeControl)
+                    if !airBuildStyle {
+                        switcherRow
+                    }
                 }
-                .background(
-                    .regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-                )
+                .background {
+                    if !airBuildStyle {
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(.regularMaterial)
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -355,6 +377,7 @@ struct AgentComposerView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(composerCardStroke, lineWidth: dropHighlight.strokeWidth)
+                        .opacity(airBuildStyle ? 0 : 1)
                 }
                 .overlay(alignment: .top) { keyboardGrabber }
                 .composerDropDestination(
@@ -535,20 +558,31 @@ struct AgentComposerView: View {
                     onComposingChange: { store.setEditorComposing($0) },
                     onPasteImage: actions.canBegin ? actions.pasteImage : nil)
                 if store.draft.isEmpty {
-                    Text("Message Agent")
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .padding(.top, 8)
-                        .allowsHitTesting(false)
+                    Group {
+                        if airBuildStyle {
+                            Text("Message…")
+                        } else {
+                            Text("Message Agent")
+                        }
+                    }
+                    .font(airBuildStyle ? .system(size: 14) : .body)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .padding(.top, airBuildStyle ? 10 : 8)
+                    .allowsHitTesting(false)
                 }
             }
             .frame(minHeight: 36, alignment: .topLeading)
             .accessibilityElement(children: .contain)
             .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             if isCollapsed {
-                voiceButton
-                primaryButton
-                    .modifier(ComposerVoiceCover(isCovered: isVoiceBarShown))
+                if !airBuildStyle || store.draft.isEmpty || isVoiceBarShown {
+                    voiceButton
+                }
+                if !airBuildStyle || !store.draft.isEmpty || primaryControl == .stop {
+                    primaryButton
+                        .modifier(ComposerVoiceCover(isCovered: isVoiceBarShown))
+                }
             }
         }
         .overlay(alignment: .leading) {
@@ -704,7 +738,8 @@ struct AgentComposerView: View {
     private var voiceButton: some View {
         if let voiceInput, inputMode == .composer {
             ComposerVoiceButton(
-                voice: store.voice, tint: secondaryActionTint,
+                voice: store.voice, tint: airBuildStyle ? .accentColor : secondaryActionTint,
+                compact: airBuildStyle,
                 openSettings: { isVoiceSetupPresented = true }
             ) {
                 let wasRecording = store.voice.isRecording
@@ -761,7 +796,7 @@ struct AgentComposerView: View {
         .buttonStyle(.bordered)
         .buttonBorderShape(.circle)
         .tint(secondaryActionTint)
-        .frame(minWidth: 44, minHeight: 44)
+        .frame(minWidth: airBuildStyle ? 30 : 44, minHeight: airBuildStyle ? 30 : 44)
         .accessibilityHint("Adds an image or file to the draft")
     }
 
@@ -778,14 +813,16 @@ struct AgentComposerView: View {
             case .send:
                 AgentComposerSendButton(
                     isEnabled: store.canSend,
-                    accessibilityHint: store.sendAccessibilityHint
+                    accessibilityHint: store.sendAccessibilityHint,
+                    airBuildStyle: airBuildStyle
                 ) {
                     sendDraft()
                 }
             case .stop:
                 AgentComposerStopButton(
                     isStopping: store.stop.isStopping,
-                    accessibilityHint: stopHint
+                    accessibilityHint: stopHint,
+                    airBuildStyle: airBuildStyle
                 ) {
                     guard let interrupt else { return }
                     store.stop.stop(waiting: interrupt.wait, using: interrupt.perform)
@@ -805,7 +842,10 @@ struct AgentComposerView: View {
     }
 
     private var inputAreaInsets: EdgeInsets {
-        EdgeInsets(
+        if airBuildStyle, isCollapsed {
+            return EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 4)
+        }
+        return EdgeInsets(
             top: isCollapsed ? 6 : 12, leading: 12, bottom: isCollapsed ? 6 : 8, trailing: 12)
     }
 
@@ -1095,6 +1135,7 @@ private struct AgentComposerSkillSuggestions: View {
 struct AgentComposerSendButton: View {
     let isEnabled: Bool
     var accessibilityHint: String = String(localized: "Delivers the complete draft to the Agent")
+    var airBuildStyle = false
     let action: () -> Void
 
     var body: some View {
@@ -1103,7 +1144,7 @@ struct AgentComposerSendButton: View {
                 .font(.system(size: 15, weight: .bold))
                 .frame(width: 18, height: 18)
         }
-        .buttonStyle(AgentComposerSendButtonStyle())
+        .buttonStyle(AgentComposerSendButtonStyle(airBuildStyle: airBuildStyle))
         .disabled(!isEnabled)
         .accessibilityLabel("Send")
         .accessibilityHint(accessibilityHint)
@@ -1111,19 +1152,22 @@ struct AgentComposerSendButton: View {
 }
 
 private struct AgentComposerSendButtonStyle: ButtonStyle {
+    let airBuildStyle: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(
-                Color(uiColor: isEnabled ? .systemBackground : .secondaryLabel))
-            .frame(width: 32, height: 32)
+                airBuildStyle ? .white : Color(uiColor: isEnabled ? .systemBackground : .secondaryLabel))
+            .frame(width: airBuildStyle ? 30 : 32, height: airBuildStyle ? 30 : 32)
             .background(
-                isEnabled
-                    ? Color(uiColor: .label)
-                    : Color(uiColor: .label).opacity(0.12),
+                airBuildStyle
+                    ? Color.accentColor.opacity(isEnabled ? 1 : 0.35)
+                    : isEnabled
+                        ? Color(uiColor: .label)
+                        : Color(uiColor: .label).opacity(0.12),
                 in: Circle())
-            .frame(width: 44, height: 44)
+            .frame(width: airBuildStyle ? 30 : 44, height: airBuildStyle ? 30 : 44)
             .opacity(configuration.isPressed && isEnabled ? 0.72 : 1)
             .contentShape(.circle)
     }
@@ -1148,6 +1192,7 @@ private struct ComposerVoiceCover: ViewModifier {
 struct AgentComposerStopButton: View {
     let isStopping: Bool
     var accessibilityHint = AgentComposerInterrupt.escapeHint
+    var airBuildStyle = false
     let action: () -> Void
 
     var body: some View {
@@ -1164,7 +1209,7 @@ struct AgentComposerStopButton: View {
             }
             .frame(width: 18, height: 18)
         }
-        .buttonStyle(AgentComposerStopButtonStyle())
+        .buttonStyle(AgentComposerStopButtonStyle(airBuildStyle: airBuildStyle))
         .disabled(isStopping)
         .accessibilityLabel("Stop")
         .accessibilityValue(isStopping ? "Stopping" : "")
@@ -1175,12 +1220,14 @@ struct AgentComposerStopButton: View {
 /// Send's geometry in system red, which stays apart from Blocked's red in
 /// `AgentStatusPalette`.
 private struct AgentComposerStopButtonStyle: ButtonStyle {
+    let airBuildStyle: Bool
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
-            .frame(width: 32, height: 32)
+            .frame(width: airBuildStyle ? 30 : 32, height: airBuildStyle ? 30 : 32)
             .background(Color(uiColor: .systemRed), in: Circle())
-            .frame(width: 44, height: 44)
+            .frame(width: airBuildStyle ? 30 : 44, height: airBuildStyle ? 30 : 44)
             .opacity(configuration.isPressed ? 0.72 : 1)
             .contentShape(.circle)
     }

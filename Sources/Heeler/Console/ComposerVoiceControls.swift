@@ -9,6 +9,7 @@ import UIKit
 struct ComposerVoiceButton: View {
     let voice: ComposerVoiceInput
     let tint: Color
+    var compact = false
     let openSettings: () -> Void
     let action: () -> Void
     // The button still fires on release after a long press; this swallows that tap.
@@ -46,7 +47,7 @@ struct ComposerVoiceButton: View {
         // and the mic should only gain its spinner.
         .allowsHitTesting(!isWaiting)
         .accessibilityRespondsToUserInteraction(!isWaiting)
-        .frame(minWidth: 44, minHeight: 44)
+        .frame(minWidth: compact ? 30 : 44, minHeight: compact ? 30 : 44)
         .accessibilityLabel("Voice Input")
         .accessibilityValue(accessibilityValue)
         .accessibilityHint(accessibilityHint)

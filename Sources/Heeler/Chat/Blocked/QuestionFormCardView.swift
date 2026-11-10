@@ -93,7 +93,8 @@ struct QuestionFormCard: View {
                 ForEach(Array(question.options.enumerated()), id: \.offset) { @Sendable index, option in
                     MainActorContent {
                         BlockedOptionButton(
-                            label: option.label, detail: option.detail, emphasis: isChosen(index) ? .primary : .plain
+                            label: option.label, detail: option.detail, ordinal: index + 1,
+                            emphasis: isChosen(index) ? .primary : .plain
                         ) {
                             choose(index)
                         }

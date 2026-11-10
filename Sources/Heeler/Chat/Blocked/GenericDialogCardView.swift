@@ -32,7 +32,8 @@ struct GenericDialogCard: View {
                 VStack(spacing: 8) {
                     ForEach(numbers, id: \.self) { @Sendable number in
                         MainActorContent {
-                            BlockedOptionButton(label: "\(number). \(excerpt.numbered[number] ?? "")", emphasis: .plain) {
+                            BlockedOptionButton(
+                                label: excerpt.numbered[number] ?? "", ordinal: number, emphasis: .plain) {
                                 Task { await store.press(number: number) }
                             }
                         }

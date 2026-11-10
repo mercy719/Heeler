@@ -760,6 +760,7 @@
 		BA3DB0744C76A0DDEA34090A /* ConsoleCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD56934BD448DF367CCC8C27 /* ConsoleCommandTests.swift */; };
 		BA5D3FE58111F8918A50DE2A /* SSHChannelAdmissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A579E1DA3F59AFBC3ECAD69C /* SSHChannelAdmissionTests.swift */; };
 		BB00A4B0FA3FD73D2F183967 /* HostHelperSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFF4A249FFD87F43D737A529 /* HostHelperSheet.swift */; };
+		BB141F8D36DD2E391E3F3250 /* AirBuildProgressPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758A300F9060D404FC39488B /* AirBuildProgressPanel.swift */; };
 		BB203D50B00E52B3961BEDCC /* AgentTerminalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE3FB96A86B3835C9168B5D /* AgentTerminalCache.swift */; };
 		BB26A50348D73A7852417D5B /* HerdrWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CFA2284DB622A6EB63D2F85 /* HerdrWire.swift */; };
 		BB4D1DFBAF16E50AF25F3F4C /* OpenCodeToolSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685D6B107AF17212EA0FC0D1 /* OpenCodeToolSummary.swift */; };
@@ -778,6 +779,7 @@
 		BE514EA5DE00BF97731E245E /* ChatSendRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610E09C50B3599AF347D1E5D /* ChatSendRules.swift */; };
 		BE6E5B65B5F471C78273989B /* CheckoutChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD163326F33D84419346620D /* CheckoutChanges.swift */; };
 		BE92EAF1AB7A7A6B6E65170F /* TerminalMessageJumpControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98C291FF5279ECEDF232B5D /* TerminalMessageJumpControllerTests.swift */; };
+		BEDFB039EE40639206E32133 /* AirBuildTimelineBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E01DBB0FDCD6B98C4056773 /* AirBuildTimelineBubble.swift */; };
 		BF22FFBA362B7389807D12D0 /* GrokToolSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B1ABD77CFF84CDB66BA6EA /* GrokToolSummary.swift */; };
 		BF34AFDEB274D8503D59FB05 /* HerdrCoreEventCursorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C6D00C5E1D095E6FD02BD1F /* HerdrCoreEventCursorTests.swift */; };
 		BFD16454AE4CC2E7D764586F /* TerminalKeyEncoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F92B6C7B2265DE1822819EF3 /* TerminalKeyEncoderTests.swift */; };
@@ -851,6 +853,7 @@
 		CCEBF66BA9AFE64EDD371A78 /* AttachUserMessageIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85BEE99E7BEFA0D0D985162C /* AttachUserMessageIndex.swift */; };
 		CD1FDAD00677C38CC6910399 /* PiFileChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D4CCEAF1FC716A80E4454B /* PiFileChanges.swift */; };
 		CD2F9C1E4EAFC6C9D94F6FFB /* CodexRecordDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89669281E7DB73D3A6B63BCD /* CodexRecordDecoder.swift */; };
+		CD4D52E83BFFC3F3C31D3662 /* AirBuildChatHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C575323D9B1F29EEC4502637 /* AirBuildChatHeader.swift */; };
 		CD6468C4FE5F5F67671D33E6 /* HerdrCommandLineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F90E77FA4275B5056D4C0808 /* HerdrCommandLineTests.swift */; };
 		CD7F12A6A8D1F064B44879C0 /* CodexRolloutFileName.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02B2098030E5048047D4B29 /* CodexRolloutFileName.swift */; };
 		CF1C8E803B3A98CC36E199B6 /* UsageMiscLocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDCB84101E983154CA1087D1 /* UsageMiscLocalizationTests.swift */; };
@@ -1500,6 +1503,7 @@
 		5BD3FC2163F1974AD6C789A5 /* HerdrCoreSSHTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreSSHTransportTests.swift; sourceTree = "<group>"; };
 		5CB08528C0328AA9AFE358CE /* TerminalFontSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFontSettings.swift; sourceTree = "<group>"; };
 		5D6754A072F62FD9FFF3046F /* herdr-core-frames-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "herdr-core-frames-v1.json"; sourceTree = "<group>"; };
+		5E01DBB0FDCD6B98C4056773 /* AirBuildTimelineBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBuildTimelineBubble.swift; sourceTree = "<group>"; };
 		5E84D48903B9E34AE65DEEAD /* ChatRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRow.swift; sourceTree = "<group>"; };
 		5E8A1BCBBB2322E297472810 /* ConsoleCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleCommands.swift; sourceTree = "<group>"; };
 		5EEE917F40DF50E950C1326F /* HerdrKeyGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrKeyGrammar.swift; sourceTree = "<group>"; };
@@ -1585,6 +1589,7 @@
 		7461B7A0FD2A4CDF34352D45 /* PairingCodeVectorFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingCodeVectorFile.swift; sourceTree = "<group>"; };
 		747773ABBBA6ECEDAD7786DE /* TerminalGridReportPhaseRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalGridReportPhaseRecorder.swift; sourceTree = "<group>"; };
 		74B121D75551BD14F5B79A06 /* HerdrCoreTransportE2ETests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreTransportE2ETests.swift; sourceTree = "<group>"; };
+		758A300F9060D404FC39488B /* AirBuildProgressPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBuildProgressPanel.swift; sourceTree = "<group>"; };
 		75AD4D2E9AF7A381719AB084 /* ChatCacheSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCacheSettingsSection.swift; sourceTree = "<group>"; };
 		75B5CDD37180C297B5908E75 /* CodexPendingEcho.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPendingEcho.swift; sourceTree = "<group>"; };
 		75B77068EFF6D0609C6D6ED6 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
@@ -1918,6 +1923,7 @@
 		C4A0995C19A8B83E8145D95D /* ChangesFreshness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangesFreshness.swift; sourceTree = "<group>"; };
 		C4BDDE3E35D5F52232EB9E23 /* GrokBuildProgramStatusEdit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokBuildProgramStatusEdit.swift; sourceTree = "<group>"; };
 		C5469F0188E985276A49871C /* LiveActivityVectorFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityVectorFile.swift; sourceTree = "<group>"; };
+		C575323D9B1F29EEC4502637 /* AirBuildChatHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirBuildChatHeader.swift; sourceTree = "<group>"; };
 		C66568DF8D18942DB8B51313 /* HerdrCoreServerInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreServerInfoTests.swift; sourceTree = "<group>"; };
 		C6762413D42607606CC99026 /* GitProbe+Numstat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GitProbe+Numstat.swift"; sourceTree = "<group>"; };
 		C681336687D32709DA583BCC /* TerminalByteFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalByteFeed.swift; sourceTree = "<group>"; };
@@ -2729,6 +2735,7 @@
 			children = (
 				E21D81A4968978A358129216 /* ChatLineFramer.swift */,
 				89CECDD19118EEA250C34DCC /* ChatTranscript.swift */,
+				66FA22061007F1351EAC78CD /* AirBuild */,
 				3DE682AF6FC99033D8618835 /* BackgroundWork */,
 				704136BE68C2C0528D6B71CD /* Blocked */,
 				39314B6910CC8D58FA391615 /* Cache */,
@@ -3108,6 +3115,16 @@
 				1142E803F7CA971D3CCDF2EB /* LiveActivityPreferences.swift */,
 			);
 			path = LiveActivities;
+			sourceTree = "<group>";
+		};
+		66FA22061007F1351EAC78CD /* AirBuild */ = {
+			isa = PBXGroup;
+			children = (
+				C575323D9B1F29EEC4502637 /* AirBuildChatHeader.swift */,
+				758A300F9060D404FC39488B /* AirBuildProgressPanel.swift */,
+				5E01DBB0FDCD6B98C4056773 /* AirBuildTimelineBubble.swift */,
+			);
+			path = AirBuild;
 			sourceTree = "<group>";
 		};
 		682F5567DD9609325AEEC318 /* OpenCode */ = {
@@ -4027,6 +4044,9 @@
 				1A160820CAA7EC1D8F987602 /* AgentWindowDrag.swift in Sources */,
 				8034B5827C6A0E0808972749 /* AgentsAndAccountsSettingsView.swift in Sources */,
 				1A29C235886DD1B0B49D6272 /* AirBuildArcSidebar.swift in Sources */,
+				CD4D52E83BFFC3F3C31D3662 /* AirBuildChatHeader.swift in Sources */,
+				BB141F8D36DD2E391E3F3250 /* AirBuildProgressPanel.swift in Sources */,
+				BEDFB039EE40639206E32133 /* AirBuildTimelineBubble.swift in Sources */,
 				54D3A4F4FBF8F3F6C154BACE /* AppActivityCoordinator.swift in Sources */,
 				8D9ED28E1DB5A72B471CBD45 /* AppAppearanceSettings.swift in Sources */,
 				8852391AB553C278DECC94AB /* AppearanceSettingsView.swift in Sources */,

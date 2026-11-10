@@ -70,6 +70,7 @@ final class ChatOlderPull {
 @MainActor
 final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
     var actions: ChatTimelineActions
+    var agent: ConsoleAgent?
 
     private enum ScrollAnchor {
         case end
@@ -168,6 +169,12 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
             .compactMap { layout.id(at: $0.item) }
     }
 
+    private func isAssistant(_ id: ChatRowID) -> Bool {
+        guard let row = rowsByID[id] else { return false }
+        if case .assistant = row.content { return true }
+        return false
+    }
+
     init(actions: ChatTimelineActions) {
         self.actions = actions
         super.init(nibName: nil, bundle: nil)
@@ -236,8 +243,14 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
             let isExpanded = expanded.contains(id)
             let files = expandedFiles[id] ?? []
             let actions = rowActions
+            let ids = dataSource?.snapshot().itemIdentifiers ?? []
+            let index = ids.firstIndex(of: id)
+            let showsHeader = index.map { $0 == 0 || !isAssistant(ids[$0 - 1]) } ?? true
+            let showsAvatar = index.map { $0 + 1 >= ids.count || !isAssistant(ids[$0 + 1]) } ?? true
             cell.contentConfiguration = UIHostingConfiguration {
-                ChatRowView(row: row, isExpanded: isExpanded, expandedFiles: files, actions: actions)
+                ChatRowView(
+                    row: row, isExpanded: isExpanded, expandedFiles: files, actions: actions,
+                    agent: agent, showsAgentHeader: showsHeader, showsAgentAvatar: showsAvatar)
                     .modifier(ChatFontDesign())
             }
             .margins(.all, 0)

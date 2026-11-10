@@ -10,6 +10,7 @@ struct HeelerApp: App {
     private var pushDelegate
     /// The aggregate phase across every window: active while any one is.
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(AppAccentColor.defaultsKey) private var accentColor = AppAccentColor.defaultRawValue
 
     init() {
         try? ImagePreparer.cleanupRemnants()
@@ -24,6 +25,7 @@ struct HeelerApp: App {
             #if DEBUG && targetEnvironment(simulator)
                 if DemoScreenshotMode.isEnabled {
                     DemoScreenshotRootView()
+                        .tint(AppAccentColor.color(for: accentColor))
                 } else {
                     productionContent(route: $route)
                 }
@@ -49,5 +51,6 @@ struct HeelerApp: App {
 
     private func productionContent(route: Binding<AgentRoute?>) -> some View {
         ContentView(app: pushDelegate.appModel, windowRoute: route)
+            .tint(AppAccentColor.color(for: accentColor))
     }
 }

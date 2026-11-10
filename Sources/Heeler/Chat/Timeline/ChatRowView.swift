@@ -24,6 +24,9 @@ struct ChatRowView: View {
     /// The changed files whose diffs are open, by recorded path.
     var expandedFiles: Set<String> = []
     let actions: ChatRowActions
+    var agent: ConsoleAgent? = nil
+    var showsAgentHeader = true
+    var showsAgentAvatar = true
 
     var body: some View {
         content
@@ -53,7 +56,13 @@ struct ChatRowView: View {
         case .user(let message):
             ChatUserBubble(message: message)
         case .assistant(_, let blocks):
-            ChatMarkdownView(blocks: blocks, isMuted: row.isMuted)
+            if let agent {
+                AirBuildAssistantBubble(
+                    agent: agent, blocks: blocks, isMuted: row.isMuted,
+                    showsHeader: showsAgentHeader, showsAvatar: showsAgentAvatar)
+            } else {
+                ChatMarkdownView(blocks: blocks, isMuted: row.isMuted)
+            }
         case .reasoning(let reasoning):
             ChatReasoningRow(reasoning: reasoning, isExpanded: isExpanded) { actions.toggle(row.id) }
         case .tool(let tool):
@@ -158,9 +167,16 @@ private struct ChatBubble<Content: View>: View {
         HStack(spacing: 0) {
             Spacer(minLength: 48)
             content
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color(uiColor: .secondarySystemFill), in: .rect(cornerRadius: 18))
+                .padding(.horizontal, 13)
+                .padding(.vertical, 9)
+                .foregroundStyle(.white)
+                .background(Color.accentColor, in: .rect(cornerRadius: 16))
+                .overlay(alignment: .bottomTrailing) {
+                    AirBuildMessageTail()
+                        .fill(Color.accentColor)
+                        .frame(width: 14, height: 14)
+                        .offset(x: 6)
+                }
         }
     }
 }
