@@ -16,6 +16,8 @@ struct ChatTimelineView: UIViewControllerRepresentable {
     var bottomEdge = ChatTimelineBottomEdge()
     /// Height of the Collapse Steps button over the list's bottom edge.
     var collapseControlClearance: CGFloat = 0
+    /// Height of Arc's running clock over the list's bottom edge; a constant, never measured.
+    var liveClockClearance: CGFloat = 0
     /// Chat's own text size; nil follows the system's.
     var textSize: DynamicTypeSize?
     var font: ChatFontOption = .system
@@ -38,6 +40,7 @@ struct ChatTimelineView: UIViewControllerRepresentable {
         controller.setTopObstruction(topObstruction)
         bottomEdge.controller = controller
         controller.setCollapseControlClearance(collapseControlClearance)
+        controller.setLiveClockClearance(liveClockClearance)
         controller.view.accessibilityElementsHidden = hidesFromAccessibility
         controller.apply(state)
         return controller
@@ -50,6 +53,7 @@ struct ChatTimelineView: UIViewControllerRepresentable {
         controller.setTopObstruction(topObstruction)
         bottomEdge.controller = controller
         controller.setCollapseControlClearance(collapseControlClearance)
+        controller.setLiveClockClearance(liveClockClearance)
         controller.view.accessibilityElementsHidden = hidesFromAccessibility
         controller.apply(state)
         let coordinator = context.coordinator

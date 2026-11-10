@@ -614,6 +614,10 @@ struct AgentChatSurfaceView: View {
     /// The timeline runs edge to edge: under the status bar, the back
     /// header and the banners over its top, and under the Composer and the
     /// home indicator below. At rest its rows sit between them.
+    private var showsAirBuildRunningClock: Bool {
+        arcProject != nil && agent.agent.status == .working && chat?.turnStartedAt != nil
+    }
+
     private var conversation: some View {
         ZStack(alignment: .top) {
             ChatTimelineView(
@@ -622,6 +626,7 @@ struct AgentChatSurfaceView: View {
                 topObstruction: topInset + headerObstruction + bannerHeight + 24,
                 bottomEdge: bottomEdge,
                 collapseControlClearance: collapseControlHeight,
+                liveClockClearance: showsAirBuildRunningClock ? 34 : 0,
                 textSize: ChatTextSettings.size(system: dynamicTypeSize, offset: textSizeOffset),
                 font: chatFont,
                 hidesFromAccessibility: presentation != .timeline,
@@ -660,7 +665,7 @@ struct AgentChatSurfaceView: View {
                 .padding(.top, headerObstruction)
         }
         .overlay(alignment: .bottomLeading) {
-            if arcProject != nil, agent.agent.status == .working, let startedAt = chat?.turnStartedAt {
+            if showsAirBuildRunningClock, let startedAt = chat?.turnStartedAt {
                 AirBuildRunningCapsule(startedAt: startedAt)
                     .padding(.leading, 46)
                     .padding(.bottom, 6)

@@ -1143,10 +1143,10 @@ struct ArcProjectTests {
             .agentTerminal, .openTerminal, .changes, .progress,
         ])
         #expect(AirBuildChatMenuPolicy.items(in: .session) == [
-            .model, .permission, .newAgent, .skills, .snippets,
+            .model, .permission, .newAgent,
         ])
         #expect(AirBuildChatMenuPolicy.items(in: .navigation) == [
-            .goTo, .rename, .renameAgent, .renameWorkspace, .worktreeDetails,
+            .goTo, .rename, .worktreeDetails,
         ])
         #expect(AirBuildChatMenuPolicy.items(in: .destructive) == [.close])
     }

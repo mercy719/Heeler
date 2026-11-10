@@ -954,7 +954,9 @@ struct ConsoleView: View {
                     .toolbar(removing: usesAirBuildArcChrome(for: tab) || usesSidebarNavigation ? .title : nil)
                     .bottomBar {
                         if usesAirBuildArcChrome(for: tab) || usesSidebarNavigation {
-                            sidebarFooter(for: tab)
+                            // shortcut: landscape stands in for "the system draws a vertical bar" (true on iPhone Duo,
+                            // not on iPad); read the sidebar's own toolbar edge if Arc ships on iPad.
+                            sidebarFooter(for: tab, detailHasGlobalBar: geometry.size.width > geometry.size.height)
                         }
                     }
                     // iPadOS 27 draws the system's button on its own glass;
@@ -1380,9 +1382,10 @@ struct ConsoleView: View {
     /// Hosts, search and Settings flank the AirBuild list; other sidebars
     /// keep their existing list menus.
     @ViewBuilder
-    private func sidebarFooter(for tab: ConsoleTab) -> some View {
+    private func sidebarFooter(for tab: ConsoleTab, detailHasGlobalBar: Bool) -> some View {
         if usesAirBuildArcChrome(for: tab) {
-            if !usesSidebarNavigation {
+            // Hosts and Settings move to the detail's vertical bar where there is one.
+            if !usesSidebarNavigation || !detailHasGlobalBar {
                 HStack(spacing: 8) {
                     AirBuildGlassCapsule {
                         AirBuildIconButton(systemImage: "cloud", label: ConsoleTab.hosts.title) {

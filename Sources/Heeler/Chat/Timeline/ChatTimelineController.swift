@@ -118,6 +118,8 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
     /// edge, and how much of it the bottom inset keeps clear right now.
     private var collapseControlClearance: CGFloat = 0
     private var collapseControlReserve: CGFloat = 0
+    /// Room Arc's running clock takes under the newest row while the Agent works.
+    private var liveClockClearance: CGFloat = 0
     /// Where the chrome floating over the list's bottom edge begins, in
     /// window coordinates, and how much of the list it covers.
     private var bottomEdge: CGFloat?
@@ -549,8 +551,17 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
         reserveCollapseControlRoom()
     }
 
+    /// Keeps `height` at the bottom clear of rows for Arc's running clock,
+    /// which shares the band Collapse Steps floats in.
+    func setLiveClockClearance(_ height: CGFloat) {
+        loadViewIfNeeded()
+        guard liveClockClearance != height else { return }
+        liveClockClearance = height
+        reserveCollapseControlRoom()
+    }
+
     private func reserveCollapseControlRoom() {
-        let reserve = reportedCanCollapse ? collapseControlClearance : 0
+        let reserve = max(reportedCanCollapse ? collapseControlClearance : 0, liveClockClearance)
         guard collapseControlReserve != reserve else { return }
         collapseControlReserve = reserve
         applyBottomInset()

@@ -77,14 +77,10 @@ enum AirBuildChatMenuItem: Equatable, Sendable {
     case changes
     case progress
     case newAgent
-    case skills
-    case snippets
     case model
     case permission
     case goTo
     case rename
-    case renameAgent
-    case renameWorkspace
     case worktreeDetails
     case close
 }
@@ -96,9 +92,9 @@ enum AirBuildChatMenuPolicy {
         case .activity:
             [.agentTerminal, .openTerminal, .changes, .progress]
         case .session:
-            [.model, .permission, .newAgent, .skills, .snippets]
+            [.model, .permission, .newAgent]
         case .navigation:
-            [.goTo, .rename, .renameAgent, .renameWorkspace, .worktreeDetails]
+            [.goTo, .rename, .worktreeDetails]
         case .destructive:
             [.close]
         }
@@ -280,10 +276,6 @@ struct AirBuildChatHeader: View {
             Button("Progress", systemImage: "square.grid.2x2", action: onTogglePanel)
         case .newAgent:
             composerButton(.newAgent)
-        case .skills:
-            composerButton(.skills)
-        case .snippets:
-            composerButton(.snippets)
         case .model:
             if let sessionSettings, let sessionControls {
                 modelMenu(settings: sessionSettings, controls: sessionControls)
@@ -304,13 +296,16 @@ struct AirBuildChatHeader: View {
                 menuLabel("Go to", systemImage: "rectangle.on.rectangle", value: nil)
             }
         case .rename:
-            if let onRename {
-                Button("Rename", systemImage: "pencil", action: onRename)
+            // One entry for the three renames; Skills and Snippets edit the draft, so they live under Composer's +.
+            Menu {
+                if let onRename {
+                    Button("Title", systemImage: "pencil", action: onRename)
+                }
+                composerButton(.renameAgent)
+                composerButton(.renameWorkspace)
+            } label: {
+                menuLabel("Rename", systemImage: "pencil", value: nil)
             }
-        case .renameAgent:
-            composerButton(.renameAgent)
-        case .renameWorkspace:
-            composerButton(.renameWorkspace)
         case .worktreeDetails:
             composerButton(.worktreeDetails)
         case .close:

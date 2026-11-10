@@ -560,7 +560,8 @@ struct AgentComposerView: View {
     /// would drop the focus and any keyboard handoff in flight.
     private var editorRow: some View {
         HStack(spacing: 8) {
-            if isCollapsed || airBuildStyle, offersAdd {
+            if isCollapsed || airBuildStyle,
+                offersAdd || (airBuildStyle && (commandMenu != nil || sendAgentKey != nil)) {
                 addMenu
                     .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             }
@@ -815,6 +816,18 @@ struct AgentComposerView: View {
                         store.insertIntoDraft("/")
                         isSuggestionsDismissed = false
                         isInputFocused = true
+                    }
+                }
+                ForEach([AgentActionMenuItem.skills, .snippets], id: \.self) { @Sendable item in
+                    MainActorContent {
+                        if AgentActionMenuPolicy.isVisible(item, actions: actions) {
+                            Button {
+                                AgentActionMenuPolicy.perform(item, actions: actions)
+                            } label: {
+                                Label(AgentActionMenuPolicy.title(of: item, actions: actions), glyph: item.glyph)
+                            }
+                            .disabled(!AgentActionMenuPolicy.isEnabled(item, actions: actions))
+                        }
                     }
                 }
                 if sendAgentKey != nil {
