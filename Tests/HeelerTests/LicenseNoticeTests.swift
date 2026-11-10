@@ -31,6 +31,7 @@ struct LicenseNoticeInventoryTests {
         "ZeroTier-Heeler-modifications",
         "ZeroTierOne",
         "ZeroTierOne-LZ4",
+        "bloub",
         "heeler-easytier",
         "libghostty-spm",
         "libnatpmp",

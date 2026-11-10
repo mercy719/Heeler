@@ -255,6 +255,14 @@
       "source": "libzt 7e5d0f99a2de81c45faa28e44289bcd19d933bf2/ext/concurrentqueue",
       "spdx": "BSD-2-Clause",
       "notice": "concurrentqueue-BSD-2-Clause.txt"
+    },
+    {
+      "id": "bloub",
+      "displayName": "bloub",
+      "version": "0.6.4",
+      "source": "https://github.com/NorbertBodziony/bloub (npm @norbert_bodziony/bloub 0.6.4; the felt pictures in Resources/OpenBotPlush are its assets)",
+      "spdx": "MIT",
+      "notice": "bloub-MIT.txt"
     }
   ]
 }
