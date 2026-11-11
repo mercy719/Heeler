@@ -1997,16 +1997,34 @@ struct ConsoleView: View {
     @ViewBuilder
     private var arcSelectedProjectRows: some View {
         if let project = arcSelectedProject {
-            if project.agents.isEmpty {
+            if project.agents.isEmpty && project.shells.isEmpty {
                 ArcProjectEmptyRow {
                     startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
                 }
                 .listRowBackground(Color.clear)
             } else {
+                // Agents first, then the project's plain shells, as herdr lists them.
                 ForEach(project.agents) { @Sendable agent in
                     MainActorContent {
                         arcAgentRow(agent)
                             .listRowBackground(Color.clear)
+                    }
+                }
+                ForEach(project.shells) { @Sendable shell in
+                    MainActorContent {
+                        NavigationLink(value: ConsoleSelection.terminal(shell.id)) {
+                            ArcShellRow(
+                                terminal: shell,
+                                isSelected: selectedItem.wrappedValue == .terminal(shell.id))
+                                .modifier(ConsoleRowSelectionContent())
+                        }
+                        .modifier(
+                            ConsoleRowSelectionBackground(
+                                isSelected: selectedItem.wrappedValue == .terminal(shell.id)))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                        .navigationLinkIndicatorVisibility(.hidden)
                     }
                 }
             }
@@ -2568,7 +2586,8 @@ struct ConsoleView: View {
         let scoped = hostFilter.isEmpty
             ? hosts.consoleHosts : hosts.consoleHosts.filter { hostFilter.contains($0.id) }
         return ArcProjectGroup.groups(
-            hosts: scoped, agents: filteredAgents, workspacesByHost: console.workspacesByHost)
+            hosts: scoped, agents: filteredAgents, workspacesByHost: console.workspacesByHost,
+            terminals: console.terminals)
     }
 
     /// Every Host's projects, past the list's filters and search: what
@@ -2576,7 +2595,7 @@ struct ConsoleView: View {
     private var arcAllGroups: [ArcProjectGroup] {
         ArcProjectGroup.groups(
             hosts: hosts.consoleHosts, agents: console.chatDisplayAgents,
-            workspacesByHost: console.workspacesByHost)
+            workspacesByHost: console.workspacesByHost, terminals: console.terminals)
     }
 
     private func arcProject(for agent: ConsoleAgent) -> ArcProjectGroup.Project? {

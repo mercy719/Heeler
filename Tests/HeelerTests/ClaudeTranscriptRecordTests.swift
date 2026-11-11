@@ -1161,6 +1161,38 @@ struct ArcProjectTests {
         #expect(AirBuildVerticalBarItem.settings.systemImage == "gearshape")
     }
 
+    @Test("A project lists its plain shells under its Agents, in tab order")
+    func arcProjectShells() {
+        let host = Host.fixture(name: "alpha")
+        func shell(_ pane: String, workspace: String, tab: Int, agent: String? = nil) -> ConsoleTerminal {
+            ConsoleTerminal(
+                hostID: host.id, hostName: host.displayName, hostUsername: host.username,
+                pane: PaneInfo(
+                    agentStatus: .idle, focused: false, paneID: pane, revision: 1,
+                    tabID: "\(workspace):t\(tab)", terminalID: "terminal-\(pane)",
+                    workspaceID: workspace, agent: agent, cwd: "/p", terminalTitleStripped: "zsh"),
+                workspaceLabel: nil, tabLabel: nil, workspaceOrder: 0, tabPosition: tab,
+                snapshotOrder: 0, snapshotAgentKind: agent)
+        }
+        let groups = ArcProjectGroup.groups(
+            hosts: [host], agents: [Self.agent("c1", on: host, workspace: "w1", status: .working)],
+            workspacesByHost: [host.id: [
+                ConsoleWorkspace(id: "w1", label: "ios-app", order: 0),
+                ConsoleWorkspace(id: "w2", label: "FreePal", order: 1),
+            ]],
+            terminals: [
+                shell("s3", workspace: "w1", tab: 3),
+                shell("c1", workspace: "w1", tab: 1, agent: "claude"),
+                shell("s2", workspace: "w1", tab: 2),
+                shell("s9", workspace: "w2", tab: 1),
+            ])
+        let projects = groups.flatMap(\.projects)
+        #expect(projects[0].agents.map(\.agent.paneID) == ["c1"])
+        #expect(projects[0].shells.map(\.paneID) == ["s2", "s3"])
+        #expect(projects[1].agents.isEmpty)
+        #expect(projects[1].shells.map(\.paneID) == ["s9"])
+    }
+
     @Test("All Projects search matches names and pinyin initials")
     func airBuildProjectSearch() {
         #expect(AirBuildProjectSearch.matches("FreeRag", query: "fre"))

@@ -139,6 +139,9 @@ struct ArcProjectGroup: Identifiable, Equatable, Sendable {
         let id: ConsoleWorkspaceSection.ID
         let label: String
         let agents: [ConsoleAgent]
+        /// The project's plain shells, listed under its Agents. A shell that
+        /// starts an Agent leaves this list for `agents`, as herdr moves it up.
+        var shells: [ConsoleTerminal] = []
 
         var statuses: [AgentStatus] { agents.map(\.agent.status) }
         var light: ArcProjectLight.Light? { ArcProjectLight.light(for: statuses) }
@@ -163,10 +166,14 @@ struct ArcProjectGroup: Identifiable, Equatable, Sendable {
     /// gets a tile, after the snapshot's own list.
     static func groups(
         hosts: [Host], agents: [ConsoleAgent],
-        workspacesByHost: [Host.ID: [ConsoleWorkspace]]
+        workspacesByHost: [Host.ID: [ConsoleWorkspace]],
+        terminals: [ConsoleTerminal] = []
     ) -> [Self] {
         hosts.compactMap { host in
             let hostAgents = agents.filter { $0.hostID == host.id }
+            let hostShells = terminals
+                .filter { $0.hostID == host.id && !$0.isAgent }
+                .sorted { ($0.tabPosition ?? .max, $0.snapshotOrder) < ($1.tabPosition ?? .max, $1.snapshotOrder) }
             var listed = (workspacesByHost[host.id] ?? [])
                 .sorted { ($0.order, $0.label) < ($1.order, $1.label) }
             for agent in hostAgents
@@ -184,7 +191,8 @@ struct ArcProjectGroup: Identifiable, Equatable, Sendable {
                     id: ConsoleWorkspaceSection.ID(
                         hostID: host.id, workspaceID: workspace.id),
                     label: workspace.label,
-                    agents: hostAgents.filter { $0.agent.workspaceID == workspace.id })
+                    agents: hostAgents.filter { $0.agent.workspaceID == workspace.id },
+                    shells: hostShells.filter { $0.workspaceID == workspace.id })
             }
             guard !projects.isEmpty else { return nil }
             return Self(id: host.id, hostName: host.displayName, projects: projects)
@@ -469,6 +477,55 @@ struct ArcAgentLine: Equatable, Sendable {
 
 /// One AirBuild conversation row. The link around it still carries the
 /// detail, context menu and swipe actions.
+/// A project's plain shell, under its Agents: a terminal glyph where an
+/// Agent shows its plush, the pane's name, and what its title says now.
+struct ArcShellRow: View {
+    let terminal: ConsoleTerminal
+    var isSelected = false
+    @Environment(\.isSidebarColumn) private var isSidebarColumn
+
+    private var subtitle: String? {
+        guard let title = terminal.title, title != terminal.displayTitle else { return nil }
+        return title
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "apple.terminal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 40, height: 40)
+                .background(Color(uiColor: .systemGray5), in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(verbatim: terminal.displayTitle)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if let subtitle {
+                    Text(verbatim: subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 50)
+        .background {
+            if isSelected && !isSidebarColumn {
+                Color.white.opacity(0.1)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+        .padding(.horizontal, 6)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: [String(localized: "Terminal"), terminal.displayTitle, subtitle].compactMap { $0 }.joined(separator: ", ")))
+    }
+}
+
 struct ArcAgentRow: View {
     let agent: ConsoleAgent
     let title: String
