@@ -1211,6 +1211,7 @@ struct ArcProjectTests {
         #expect(AirBuildRunningClock.text(startedAt: start, now: start) == "0:00")
         #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(42)) == "0:42")
         #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(125)) == "2:05")
+        #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(9568)) == "2:39:28")
         #expect(AirBuildRunningClock.text(startedAt: start, now: start.addingTimeInterval(-2)) == "0:00")
     }
 }

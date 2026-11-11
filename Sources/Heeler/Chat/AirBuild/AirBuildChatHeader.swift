@@ -59,8 +59,10 @@ enum AirBuildStatusLamp: Equatable, Sendable {
 
 enum AirBuildRunningClock {
     static func text(startedAt: Date, now: Date) -> String {
-        Duration.seconds(max(0, now.timeIntervalSince(startedAt)).rounded(.down))
-            .formatted(.time(pattern: .minuteSecond))
+        let elapsed = max(0, now.timeIntervalSince(startedAt)).rounded(.down)
+        // Past an hour "159:28" reads as minutes nobody counts; "2:39:28" reads at a glance.
+        return Duration.seconds(elapsed)
+            .formatted(.time(pattern: elapsed >= 3600 ? .hourMinuteSecond : .minuteSecond))
     }
 }
 
