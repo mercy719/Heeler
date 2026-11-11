@@ -614,9 +614,15 @@ struct AgentChatSurfaceView: View {
     /// The timeline runs edge to edge: under the status bar, the back
     /// header and the banners over its top, and under the Composer and the
     /// home indicator below. At rest its rows sit between them.
-    private var showsAirBuildRunningClock: Bool {
-        arcProject != nil && agent.agent.status == .working && chat?.turnStartedAt != nil
+    /// When the running turn began by its transcript, like the timeline's own
+    /// "Working for": the program's clock, not when this screen saw it start.
+    private var airBuildTurnStart: Date? {
+        guard arcProject != nil, agent.agent.status == .working,
+            let turn = timeline.state.turns.last, turn.ending == nil else { return nil }
+        return turn.startedAt
     }
+
+    private var showsAirBuildRunningClock: Bool { airBuildTurnStart != nil }
 
     private var conversation: some View {
         ZStack(alignment: .top) {
@@ -665,7 +671,7 @@ struct AgentChatSurfaceView: View {
                 .padding(.top, headerObstruction)
         }
         .overlay(alignment: .bottomLeading) {
-            if showsAirBuildRunningClock, let startedAt = chat?.turnStartedAt {
+            if let startedAt = airBuildTurnStart {
                 AirBuildRunningCapsule(startedAt: startedAt)
                     .padding(.leading, 46)
                     .padding(.bottom, 6)

@@ -142,6 +142,16 @@ struct ArcProjectGroup: Identifiable, Equatable, Sendable {
 
         var statuses: [AgentStatus] { agents.map(\.agent.status) }
         var light: ArcProjectLight.Light? { ArcProjectLight.light(for: statuses) }
+        /// The Agent whose face stands for the project: one named as its lead
+        /// (CEO, Boss, Manager), else the lowest pane id, so it holds still as rows reorder.
+        var boss: ConsoleAgent? {
+            let leads = ["ceo", "boss", "manager", "老板", "负责人"]
+            let named = agents.filter { agent in
+                let name = agent.agent.displayName.lowercased()
+                return leads.contains { name.contains($0) }
+            }
+            return (named.isEmpty ? agents : named).min { $0.agent.paneID < $1.agent.paneID }
+        }
     }
 
     let id: Host.ID

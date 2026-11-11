@@ -379,7 +379,7 @@ final class AgentChatStore {
     /// When herdr last reported a turn starting. Esc puts back only the
     /// steers queued in the turn it stops, so sends delivered before this
     /// are never looked for in the box.
-    @ObservationIgnored private(set) var turnStartedAt: Date?
+    @ObservationIgnored private var turnStartedAt: Date?
     /// When herdr last reported the Agent Working or Blocked, while it
     /// still does, and the earlier spells it did so that ended after the
     /// oldest send still awaiting its echo was delivered: a program whose

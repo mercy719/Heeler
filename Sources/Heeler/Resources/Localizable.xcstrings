@@ -33017,6 +33017,22 @@
         }
       }
     },
+    "Search Projects" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロジェクトを検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索项目"
+          }
+        }
+      }
+    },
     "Search Skills" : {
       "localizations" : {
         "ja" : {

@@ -473,6 +473,9 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
     let surfaceSwitch: AgentDetailSurfaceSwitch?
     @Binding var workspacePresented: Bool
     let actions: AirBuildGlobalActions
+    /// The terminal's own More; Chat keeps its More on its top line, so passes none.
+    var moreActions: [AgentDetailHeaderAction] = []
+    var isMoreExpanded: Binding<Bool> = .constant(false)
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -481,6 +484,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             }
             .tint(workspacePresented ? Color.accentColor : nil)
         }
+        .axisBehavior(.verticalPreferred)
         .visibilityPriority(.high)
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
@@ -499,10 +503,19 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             .menuIndicator(.hidden)
             .accessibilityLabel("Account")
         }
+        // A custom label leaves SwiftUI unsure it fits the side bar; without this the
+        // system put the avatar in the top bar, over Chat's More (Duo, 2026-11-11).
+        .axisBehavior(.verticalPreferred)
         ToolbarItem(placement: .primaryAction) {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
                 action: actions.openSettings)
+        }
+        .axisBehavior(.verticalPreferred)
+        if !moreActions.isEmpty {
+            ToolbarOverflowMenu {
+                AgentDetailHeaderMenuItems(actions: moreActions, isExpanded: isMoreExpanded)
+            }
         }
     }
 }
@@ -609,7 +622,9 @@ extension View {
                     AirBuildGlobalBarControls(
                         surfaceSwitch: surfaceSwitch,
                         workspacePresented: airBuildWorkspace,
-                        actions: airBuildActions)
+                        actions: airBuildActions,
+                        moreActions: actions,
+                        isMoreExpanded: isExpanded)
                 } else {
                     AgentDetailHeaderVerticalBarControls(
                         isExpanded: isExpanded, actions: actions,

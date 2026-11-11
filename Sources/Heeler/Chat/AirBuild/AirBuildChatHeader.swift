@@ -131,13 +131,7 @@ struct AirBuildChatHeader: View {
 
     private var projectLabel: some View {
         VStack(spacing: 2) {
-            Text(verbatim: String(project.label.prefix(1)).uppercased())
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(
-                    ArcProjectColor.color(for: project.label),
-                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            AirBuildProjectIcon(project: project, size: 40)
             HStack(spacing: 5) {
                 AirBuildStatusLampView(lamp: lamp)
                 Text(verbatim: project.label)

@@ -4,6 +4,7 @@ import SwiftUI
 enum AirBuildProjectLayout {
     enum Badge: Equatable, Sendable {
         case blocked(Int)
+        case working
         case done
     }
 
@@ -26,6 +27,8 @@ enum AirBuildProjectLayout {
     static func badge(for project: ArcProjectGroup.Project) -> Badge? {
         let blocked = project.statuses.count { $0 == .blocked }
         if blocked > 0 { return .blocked(blocked) }
+        // Running outranks Done: a finished Agent beside a running one must not hide the run.
+        if project.statuses.contains(.working) { return .working }
         return project.statuses.contains(.done) ? .done : nil
     }
 
@@ -117,19 +120,11 @@ private struct AirBuildProjectTile: View {
     let background: Color
     let action: () -> Void
 
-    private var initial: String { String(project.label.prefix(1)).uppercased() }
-
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
                 ZStack(alignment: .topTrailing) {
-                    Text(verbatim: initial)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(
-                            ArcProjectColor.color(for: project.label),
-                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    AirBuildProjectIcon(project: project, size: 46)
                         .frame(width: 62, height: 62)
                         .background(
                             Color(uiColor: .systemGray5),
@@ -170,9 +165,16 @@ private struct AirBuildProjectTile: View {
                 .overlay(Capsule().stroke(background, lineWidth: 2))
                 .offset(x: 4, y: -4)
                 .accessibilityHidden(true)
+        case .working:
+            Circle()
+                .fill(AirBuildStatusLamp.working.color)
+                .frame(width: 14, height: 14)
+                .overlay(Circle().stroke(background, lineWidth: 2))
+                .offset(x: 2, y: -2)
+                .accessibilityHidden(true)
         case .done:
             Circle()
-                .fill(.green)
+                .fill(AirBuildStatusLamp.done.color)
                 .frame(width: 14, height: 14)
                 .overlay(Circle().stroke(background, lineWidth: 2))
                 .offset(x: 2, y: -2)
@@ -187,6 +189,8 @@ private struct AirBuildProjectTile: View {
         switch AirBuildProjectLayout.badge(for: project) {
         case .blocked(let count):
             parts.append("\(String(localized: "Waiting on You")) \(count)")
+        case .working:
+            parts.append(String(localized: "Running"))
         case .done:
             parts.append(String(localized: "Agent status Done", defaultValue: "Done"))
         case nil:
@@ -196,34 +200,68 @@ private struct AirBuildProjectTile: View {
     }
 }
 
+/// All Projects' search: a substring of the name, or the first letters of
+/// its words in pinyin, so 「lg」 finds 灵感看板.
+enum AirBuildProjectSearch {
+    static func matches(_ label: String, query: String) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return true }
+        if label.localizedCaseInsensitiveContains(query) { return true }
+        let latin = (label.applyingTransform(.toLatin, reverse: false) ?? label)
+            .applyingTransform(.stripDiacritics, reverse: false)?.lowercased() ?? label.lowercased()
+        let words = latin.split { !$0.isLetter && !$0.isNumber }
+        return String(words.compactMap(\.first)).hasPrefix(query) || words.joined().hasPrefix(query)
+    }
+}
+
 struct AirBuildAllProjectsView: View {
     let groups: [ArcProjectGroup]
     let selected: ConsoleWorkspaceSection.ID?
     let onSelect: (ConsoleWorkspaceSection.ID) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var matches: [(group: ArcProjectGroup, projects: [ArcProjectGroup.Project])] {
+        groups.compactMap { group in
+            let projects = group.projects.filter { AirBuildProjectSearch.matches($0.label, query: query) }
+            return projects.isEmpty ? nil : (group, projects)
+        }
+    }
+
+    private func choose(_ id: ConsoleWorkspaceSection.ID) {
+        onSelect(id)
+        dismiss()
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ForEach(groups) { @Sendable group in
+                    ForEach(matches, id: \.group.id) { @Sendable match in
                         MainActorContent {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(verbatim: group.hostName)
+                                Text(verbatim: match.group.hostName)
                                     .font(.headline)
                                     .padding(.horizontal, 16)
                                 AirBuildProjectGrid(
-                                    projects: group.projects, selected: selected,
+                                    projects: match.projects, selected: selected,
                                     limitsToTwoRows: false,
-                                    onSelect: { id in
-                                        onSelect(id)
-                                        dismiss()
-                                    })
+                                    onSelect: { id in choose(id) })
                             }
                         }
                     }
                 }
                 .padding(.vertical, 12)
+            }
+            .overlay {
+                if matches.isEmpty { ContentUnavailableView.search(text: query) }
+            }
+            .searchable(
+                text: $query, placement: .navigationBarDrawer(displayMode: .always),
+                prompt: Text("Search Projects"))
+            // Return opens the first match, so a few letters and Return switch projects.
+            .onSubmit(of: .search) {
+                if let first = matches.first?.projects.first { choose(first.id) }
             }
             .navigationTitle("All Projects")
             .navigationBarTitleDisplayMode(.inline)
@@ -236,6 +274,27 @@ struct AirBuildAllProjectsView: View {
     }
 }
 
+/// A project's icon: its boss Agent's plush on a tile, never the name's
+/// first letter; a folder only for a project with no Agent yet.
+struct AirBuildProjectIcon: View {
+    let project: ArcProjectGroup.Project
+    var size: CGFloat = 42
+
+    var body: some View {
+        Group {
+            if let boss = project.boss {
+                OBPlushAvatar(seed: AirBuildSessionAvatar.seed(for: boss), size: size)
+            } else {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: size * 0.45, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
 /// The fixed 40-point session avatar and its Blocked, Done or Working mark.
 struct AirBuildSessionAvatar: View {
     let agent: ConsoleAgent
@@ -243,7 +302,8 @@ struct AirBuildSessionAvatar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rotating = false
 
-    private var seed: String { "\(agent.hostID.uuidString):\(agent.agent.paneID)" }
+    static func seed(for agent: ConsoleAgent) -> String { "\(agent.hostID.uuidString):\(agent.agent.paneID)" }
+    private var seed: String { Self.seed(for: agent) }
 
     var body: some View {
         OBPlushAvatar(seed: seed, size: size)

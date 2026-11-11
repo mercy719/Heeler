@@ -1104,8 +1104,10 @@ struct ArcProjectTests {
                 })
         }
         #expect(AirBuildProjectLayout.badge(for: project("a", [.done, .blocked, .blocked])) == .blocked(2))
-        #expect(AirBuildProjectLayout.badge(for: project("b", [.done, .working])) == .done)
-        #expect(AirBuildProjectLayout.badge(for: project("c", [.working, .idle])) == nil)
+        #expect(AirBuildProjectLayout.badge(for: project("b", [.done, .working])) == .working)
+        #expect(AirBuildProjectLayout.badge(for: project("c", [.working, .idle])) == .working)
+        #expect(AirBuildProjectLayout.badge(for: project("d", [.done, .idle])) == .done)
+        #expect(AirBuildProjectLayout.badge(for: project("e", [.idle])) == nil)
     }
 
     @Test("v2 counts every Blocked conversation across projects")
@@ -1157,6 +1159,18 @@ struct ArcProjectTests {
         #expect(AirBuildVerticalBarItem.workspace.systemImage == "square.grid.2x2")
         #expect(AirBuildVerticalBarItem.terminal.systemImage == "terminal")
         #expect(AirBuildVerticalBarItem.settings.systemImage == "gearshape")
+    }
+
+    @Test("All Projects search matches names and pinyin initials")
+    func airBuildProjectSearch() {
+        #expect(AirBuildProjectSearch.matches("FreeRag", query: "fre"))
+        #expect(AirBuildProjectSearch.matches("FreeRag", query: "RAG"))
+        #expect(AirBuildProjectSearch.matches("灵感看板", query: "lg"))
+        #expect(AirBuildProjectSearch.matches("灵感看板", query: "lingg"))
+        #expect(AirBuildProjectSearch.matches("灵感看板", query: "看板"))
+        #expect(AirBuildProjectSearch.matches("anything", query: "  "))
+        #expect(!AirBuildProjectSearch.matches("灵感看板", query: "kx"))
+        #expect(!AirBuildProjectSearch.matches("FreeRag", query: "proxy"))
     }
 
     @Test("v2 formats the running clock as minutes and seconds")
