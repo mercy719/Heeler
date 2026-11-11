@@ -15,12 +15,14 @@ struct ChatImageThumbnail: View {
     let thumbnails: ChatImageThumbnails?
     /// Opens the sheet, with the picture shown so far.
     let open: (UIImage?) -> Void
+    /// The user's own images sit on the right, above their bubble.
+    var isTrailing = false
 
     var body: some View {
         content
-            .frame(maxWidth: Self.maximumWidth, alignment: .leading)
-            .frame(height: Self.height, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: Self.maximumWidth, alignment: isTrailing ? .trailing : .leading)
+            .frame(height: Self.height, alignment: isTrailing ? .topTrailing : .topLeading)
+            .frame(maxWidth: .infinity, alignment: isTrailing ? .trailing : .leading)
             .onAppear { thumbnails?.appear(path) }
             .onDisappear { thumbnails?.disappear(path) }
             .onChange(of: path) { old, new in

@@ -59,7 +59,7 @@ struct ChatRowView: View {
     private var content: some View {
         switch row.content {
         case .user(let message):
-            ChatUserBubble(message: message)
+            ChatUserBubble(message: message, thumbnails: actions.thumbnails, previewImage: actions.previewImage)
         case .assistant(_, let blocks):
             if let agent {
                 AirBuildAssistantBubble(
@@ -177,6 +177,8 @@ private struct ChatBubble<Content: View>: View {
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .foregroundStyle(.white)
+                // Links on the accent fill: tint on tint would vanish.
+                .tint(.white)
                 .background(Color.accentColor, in: AirBuildUserBubbleShape())
         }
     }
@@ -184,9 +186,40 @@ private struct ChatBubble<Content: View>: View {
 
 private struct ChatUserBubble: View {
     let message: ChatUserMessage
+    var thumbnails: ChatImageThumbnails?
+    var previewImage: @MainActor (String, UIImage?) -> Void = { _, _ in }
     @Environment(\.chatImageOpener) private var imageOpener
 
+    /// The images the message names by path, drawn as pictures above the
+    /// bubble: as a link the path was tint on tint, a blank block (2026-11-12).
+    private var imagePaths: [String] {
+        message.command == nil ? ChatImageLink.paths(in: ChatImageLink.marking(message.text)) : []
+    }
+
+    /// The text without the image paths shown above it.
+    private var prose: String {
+        var text = message.text
+        for range in ChatImageLink.pathRanges(in: text).reversed() { text.removeSubrange(range) }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            ForEach(imagePaths, id: \.self) { @Sendable path in
+                MainActorContent {
+                    ChatImageThumbnail(path: path, thumbnails: thumbnails, open: { previewImage(path, $0) }, isTrailing: true)
+                }
+            }
+            // An image sent alone leaves no empty bubble under it.
+            if imagePaths.isEmpty || !prose.isEmpty || hasChips { bubble }
+        }
+    }
+
+    private var hasChips: Bool {
+        message.imageCount > 0 || !message.attachmentLabels.isEmpty || message.wasQueued
+    }
+
+    private var bubble: some View {
         ChatBubble {
             VStack(alignment: .trailing, spacing: 6) {
                 if let command = message.command {
@@ -194,13 +227,12 @@ private struct ChatUserBubble: View {
                         + Text(command.arguments.isEmpty ? "" : " \(command.arguments)"))
                         .font(.body)
                 } else {
-                    // Image paths open as in the Agent's messages.
                     ChatMarkdownView.text(
-                        ChatImageLink.marking(message.text), in: .body, opensImages: imageOpener != nil)
+                        ChatImageLink.marking(prose), in: .body, opensImages: imageOpener != nil)
                         .font(.body)
                         .chatMessageLinks(opener: imageOpener)
                 }
-                if message.imageCount > 0 || !message.attachmentLabels.isEmpty || message.wasQueued {
+                if hasChips {
                     ChatAttachmentChips(message: message)
                 }
             }
