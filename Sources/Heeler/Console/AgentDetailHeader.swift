@@ -477,16 +477,18 @@ private struct AirBuildFoldedBarControls<More: View>: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button("Back", systemImage: "chevron.left", action: onBack)
+                .tint(nil)
         }
         .visibilityPriority(.high)
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
                 AgentDetailSurfaceButton(control: surfaceSwitch)
+                    .tint(nil)
             }
             .axisBehavior(.verticalPreferred)
             .visibilityPriority(.high)
         }
-        ToolbarItem(placement: .primaryAction) { more }
+        ToolbarItem(placement: .primaryAction) { more.tint(nil) }
             .axisBehavior(.verticalPreferred)
     }
 }
@@ -512,6 +514,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
                 AgentDetailSurfaceButton(control: surfaceSwitch)
+                    .tint(nil)
             }
             .axisBehavior(.verticalPreferred)
             .visibilityPriority(.high)
@@ -533,6 +536,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
                 action: actions.openSettings)
+            .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
         if !moreActions.isEmpty {
@@ -562,6 +566,7 @@ private struct AirBuildHomeBarControls: ToolbarContent {
             } label: {
                 Label("Add", systemImage: "plus")
             }
+            .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
         ToolbarSpacer(.flexible, placement: .primaryAction)
@@ -580,6 +585,7 @@ private struct AirBuildHomeBarControls: ToolbarContent {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
                 action: actions.openSettings)
+            .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
     }
@@ -724,6 +730,19 @@ extension View {
             #if compiler(>=6.4)
             if #available(iOS 27.1, *), isVisible {
                 AirBuildFoldedBarControls(onBack: onBack, surfaceSwitch: surfaceSwitch, more: more)
+            }
+            #endif
+        }
+    }
+
+    /// Chat's More at the foot of the global side bar, where the terminal keeps its own.
+    func airBuildBarMore<More: View>(isVisible: Bool, @ViewBuilder more: () -> More) -> some View {
+        let more = more()
+        return toolbar {
+            #if compiler(>=6.4)
+            if #available(iOS 27.1, *), isVisible {
+                ToolbarItem(placement: .primaryAction) { more.tint(nil) }
+                    .axisBehavior(.verticalPreferred)
             }
             #endif
         }

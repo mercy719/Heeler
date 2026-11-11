@@ -230,8 +230,11 @@ struct AgentChatSurfaceView: View {
     /// it sat under that capsule (2026-11-12).
     private var moreUsesNavigationBar: Bool { !usesVerticalToolbar && horizontalSizeClass == .regular }
 
+    /// Landscape: Arc's global side bar shows, and More sits at its foot as the terminal's does.
+    private var globalBarShows: Bool { usesVerticalToolbar && !showsBackButton && arcProject != nil }
+
     private var airBuildHeader: some View {
-        airBuildHeader(mode: foldedUsesBar || moreUsesNavigationBar ? .titleOnly : .full)
+        airBuildHeader(mode: foldedUsesBar || moreUsesNavigationBar || globalBarShows ? .titleOnly : .full)
             .padding(.horizontal, 12)
             .padding(.top, backHeaderTop)
             .onChange(of: isBackHeaderExpanded) { _, expanded in
@@ -589,10 +592,11 @@ struct AgentChatSurfaceView: View {
         }
         .ignoresSafeArea(.container, edges: .top)
         .airBuildGlobalBarControls(
-            isVisible: usesVerticalToolbar && !showsBackButton && arcProject != nil,
+            isVisible: globalBarShows,
             surfaceSwitch: terminalSurfaceSwitch,
             workspace: airBuildWorkspacePresented,
             actions: airBuildGlobalActions)
+        .airBuildBarMore(isVisible: globalBarShows) { airBuildHeader(mode: .barMore) }
         .airBuildFoldedBarControls(
             isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch
         ) {
