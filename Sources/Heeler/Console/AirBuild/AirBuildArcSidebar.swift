@@ -75,6 +75,7 @@ struct AirBuildProjectGrid: View {
     /// The tile's square; the home screen has the room for a bigger one.
     private var tileSize: CGFloat { isSidebarColumn ? 62 : 84 }
     private var rowHeight: CGFloat { tileSize + 30 }
+    private static let pageTopInset: CGFloat = 8
 
     var body: some View {
         Group {
@@ -86,14 +87,17 @@ struct AirBuildProjectGrid: View {
                     TabView {
                         ForEach(pages.indices, id: \.self) { @Sendable index in
                             MainActorContent {
+                                // A page clips to its bounds: room above for the
+                                // badges and the selection ring that stand out of a tile.
                                 grid(pages[index])
+                                    .padding(.top, Self.pageTopInset)
                                     .frame(maxHeight: .infinity, alignment: .top)
                             }
                         }
                     }
                     .tabViewStyle(.page(indexDisplayMode: .always))
                     .indexViewStyle(.page(backgroundDisplayMode: .never))
-                    .frame(height: CGFloat(rows) * rowHeight + 30)
+                    .frame(height: CGFloat(rows) * rowHeight + 30 + Self.pageTopInset)
                 } else {
                     grid(pages.first ?? [])
                 }
