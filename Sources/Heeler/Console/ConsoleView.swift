@@ -1396,8 +1396,8 @@ struct ConsoleView: View {
                     AirBuildGlassCapsule {
                         Button(action: showSettings) {
                             AirBuildAccountMark()
-                                .frame(width: 34, height: 40)
-                                .contentShape(Rectangle())
+                                .frame(width: 40, height: 40)
+                                .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(ConsoleTab.settings.title)
@@ -2626,6 +2626,20 @@ struct ConsoleView: View {
 
     private func arcSelect(_ id: ConsoleWorkspaceSection.ID) {
         arcSelectionKey = id.storedText
+        // Beside the list the detail follows the project picked, so its chat
+        // and Progress never show another project's (ios-app showing FRS).
+        guard usesSidebarNavigation,
+            let project = arcProjectGroups.flatMap(\.projects).first(where: { $0.id == id })
+        else { return }
+        if let shown = notificationRouter.path.last, project.agents.contains(where: { $0.id == shown }) { return }
+        if let shown = selectedTerminal, project.shells.contains(where: { $0.id == shown.id }) { return }
+        if let agent = project.agents.first(where: { $0.agent.status == .blocked }) ?? project.agents.first {
+            selectAgent(agent.id)
+        } else if let shell = project.shells.first {
+            selectTerminal(shell)
+        } else {
+            clearSelection()
+        }
     }
 
     private func usesAirBuildArcChrome(for tab: ConsoleTab) -> Bool {

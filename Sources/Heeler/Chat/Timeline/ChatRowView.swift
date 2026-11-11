@@ -181,7 +181,7 @@ private struct ChatBubble<Content: View>: View {
                 .overlay(alignment: .bottomTrailing) {
                     AirBuildMessageTail()
                         .fill(Color.accentColor)
-                        .frame(width: 14, height: 14)
+                        .frame(width: 20, height: 18)
                         .offset(x: 6)
                 }
         }

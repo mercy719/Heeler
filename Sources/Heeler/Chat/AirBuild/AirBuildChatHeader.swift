@@ -155,8 +155,10 @@ struct AirBuildChatHeader: View {
                 if let onBack {
                     iconButton("chevron.left", label: "Back", action: onBack)
                 }
-                if let onToggleSidebar {
-                    iconButton("sidebar.left", label: "Show Sidebar", action: onToggleSidebar)
+                if onToggleSidebar != nil {
+                    // The split view's own Show Sidebar sits here; drawing a second
+                    // one stacked two buttons (unfolded portrait, 2026-11-12).
+                    Color.clear.frame(width: 44, height: 44).accessibilityHidden(true)
                 }
                 if !waitingAgents.isEmpty { waitingMenu }
                 Spacer(minLength: 0)

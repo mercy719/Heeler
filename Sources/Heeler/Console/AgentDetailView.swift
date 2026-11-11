@@ -434,7 +434,11 @@ struct AgentDetailView: View {
                 .frame(width: 300)
                 .frame(maxHeight: .infinity)
                 .background(Color(uiColor: .systemGroupedBackground))
-                .overlay(alignment: .leading) { Divider() }
+                .overlay(alignment: .leading) {
+                    // Not `Divider()`: outside a stack it draws across, which left a
+                    // hairline through the middle of the panel (Duo, 2026-11-12).
+                    Rectangle().fill(Color(uiColor: .separator)).frame(width: 1 / 3)
+                }
                 .transition(.move(edge: .trailing))
         }
     }

@@ -50,12 +50,18 @@ struct AirBuildAssistantBubble: View {
 /// The small iMessage tail outside the user's accent bubble.
 struct AirBuildMessageTail: Shape {
     func path(in rect: CGRect) -> Path {
+        // The tip at the bottom right, curving back into the bubble's edge
+        // 6 points in; the old tip at the top right closed along a flat top
+        // that stuck out past the bubble as a square block.
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY),
-            control: CGPoint(x: rect.maxX - 2, y: rect.maxY))
+            to: CGPoint(x: rect.maxX, y: rect.maxY),
+            control: CGPoint(x: rect.maxX - 8, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - 6, y: rect.minY),
+            control: CGPoint(x: rect.maxX - 6, y: rect.maxY - 3))
         path.closeSubpath()
         return path
     }
