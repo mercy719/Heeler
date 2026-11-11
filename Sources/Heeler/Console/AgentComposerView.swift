@@ -588,14 +588,16 @@ struct AgentComposerView: View {
                             Text("Message Agent")
                         }
                     }
-                    .font(airBuildStyle ? .system(size: 14) : .body)
+                    // The text view's own font and top inset, so the hint sits where typing starts.
+                    .font(.body)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
-                    .padding(.top, airBuildStyle ? 10 : 8)
+                    .padding(.top, 8)
                     .allowsHitTesting(false)
                 }
             }
-            .frame(minHeight: airBuildStyle ? 46 : 36, alignment: .topLeading)
+            // One line centers between Add and Send; more lines grow the row.
+            .frame(minHeight: airBuildStyle ? 46 : 36, alignment: airBuildStyle ? .leading : .topLeading)
             .accessibilityElement(children: .contain)
             .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             if isCollapsed || airBuildStyle {

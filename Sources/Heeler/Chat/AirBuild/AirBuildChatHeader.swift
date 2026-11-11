@@ -182,7 +182,8 @@ struct AirBuildChatHeader: View {
 
     private var topLine: some View {
         ZStack(alignment: .top) {
-            projectLabel.frame(maxWidth: .infinity)
+            // The 40-point icon centers on the 44-point buttons beside it.
+            projectLabel.padding(.top, 2).frame(maxWidth: .infinity)
             HStack(spacing: 8) {
                 if mode == .full, let onBack {
                     iconButton("chevron.left", label: "Back", action: onBack)

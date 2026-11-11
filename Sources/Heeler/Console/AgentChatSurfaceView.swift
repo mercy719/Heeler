@@ -695,7 +695,8 @@ struct AgentChatSurfaceView: View {
             if let startedAt = airBuildTurnStart {
                 AirBuildRunningCapsule(startedAt: startedAt)
                     .padding(.leading, horizontalSizeClass == .compact ? 16 : 46)
-                    .padding(.bottom, 6)
+                    // Centered in the band Jump to Latest floats in, on its line.
+                    .frame(height: AgentDetailHeader.controlSize)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
