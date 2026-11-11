@@ -168,9 +168,11 @@ private struct ChatBubble<Content: View>: View {
         self.content = content()
     }
 
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
     var body: some View {
         HStack(spacing: 0) {
-            Spacer(minLength: 48)
+            Spacer(minLength: sizeClass == .compact ? 32 : 48)
             content
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)

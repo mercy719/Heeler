@@ -673,7 +673,7 @@ struct AgentChatSurfaceView: View {
         .overlay(alignment: .bottomLeading) {
             if let startedAt = airBuildTurnStart {
                 AirBuildRunningCapsule(startedAt: startedAt)
-                    .padding(.leading, 46)
+                    .padding(.leading, horizontalSizeClass == .compact ? 16 : 46)
                     .padding(.bottom, 6)
             }
         }
@@ -685,9 +685,11 @@ struct AgentChatSurfaceView: View {
         // measured inset with it, and the two then traded places on every
         // layout pass until the watchdog ended the app.
         .overlay(alignment: .bottom) {
+            // Solid like the top edge: the AirBuild Composer is a bare capsule, so
+            // rows read clearly through material under it (folded Duo, 2026-11-11).
             ChatScrollEdgeEffect(
                 edge: .bottom, height: bottomChromeHeight,
-                solid: bottomChromeHeight - Self.bottomEdgeFadeLength)
+                solid: bottomChromeHeight - Self.bottomEdgeFadeLength, usesCanvas: true)
                 .alignmentGuide(.bottom) { $0[.top] }
         }
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { edge in
