@@ -1971,11 +1971,36 @@ struct ConsoleView: View {
     }
 
     /// A search or a status filter keeps the arc list's own semantics out of
-    /// the way: the flat rows say exactly what the filter admits.
+    /// the way, in the arc list's own look: the projects the words name as
+    /// tiles, then each Agent the filter admits under its project's name.
     @ViewBuilder
     private var arcAgentListRows: some View {
         if arcIsNarrowed {
-            flatAgentListRows
+            agentHostIssueRows
+            let query = agentSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let projects = query.isEmpty
+                ? [] : arcProjectGroups.flatMap(\.projects).filter { AirBuildProjectSearch.matches($0.label, query: query) }
+            if !projects.isEmpty {
+                AirBuildProjectGrid(
+                    projects: projects, selected: arcSelectedProjectID, limitsToTwoRows: false,
+                    onSelect: { id in
+                        arcSelect(id)
+                        agentSearchText = ""
+                        isAgentSearchPresented = false
+                    })
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 12, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .selectionDisabled()
+            }
+            ForEach(filteredAgents) { @Sendable agent in
+                MainActorContent {
+                    arcAgentRow(
+                        agent,
+                        projectName: agent.workspaceLabel.flatMap { $0.isEmpty ? nil : $0 } ?? agent.agent.workspaceID)
+                        .listRowBackground(Color.clear)
+                }
+            }
         } else {
             if foldedHome {
                 // The bar's title is gone with its buttons; the brand leads the page, as AirBuild's does.
