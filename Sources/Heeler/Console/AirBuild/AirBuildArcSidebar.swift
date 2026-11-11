@@ -44,11 +44,16 @@ enum AirBuildProjectLayout {
         }.map(\.element)
     }
 
-    static func slots(_ projects: [ArcProjectGroup.Project], columns: Int) -> [Slot] {
+    /// Home-screen pages of `columns` × `rows` tiles. More projects than one
+    /// page holds add the All tile (its search) after the last project.
+    static func pages(_ projects: [ArcProjectGroup.Project], columns: Int, rows: Int) -> [[Slot]] {
         let ordered = ordered(projects)
-        let capacity = max(1, columns) * 2
-        guard ordered.count > capacity else { return ordered.map(Slot.project) }
-        return ordered.prefix(capacity - 1).map(Slot.project) + [.all(ordered.count)]
+        let capacity = max(1, columns) * max(1, rows)
+        guard ordered.count > capacity else { return [ordered.map(Slot.project)] }
+        let slots = ordered.map(Slot.project) + [.all(ordered.count)]
+        return stride(from: 0, to: slots.count, by: capacity).map {
+            Array(slots[$0..<min($0 + capacity, slots.count)])
+        }
     }
 }
 
@@ -60,14 +65,44 @@ struct AirBuildProjectGrid: View {
     var onShowAll: (() -> Void)?
 
     @State private var width: CGFloat = 0
+    @Environment(\.isSidebarColumn) private var isSidebarColumn
 
     private var columns: Int { AirBuildProjectLayout.columns(for: width) }
-    private var slots: [AirBuildProjectLayout.Slot] {
-        if limitsToTwoRows { return AirBuildProjectLayout.slots(projects, columns: columns) }
-        return AirBuildProjectLayout.ordered(projects).map { .project($0) }
-    }
+    /// Three rows like a home screen when folded; two beside the detail, where
+    /// the conversations below need the room.
+    private var rows: Int { isSidebarColumn ? 2 : 3 }
+    private static let rowHeight: CGFloat = 92
 
     var body: some View {
+        Group {
+            if limitsToTwoRows {
+                let pages = AirBuildProjectLayout.pages(projects, columns: columns, rows: rows)
+                if pages.count > 1 {
+                    // Swiped page by page, as apps on the home screen. A fixed height,
+                    // so nothing measured here feeds back into the layout.
+                    TabView {
+                        ForEach(pages.indices, id: \.self) { @Sendable index in
+                            MainActorContent {
+                                grid(pages[index])
+                                    .frame(maxHeight: .infinity, alignment: .top)
+                            }
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                    .indexViewStyle(.page(backgroundDisplayMode: .never))
+                    .frame(height: CGFloat(rows) * Self.rowHeight + 30)
+                } else {
+                    grid(pages.first ?? [])
+                }
+            } else {
+                grid(AirBuildProjectLayout.ordered(projects).map { .project($0) })
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+    }
+
+    private func grid(_ slots: [AirBuildProjectLayout.Slot]) -> some View {
         LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns),
             spacing: 10
@@ -110,7 +145,6 @@ struct AirBuildProjectGrid: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 

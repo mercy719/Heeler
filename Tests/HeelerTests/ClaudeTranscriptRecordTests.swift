@@ -1072,14 +1072,15 @@ struct ArcProjectTests {
                 ConsoleWorkspace(id: "w\($0)", label: ["A", "B", "C", "D", "E"][$0 - 1], order: $0)
             }]).flatMap(\.projects)
 
-        let slots = AirBuildProjectLayout.slots(projects, columns: 2)
-        #expect(slots.map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "all"])
-        #expect(slots.last == .all(5))
+        let pages = AirBuildProjectLayout.pages(projects, columns: 2, rows: 2)
+        #expect(pages.map(\.count) == [4, 2])
+        #expect(pages[0].map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "\(host.id.uuidString)/w1"])
+        #expect(pages[1].last == .all(5))
         #expect(AirBuildProjectLayout.columns(for: 300) == 3)
         #expect(AirBuildProjectLayout.columns(for: 466) == 6)
     }
 
-    @Test("AirBuild shows All only when the two rows cannot hold every project")
+    @Test("AirBuild pages projects and adds All only past one page")
     func airBuildAllSlotCondition() {
         let host = Host.fixture(name: "alpha")
         let workspaces = (1...4).map {
@@ -1088,9 +1089,10 @@ struct ArcProjectTests {
         let projects = ArcProjectGroup.groups(
             hosts: [host], agents: [], workspacesByHost: [host.id: workspaces]
         ).flatMap(\.projects)
-        #expect(AirBuildProjectLayout.slots(projects, columns: 2).map(\.id) == projects.map(\.id.storedText))
-        #expect(AirBuildProjectLayout.slots(projects, columns: 1).last == .all(4))
-        #expect(AirBuildProjectLayout.slots(projects, columns: 1).count == 2)
+        #expect(AirBuildProjectLayout.pages(projects, columns: 2, rows: 2) == [projects.map { .project($0) }])
+        let paged = AirBuildProjectLayout.pages(projects, columns: 1, rows: 3)
+        #expect(paged.map(\.count) == [3, 2])
+        #expect(paged.last?.last == .all(4))
     }
 
     @Test("AirBuild badges count Blocked, show Done green, and leave Working unbadged")
