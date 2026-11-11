@@ -225,8 +225,13 @@ struct AgentChatSurfaceView: View {
     /// Back, the terminal switch and More live there.
     private var foldedUsesBar: Bool { usesVerticalToolbar && showsBackButton }
 
+    /// Unfolded portrait: More goes to the navigation bar's trailing end, which
+    /// keeps clear of the Duo's status capsule; drawn 12 points from the edge
+    /// it sat under that capsule (2026-11-12).
+    private var moreUsesNavigationBar: Bool { !usesVerticalToolbar && horizontalSizeClass == .regular }
+
     private var airBuildHeader: some View {
-        airBuildHeader(mode: foldedUsesBar ? .titleOnly : .full)
+        airBuildHeader(mode: foldedUsesBar || moreUsesNavigationBar ? .titleOnly : .full)
             .padding(.horizontal, 12)
             .padding(.top, backHeaderTop)
             .onChange(of: isBackHeaderExpanded) { _, expanded in
@@ -591,6 +596,11 @@ struct AgentChatSurfaceView: View {
             isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch
         ) {
             airBuildHeader(mode: .barMore)
+        }
+        .toolbar {
+            if moreUsesNavigationBar {
+                ToolbarItem(placement: .topBarTrailing) { airBuildHeader(mode: .barMore) }
+            }
         }
         .navigationBarBackButtonHidden(true)
         .interactivePopGestureEnabled(showsBackButton)
