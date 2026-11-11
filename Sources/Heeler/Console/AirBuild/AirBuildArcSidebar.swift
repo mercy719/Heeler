@@ -350,10 +350,12 @@ struct AirBuildSessionAvatar: View {
                         .trim(from: 0, to: 0.25)
                         .stroke(AirBuildStatusLamp.working.color, lineWidth: 2)
                         .frame(width: size + 6, height: size + 6)
-                        .rotationEffect(.degrees(rotating ? 360 : 0))
+                        // Scoped to the turn, so the ring never repeats a move into place.
                         .animation(
-                            reduceMotion ? nil : .linear(duration: 1.8).repeatForever(autoreverses: false),
-                            value: rotating)
+                            reduceMotion ? nil : .linear(duration: 1.8).repeatForever(autoreverses: false)
+                        ) { ring in
+                            ring.rotationEffect(.degrees(rotating ? 360 : 0))
+                        }
                 }
             }
             .overlay(alignment: .bottomTrailing) {

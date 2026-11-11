@@ -480,12 +480,16 @@ struct AirBuildStatusLampView: View {
             .fill(lamp.isHollow ? Color.clear : lamp.color)
             .overlay(Circle().stroke(lamp.color, lineWidth: lamp.isHollow ? 1.5 : 0))
             .frame(width: size, height: size)
-            .scaleEffect(breathing ? 1.16 : 1)
-            .opacity(breathing ? 0.58 : 1)
+            // Scoped to scale and opacity: an animation by value also repeated
+            // the lamp's move into place forever, so it hopped out of its pill.
             .animation(
                 reduceMotion || lamp != .working
-                    ? nil : .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
-                value: breathing)
+                    ? nil : .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
+            ) { dot in
+                dot
+                    .scaleEffect(breathing ? 1.16 : 1)
+                    .opacity(breathing ? 0.58 : 1)
+            }
             .accessibilityLabel(lamp.accessibilityLabel)
             .onAppear { breathing = lamp == .working && !reduceMotion }
             .onDisappear { breathing = false }
