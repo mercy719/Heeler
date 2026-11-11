@@ -51,7 +51,6 @@ struct AgentChatSurfaceView: View {
     /// Where the Composer and what sits on it begin, in the global space,
     /// and how far it is from there to the screen's bottom.
     @State private var bottomEdge = ChatTimelineBottomEdge()
-    @State private var bottomChromeHeight: CGFloat = 0
     @State private var surfaceHeight: CGFloat = 0
     @State private var jumpRequest = 0
     @State private var followRequest = 0
@@ -639,7 +638,6 @@ struct AgentChatSurfaceView: View {
                 agent: agent,
                 actions: timelineActions)
             .environment(\.chatShowsRunningTurnHeader, arcProject == nil)
-            .modifier(AirBuildScrollEdgeEffectStyle())
             .padding(.top, -topInset)
             .ignoresSafeArea(.container, edges: .bottom)
             // Check Again's answer may fill the timeline under the held
@@ -662,10 +660,8 @@ struct AgentChatSurfaceView: View {
                 }
                 .padding(.top, headerObstruction + bannerHeight)
             }
-            ChatScrollEdgeEffect(
-                edge: .top, height: topInset + headerObstruction + 24,
-                solid: topInset + headerObstruction, usesCanvas: true)
-                .padding(.top, -topInset)
+            // No edge fade: the user wants the conversation to read top to bottom
+            // through the header and Composer, with only their own glass on it.
             banners
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bannerHeight = $0 }
                 .padding(.top, headerObstruction)
@@ -679,29 +675,10 @@ struct AgentChatSurfaceView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .modifier(CheckAgainTiming(hold: $checkAgain, chat: chat))
-        // Hung from the conversation's bottom edge down to the screen's, so
-        // it never sizes the conversation: as a sibling it could outgrow the
-        // room left above a raised keyboard, push the chrome down and the
-        // measured inset with it, and the two then traded places on every
-        // layout pass until the watchdog ended the app.
-        .overlay(alignment: .bottom) {
-            // Solid like the top edge: the AirBuild Composer is a bare capsule, so
-            // rows read clearly through material under it (folded Duo, 2026-11-11).
-            ChatScrollEdgeEffect(
-                edge: .bottom, height: bottomChromeHeight,
-                solid: bottomChromeHeight - Self.bottomEdgeFadeLength, usesCanvas: true)
-                .alignmentGuide(.bottom) { $0[.top] }
-        }
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { edge in
             bottomEdge.update(
                 edge: edge, keyboardLift: keyboardLift,
                 keyboardIsFalling: keyboardInset.keyboardRideTarget == 0)
-        }
-        // Without the keyboard's part, which is under the keyboard, so this
-        // does not re-evaluate the surface on each frame of its motion.
-        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { height in
-            let chrome = height - keyboardLift
-            if abs(chrome - bottomChromeHeight) > 0.5 { bottomChromeHeight = chrome }
         }
     }
 
@@ -724,9 +701,6 @@ struct AgentChatSurfaceView: View {
                 .allowsHitTesting(!isHidden)
         }
     }
-
-    /// How far rows fade into the bottom chrome's edge before they blur.
-    private static let bottomEdgeFadeLength: CGFloat = 24
 
     /// The back header's band over the conversation's top edge. Level with
     /// the bar, the header can sit wholly above that edge.
@@ -1688,38 +1662,6 @@ private struct BackgroundWorkInset: View {
     var body: some View {
         ChatBackgroundWorkStrip(
             work: chat.backgroundWork, isHostConnected: isHostConnected, isCondensed: isCondensed, open: open)
-    }
-}
-
-/// The list's soft edge under chrome: rows passing beneath the status bar,
-/// the header's controls or the Composer soften behind a thin material
-/// rather than vanish. At full strength for `solid` from the screen's edge,
-/// then fading out across the rest of `height`.
-private struct ChatScrollEdgeEffect: View {
-    let edge: VerticalEdge
-    let height: CGFloat
-    let solid: CGFloat
-    /// How much of the material shows at full strength: rows stay visible
-    /// through it, softened rather than hidden.
-    var strength: Double = 0.6
-    var usesCanvas = false
-
-    var body: some View {
-        Rectangle()
-            .fill(usesCanvas ? AnyShapeStyle(Color(uiColor: .systemBackground)) : AnyShapeStyle(.ultraThinMaterial))
-            .mask {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black.opacity(usesCanvas ? 1 : strength), location: 0),
-                        .init(color: .black.opacity(usesCanvas ? 1 : strength), location: height > 0 ? min(1, max(0, solid / height)) : 1),
-                        .init(color: .clear, location: 1),
-                    ],
-                    startPoint: edge == .top ? .top : .bottom,
-                    endPoint: edge == .top ? .bottom : .top)
-            }
-            .frame(height: height)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 }
 

@@ -212,6 +212,11 @@ final class ChatTimelineController: UIViewController, UICollectionViewDelegate {
     override func loadView() {
         collectionView.backgroundColor = .clear
         collectionView.contentInsetAdjustmentBehavior = .never
+        // Chat reads through its header and Composer with no system blur at either edge.
+        if #available(iOS 26, *) {
+            collectionView.topEdgeEffect.isHidden = true
+            collectionView.bottomEdgeEffect.isHidden = true
+        }
         collectionView.contentInset = Self.contentInsets
         collectionView.alwaysBounceVertical = true
         collectionView.allowsSelection = false

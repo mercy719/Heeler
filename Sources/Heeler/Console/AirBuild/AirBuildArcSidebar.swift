@@ -275,7 +275,7 @@ struct AirBuildAllProjectsView: View {
 }
 
 /// A project's icon: its boss Agent's plush on a tile, never the name's
-/// first letter; a folder only for a project with no Agent yet.
+/// first letter; a grey plush of its own for a project with no Agent yet.
 struct AirBuildProjectIcon: View {
     let project: ArcProjectGroup.Project
     var size: CGFloat = 42
@@ -285,9 +285,11 @@ struct AirBuildProjectIcon: View {
             if let boss = project.boss {
                 OBPlushAvatar(seed: AirBuildSessionAvatar.seed(for: boss), size: size)
             } else {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: size * 0.45, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                // No Agent yet: still a plush, one of its own, but grey and dim so
+                // an empty project reads as asleep beside the staffed ones.
+                OBPlushAvatar(seed: "project:\(project.id)", size: size)
+                    .saturation(0)
+                    .opacity(0.45)
             }
         }
         .frame(width: size, height: size)
