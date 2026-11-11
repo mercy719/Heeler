@@ -177,13 +177,7 @@ private struct ChatBubble<Content: View>: View {
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .foregroundStyle(.white)
-                .background(Color.accentColor, in: .rect(cornerRadius: 16))
-                .overlay(alignment: .bottomTrailing) {
-                    AirBuildMessageTail()
-                        .fill(Color.accentColor)
-                        .frame(width: 20, height: 18)
-                        .offset(x: 6)
-                }
+                .background(Color.accentColor, in: AirBuildUserBubbleShape())
         }
     }
 }

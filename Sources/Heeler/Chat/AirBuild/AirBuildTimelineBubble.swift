@@ -47,21 +47,42 @@ struct AirBuildAssistantBubble: View {
     }
 }
 
-/// The small iMessage tail outside the user's accent bubble.
-struct AirBuildMessageTail: Shape {
+/// The user's accent bubble and its iMessage tail as one outline, so no seam
+/// or notch shows where a separate tail met the rounded corner. The tail
+/// reaches `tail` points past the trailing edge at the bottom.
+struct AirBuildUserBubbleShape: Shape {
+    var radius: CGFloat = 16
+    var tail: CGFloat = 6
+
     func path(in rect: CGRect) -> Path {
-        // The tip at the bottom right, curving back into the bubble's edge
-        // 6 points in; the old tip at the top right closed along a flat top
-        // that stuck out past the bubble as a square block.
+        let r = min(radius, rect.height / 2, rect.width / 2)
+        // The right edge runs straight to `r` above the bottom, then sweeps out to the tip.
+        let sweep = min(r, rect.height - r)
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.minY + r), radius: r,
+            startAngle: .degrees(-90), endAngle: .degrees(0), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - sweep))
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.maxY),
-            control: CGPoint(x: rect.maxX - 8, y: rect.maxY))
+            to: CGPoint(x: rect.maxX + tail, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY - 1))
+        // Back from the tip along a soft hook into the flat bottom edge.
         path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - 6, y: rect.minY),
-            control: CGPoint(x: rect.maxX - 6, y: rect.maxY - 3))
+            to: CGPoint(x: rect.maxX - r * 0.75, y: rect.maxY - 1.5),
+            control: CGPoint(x: rect.maxX - 2, y: rect.maxY + 0.5))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - r * 1.25, y: rect.maxY),
+            control: CGPoint(x: rect.maxX - r, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.maxY - r), radius: r,
+            startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false)
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.minY + r), radius: r,
+            startAngle: .degrees(180), endAngle: .degrees(270), clockwise: false)
         path.closeSubpath()
         return path
     }
