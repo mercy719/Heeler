@@ -349,9 +349,10 @@ struct AirBuildSessionAvatar: View {
             // above the head read as a stray arc (2026-11-12).
             .overlay(alignment: .bottomTrailing) {
                 if let lamp {
-                    AirBuildStatusLampView(lamp: lamp, size: 14)
-                        .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2))
-                        .offset(x: 2, y: 2)
+                    // In scale with the avatar: a fixed 14 points outgrew Chat's 22-point one.
+                    AirBuildStatusLampView(lamp: lamp, size: max(6, (size * 0.3).rounded()))
+                        .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: size < 30 ? 1.5 : 2))
+                        .offset(x: size * 0.05, y: size * 0.05)
                 }
             }
             .frame(width: size + 6, height: size + 6)
