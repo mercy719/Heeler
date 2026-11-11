@@ -221,7 +221,20 @@ struct AgentChatSurfaceView: View {
         nonmutating set { airBuildWorkspacePresented?.wrappedValue = newValue }
     }
 
+    /// Folded on iPhone Duo the system draws a side bar in the right column;
+    /// Back, the terminal switch and More live there.
+    private var foldedUsesBar: Bool { usesVerticalToolbar && showsBackButton }
+
     private var airBuildHeader: some View {
+        airBuildHeader(mode: foldedUsesBar ? .titleOnly : .full)
+            .padding(.horizontal, 12)
+            .padding(.top, backHeaderTop)
+            .onChange(of: isBackHeaderExpanded) { _, expanded in
+                if !expanded { isHeaderDrawerOpen = false }
+            }
+    }
+
+    private func airBuildHeader(mode: AirBuildChatHeader.Mode) -> AirBuildChatHeader {
         AirBuildChatHeader(
             project: airBuildProject,
             status: agent.agent.status,
@@ -240,12 +253,8 @@ struct AgentChatSurfaceView: View {
             actions: composerActions,
             onTogglePanel: { isShowingAirBuildPanel.toggle() },
             sessionSettings: sessionSettings,
-            sessionControls: sessionControls)
-        .padding(.horizontal, 12)
-        .padding(.top, backHeaderTop)
-        .onChange(of: isBackHeaderExpanded) { _, expanded in
-            if !expanded { isHeaderDrawerOpen = false }
-        }
+            sessionControls: sessionControls,
+            mode: mode)
     }
 
     var body: some View {
@@ -578,6 +587,11 @@ struct AgentChatSurfaceView: View {
             surfaceSwitch: terminalSurfaceSwitch,
             workspace: airBuildWorkspacePresented,
             actions: airBuildGlobalActions)
+        .airBuildFoldedBarControls(
+            isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch
+        ) {
+            airBuildHeader(mode: .barMore)
+        }
         .navigationBarBackButtonHidden(true)
         .interactivePopGestureEnabled(showsBackButton)
         .navigationTitle("")

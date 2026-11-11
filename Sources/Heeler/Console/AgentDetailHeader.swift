@@ -469,6 +469,29 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
 }
 
 @available(iOS 27.1, *)
+private struct AirBuildFoldedBarControls<More: View>: ToolbarContent {
+    let onBack: () -> Void
+    let surfaceSwitch: AgentDetailSurfaceSwitch?
+    let more: More
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Back", systemImage: "chevron.left", action: onBack)
+        }
+        .visibilityPriority(.high)
+        if let surfaceSwitch {
+            ToolbarItem(placement: .primaryAction) {
+                AgentDetailSurfaceButton(control: surfaceSwitch)
+            }
+            .axisBehavior(.verticalPreferred)
+            .visibilityPriority(.high)
+        }
+        ToolbarItem(placement: .primaryAction) { more }
+            .axisBehavior(.verticalPreferred)
+    }
+}
+
+@available(iOS 27.1, *)
 private struct AirBuildGlobalBarControls: ToolbarContent {
     let surfaceSwitch: AgentDetailSurfaceSwitch?
     @Binding var workspacePresented: Bool
@@ -640,6 +663,25 @@ extension View {
                 AgentDetailHeaderBarControls(
                     palette: palette, isExpanded: isExpanded, actions: actions,
                     surfaceSwitch: surfaceSwitch)
+            }
+            #endif
+        }
+    }
+
+    /// Folded, Chat's Back, terminal switch and More go to the system's side bar
+    /// (the outer display's otherwise empty right column), leaving the top line
+    /// to the project alone.
+    func airBuildFoldedBarControls<More: View>(
+        isVisible: Bool,
+        onBack: @escaping () -> Void,
+        surfaceSwitch: AgentDetailSurfaceSwitch?,
+        @ViewBuilder more: () -> More
+    ) -> some View {
+        let more = more()
+        return toolbar {
+            #if compiler(>=6.4)
+            if #available(iOS 27.1, *), isVisible {
+                AirBuildFoldedBarControls(onBack: onBack, surfaceSwitch: surfaceSwitch, more: more)
             }
             #endif
         }

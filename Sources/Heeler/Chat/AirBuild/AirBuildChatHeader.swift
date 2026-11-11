@@ -108,6 +108,15 @@ enum AirBuildChatMenuPolicy {
 struct AirBuildChatHeader: View {
     static let height: CGFloat = 68
 
+    enum Mode {
+        /// Back, the project and More on the top line.
+        case full
+        /// Only the project and the bell: Back and More are in the system's side bar.
+        case titleOnly
+        /// Only More, for the system's side bar, with the dialogs its items raise.
+        case barMore
+    }
+
     let project: ArcProjectGroup.Project
     let status: AgentStatus
     let isHostConnected: Bool
@@ -125,6 +134,7 @@ struct AirBuildChatHeader: View {
     let onTogglePanel: () -> Void
     var sessionSettings: AgentSessionSettings?
     var sessionControls: AgentSessionControls?
+    var mode: Mode = .full
     @State private var confirmsBypass = false
 
     private var lamp: AirBuildStatusLamp {
@@ -151,10 +161,18 @@ struct AirBuildChatHeader: View {
     }
 
     var body: some View {
+        switch mode {
+        case .barMore: withDialogs(moreMenuInBar)
+        case .titleOnly: topLine
+        case .full: withDialogs(topLine)
+        }
+    }
+
+    private var topLine: some View {
         ZStack(alignment: .top) {
             projectLabel.frame(maxWidth: .infinity)
             HStack(spacing: 8) {
-                if let onBack {
+                if mode == .full, let onBack {
                     iconButton("chevron.left", label: "Back", action: onBack)
                 }
                 if onToggleSidebar != nil {
@@ -164,10 +182,15 @@ struct AirBuildChatHeader: View {
                 }
                 if !waitingAgents.isEmpty { waitingMenu }
                 Spacer(minLength: 0)
-                moreMenu
+                if mode == .full { moreMenu }
             }
         }
         .frame(height: Self.height, alignment: .top)
+    }
+
+    /// Close and Bypass confirmations, on whichever instance shows More.
+    private func withDialogs(_ content: some View) -> some View {
+        content
         .agentCloseConfirmation(actions.closeConfirmation)
         .confirmationDialog(
             "Skip every permission prompt?", isPresented: $confirmsBypass, titleVisibility: .visible
@@ -234,27 +257,45 @@ struct AirBuildChatHeader: View {
     }
 
     private var moreMenu: some View {
+        moreMenuButton
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .headerGlass(in: .circle)
+            .accessibilityLabel("More")
+    }
+
+    /// The bar draws its own glass and sizing; a plain label lets it.
+    private var moreMenuInBar: some View {
         Menu {
-            ForEach(AirBuildChatMenuGroup.allCases, id: \.self) { @Sendable group in
-                MainActorContent {
-                    Section {
-                        ForEach(AirBuildChatMenuPolicy.items(in: group), id: \.self) { @Sendable item in
-                            MainActorContent { row(for: item) }
-                        }
-                    }
-                }
-            }
+            moreMenuItems
+        } label: {
+            Label("More", systemImage: "ellipsis")
+        }
+    }
+
+    private var moreMenuButton: some View {
+        Menu {
+            moreMenuItems
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))
                 .frame(width: 44, height: 44)
                 .contentShape(.circle)
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .headerGlass(in: .circle)
-        .accessibilityLabel("More")
+    }
+
+    @ViewBuilder
+    private var moreMenuItems: some View {
+        ForEach(AirBuildChatMenuGroup.allCases, id: \.self) { @Sendable group in
+            MainActorContent {
+                Section {
+                    ForEach(AirBuildChatMenuPolicy.items(in: group), id: \.self) { @Sendable item in
+                        MainActorContent { row(for: item) }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
