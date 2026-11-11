@@ -1077,7 +1077,8 @@ struct ArcProjectTests {
         #expect(pages[0].map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "\(host.id.uuidString)/w1"])
         #expect(pages[1].last == .all(5))
         #expect(AirBuildProjectLayout.columns(for: 300) == 3)
-        #expect(AirBuildProjectLayout.columns(for: 466) == 6)
+        #expect(AirBuildProjectLayout.columns(for: 466) == 4)
+        #expect(AirBuildProjectLayout.columns(for: 380) == 3)
     }
 
     @Test("AirBuild pages projects and adds All only past one page")

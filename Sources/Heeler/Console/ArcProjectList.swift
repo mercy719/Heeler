@@ -491,11 +491,12 @@ struct ArcShellRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            // Lighter than an Agent's row: a bare glyph in the avatar's column, so
+            // four shells no longer outweigh the one Agent above them.
             Image(systemName: "apple.terminal")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 40, height: 40)
-                .background(Color(uiColor: .systemGray5), in: Circle())
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(.tertiary)
+                .frame(width: isSidebarColumn ? 46 : 50)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text(verbatim: terminal.displayTitle)
@@ -512,7 +513,7 @@ struct ArcShellRow: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
-        .frame(height: 50)
+        .frame(height: 38)
         .background {
             if isSelected && !isSidebarColumn {
                 Color.white.opacity(0.1)
@@ -536,20 +537,23 @@ struct ArcAgentRow: View {
     var isSelected = false
     @Environment(\.isSidebarColumn) private var isSidebarColumn
 
+    /// The home screen's rows read at AirBuild's size; the sidebar's stay dense.
+    private var titleSize: CGFloat { isSidebarColumn ? 13.5 : 16 }
+
     var body: some View {
         HStack(spacing: 10) {
-            AirBuildSessionAvatar(agent: agent)
+            AirBuildSessionAvatar(agent: agent, size: isSidebarColumn ? 40 : 44)
             VStack(alignment: .leading, spacing: 0) {
                 (Text(verbatim: title)
-                    .font(.system(size: 13.5, weight: .semibold))
+                    .font(.system(size: titleSize, weight: .semibold))
                     .foregroundStyle(.primary)
                 + Text(verbatim: " @\(agent.agent.kind)")
-                    .font(.system(size: 13.5))
+                    .font(.system(size: titleSize))
                     .foregroundStyle(.secondary))
                     .lineLimit(1)
                 if let subtitle {
                     Text(verbatim: subtitle)
-                        .font(.system(size: 11.5))
+                        .font(.system(size: isSidebarColumn ? 11.5 : 13.5))
                         .foregroundStyle(
                             agent.agent.status == .blocked
                                 ? AirBuildStatusLamp.waiting.color : Color(uiColor: .tertiaryLabel))
@@ -559,7 +563,7 @@ struct ArcAgentRow: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
-        .frame(height: 50)
+        .frame(height: isSidebarColumn ? 50 : 60)
         .background {
             if isSelected && !isSidebarColumn {
                 Color.white.opacity(0.1)

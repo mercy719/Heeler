@@ -52,6 +52,10 @@ struct ConsoleView: View {
     @State private var pageTab: ConsoleTab?
     /// The Progress tab's stack, where Usage pushes.
     @State private var progressPath: [ArcProgressDestination] = []
+    /// Folded on iPhone Duo: the sidebar is the home screen, beside the system's side bar.
+    @State private var sidebarHasVerticalBar = false
+    /// Collapsed beside the side bar; in landscape the detail's own side bar carries these.
+    private var foldedHome: Bool { sidebarHasVerticalBar && !usesSidebarNavigation }
     /// Progress beside a sidebar, which has no tab bar: a sheet with its
     /// own stack.
     @State private var isShowingProgressSheet = false
@@ -950,10 +954,20 @@ struct ConsoleView: View {
                     .navigationBarTitleDisplayMode(
                         usesAirBuildArcChrome(for: tab) || usesSidebarNavigation ? .inline : .automatic)
                     .toolbar { toolbar(for: tab) }
+                    .airBuildHomeBarControls(
+                        isVisible: usesAirBuildArcChrome(for: tab) && foldedHome,
+                        onNewAgent: offersNewItem(on: .agents)
+                            ? {
+                                startAgentRequest = StartAgentRequest(
+                                    origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
+                            } : nil,
+                        actions: AirBuildGlobalActions(openHosts: { showHosts() }, openSettings: { showSettings() }))
+                    .background { VerticalToolbarProbe(usesVerticalToolbar: $sidebarHasVerticalBar) }
+                    .readsVerticalToolbar()
                     // AirBuild's project grid replaces the list title.
                     .toolbar(removing: usesAirBuildArcChrome(for: tab) || usesSidebarNavigation ? .title : nil)
                     .bottomBar {
-                        if usesAirBuildArcChrome(for: tab) || usesSidebarNavigation {
+                        if (usesAirBuildArcChrome(for: tab) || usesSidebarNavigation), !foldedHome {
                             // shortcut: landscape stands in for "the system draws a vertical bar" (true on iPhone Duo,
                             // not on iPad); read the sidebar's own toolbar edge if Arc ships on iPad.
                             sidebarFooter(for: tab, detailHasGlobalBar: geometry.size.width > geometry.size.height)
@@ -1110,7 +1124,7 @@ struct ConsoleView: View {
                     focus: $focusedSearch, tab: .agents,
                     prompt: "Search Agents", showsField: !usesSidebarNavigation))
                 .scrollContentBackground(listPresentation.mode == .arc ? .hidden : .automatic)
-                .background(listPresentation.mode == .arc ? Color(uiColor: .systemGray4) : Color.clear)
+                .background(listPresentation.mode == .arc ? Color(uiColor: .systemBackground) : Color.clear)
         case .terminals:
             if hosts.consoleHosts.isEmpty {
                 noHostsView
@@ -1253,6 +1267,7 @@ struct ConsoleView: View {
                 }
                 .toolbarItemBackground(.hidden)
             }
+            if !foldedHome {
             ToolbarItem(placement: .principal) {
                 AirBuildGlassCapsule {
                     AirBuildHeelerLogo()
@@ -1283,6 +1298,7 @@ struct ConsoleView: View {
                 }
             }
             .toolbarItemBackground(.hidden)
+            }
         } else {
         // An iPad sidebar's title, always at the bar's leading edge: the
         // bar's own title centers itself wherever it fits, so it would move
@@ -1961,12 +1977,25 @@ struct ConsoleView: View {
         if arcIsNarrowed {
             flatAgentListRows
         } else {
+            if foldedHome {
+                // The bar's title is gone with its buttons; the brand leads the page, as AirBuild's does.
+                HStack(spacing: 8) {
+                    AirBuildHeelerLogo().frame(width: 30, height: 30)
+                    Text(verbatim: "Heeler").font(.system(size: 26, weight: .bold))
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 0))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .selectionDisabled()
+            }
             AirBuildProjectGrid(
                 projects: arcProjectGroups.flatMap(\.projects),
                 selected: arcSelectedProjectID,
                 onSelect: { arcSelect($0) },
                 onShowAll: { isShowingAllArcProjects = true })
-                .listRowInsets(EdgeInsets(top: usesSidebarNavigation ? 8 : 44, leading: 0, bottom: 12, trailing: 0))
+                .listRowInsets(EdgeInsets(top: usesSidebarNavigation || foldedHome ? 8 : 44, leading: 0, bottom: 12, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .selectionDisabled()

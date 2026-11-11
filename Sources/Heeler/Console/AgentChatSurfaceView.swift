@@ -259,7 +259,8 @@ struct AgentChatSurfaceView: View {
             onTogglePanel: { isShowingAirBuildPanel.toggle() },
             sessionSettings: sessionSettings,
             sessionControls: sessionControls,
-            mode: mode)
+            mode: mode,
+            showsLamp: horizontalSizeClass == .compact || detailSidebarIsHidden)
     }
 
     var body: some View {

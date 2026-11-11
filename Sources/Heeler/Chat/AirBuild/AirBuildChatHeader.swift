@@ -135,17 +135,31 @@ struct AirBuildChatHeader: View {
     var sessionSettings: AgentSessionSettings?
     var sessionControls: AgentSessionControls?
     var mode: Mode = .full
+    /// Off while the sidebar beside shows this project's status: one mark per screen.
+    var showsLamp = true
     @State private var confirmsBypass = false
 
     private var lamp: AirBuildStatusLamp {
         AirBuildStatusLamp(status: status, isHostConnected: isHostConnected)
     }
 
+    /// Tapping the project goes to it, as Go to › Show Project does.
     private var projectLabel: some View {
+        Button(action: onShowProject) {
+            projectLabelContent
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: project.label))
+        .accessibilityValue(lamp.accessibilityLabel)
+        .accessibilityHint("Shows the project")
+    }
+
+    private var projectLabelContent: some View {
         VStack(spacing: 2) {
             AirBuildProjectIcon(project: project, size: 40)
             HStack(spacing: 5) {
-                AirBuildStatusLampView(lamp: lamp)
+                if showsLamp { AirBuildStatusLampView(lamp: lamp) }
                 Text(verbatim: project.label)
                     .font(.system(size: 11.5, weight: .semibold))
                     .lineLimit(1)
@@ -155,9 +169,7 @@ struct AirBuildChatHeader: View {
             .background(Color(uiColor: .systemGray4).opacity(0.92), in: Capsule())
         }
         .frame(maxWidth: 150)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: project.label))
-        .accessibilityValue(lamp.accessibilityLabel)
+        .contentShape(Rectangle())
     }
 
     var body: some View {

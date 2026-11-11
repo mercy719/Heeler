@@ -20,8 +20,9 @@ enum AirBuildProjectLayout {
         }
     }
 
+    /// Big tiles, three across a phone like AirBuild's, never five small ones.
     static func columns(for width: CGFloat) -> Int {
-        max(1, Int(width / 76))
+        max(1, Int(width / 100))
     }
 
     static func badge(for project: ArcProjectGroup.Project) -> Badge? {
@@ -71,7 +72,9 @@ struct AirBuildProjectGrid: View {
     /// Three rows like a home screen when folded; two beside the detail, where
     /// the conversations below need the room.
     private var rows: Int { isSidebarColumn ? 2 : 3 }
-    private static let rowHeight: CGFloat = 92
+    /// The tile's square; the home screen has the room for a bigger one.
+    private var tileSize: CGFloat { isSidebarColumn ? 62 : 84 }
+    private var rowHeight: CGFloat { tileSize + 30 }
 
     var body: some View {
         Group {
@@ -90,7 +93,7 @@ struct AirBuildProjectGrid: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .always))
                     .indexViewStyle(.page(backgroundDisplayMode: .never))
-                    .frame(height: CGFloat(rows) * Self.rowHeight + 30)
+                    .frame(height: CGFloat(rows) * rowHeight + 30)
                 } else {
                     grid(pages.first ?? [])
                 }
@@ -112,8 +115,7 @@ struct AirBuildProjectGrid: View {
                     switch slot {
                     case .project(let project):
                         AirBuildProjectTile(
-                            project: project, isSelected: project.id == selected,
-                            background: Color(uiColor: .systemGray4)
+                            project: project, isSelected: project.id == selected, size: tileSize
                         ) { onSelect(project.id) }
                     case .all(let count):
                         Button {
@@ -126,7 +128,7 @@ struct AirBuildProjectGrid: View {
                                 }
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 62, height: 62)
+                                .frame(width: tileSize, height: tileSize)
                                 .background(
                                     Color(uiColor: .systemGray).opacity(0.2),
                                     in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -151,23 +153,25 @@ struct AirBuildProjectGrid: View {
 private struct AirBuildProjectTile: View {
     let project: ArcProjectGroup.Project
     let isSelected: Bool
-    let background: Color
+    var size: CGFloat = 62
+    /// The badge's ring cuts it from the tile against the page behind.
+    private let background = Color(uiColor: .systemBackground)
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
                 ZStack(alignment: .topTrailing) {
-                    AirBuildProjectIcon(project: project, size: 46)
-                        .frame(width: 62, height: 62)
+                    AirBuildProjectIcon(project: project, size: size * 0.74)
+                        .frame(width: size, height: size)
                         .background(
-                            Color(uiColor: .systemGray5),
-                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            Color(uiColor: .systemGray6),
+                            in: RoundedRectangle(cornerRadius: size * 0.26, style: .continuous))
                         .overlay {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                                RoundedRectangle(cornerRadius: size * 0.26 + 3, style: .continuous)
                                     .stroke(.tint, lineWidth: 2.5)
-                                    .frame(width: 68, height: 68)
+                                    .frame(width: size + 6, height: size + 6)
                             }
                         }
                     badge
@@ -176,7 +180,7 @@ private struct AirBuildProjectTile: View {
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
-                    .frame(maxWidth: 70)
+                    .frame(maxWidth: size + 10)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
@@ -335,50 +339,32 @@ struct AirBuildProjectIcon: View {
 struct AirBuildSessionAvatar: View {
     let agent: ConsoleAgent
     var size: CGFloat = 40
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var rotating = false
-
     static func seed(for agent: ConsoleAgent) -> String { "\(agent.hostID.uuidString):\(agent.agent.paneID)" }
     private var seed: String { Self.seed(for: agent) }
 
     var body: some View {
         OBPlushAvatar(seed: seed, size: size)
             .clipShape(Circle())
-            .overlay {
-                if agent.agent.status == .working {
-                    Circle()
-                        .trim(from: 0, to: 0.25)
-                        .stroke(AirBuildStatusLamp.working.color, lineWidth: 2)
-                        .frame(width: size + 6, height: size + 6)
-                        // Scoped to the turn, so the ring never repeats a move into place.
-                        .animation(
-                            reduceMotion ? nil : .linear(duration: 1.8).repeatForever(autoreverses: false)
-                        ) { ring in
-                            ring.rotationEffect(.degrees(rotating ? 360 : 0))
-                        }
-                }
-            }
+            // One mark for every state, the tiles' own: a quarter ring turning
+            // above the head read as a stray arc (2026-11-12).
             .overlay(alignment: .bottomTrailing) {
-                if agent.agent.status == .blocked || agent.agent.status == .done {
-                    Circle()
-                        .fill(
-                            agent.agent.status == .blocked
-                                ? AirBuildStatusLamp.waiting.color : AirBuildStatusLamp.done.color)
-                        .frame(width: 14, height: 14)
-                        .overlay(Circle().stroke(Color(uiColor: .systemGray4), lineWidth: 2))
+                if let lamp {
+                    AirBuildStatusLampView(lamp: lamp, size: 14)
+                        .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 2))
                         .offset(x: 2, y: 2)
                 }
             }
             .frame(width: size + 6, height: size + 6)
             .accessibilityLabel(Text(verbatim: "\(agent.agent.displayName), \(statusText)"))
-            .onAppear { rotating = agent.agent.status == .working && !reduceMotion }
-            .onDisappear { rotating = false }
-            .onChange(of: reduceMotion) { _, reduce in
-                if reduce { rotating = false }
-            }
-            .onChange(of: agent.agent.status) { _, status in
-                rotating = status == .working && !reduceMotion
-            }
+    }
+
+    private var lamp: AirBuildStatusLamp? {
+        switch agent.agent.status {
+        case .working: .working
+        case .blocked: .waiting
+        case .done: .done
+        default: nil
+        }
     }
 
     private var statusText: String {

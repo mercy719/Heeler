@@ -544,6 +544,48 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
 }
 #endif
 
+#if compiler(>=6.4)
+/// Folded, the home screen's Add, account and Settings live in the system's
+/// side bar, as AirBuild's do, instead of three corners of the list.
+@available(iOS 27.1, *)
+private struct AirBuildHomeBarControls: ToolbarContent {
+    let onNewAgent: (() -> Void)?
+    let actions: AirBuildGlobalActions
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                if let onNewAgent {
+                    Button("New Agent", systemImage: "plus", action: onNewAgent)
+                }
+                Button("Connect Computer", systemImage: "desktopcomputer", action: actions.openHosts)
+            } label: {
+                Label("Add", systemImage: "plus")
+            }
+        }
+        .axisBehavior(.verticalPreferred)
+        ToolbarSpacer(.flexible, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Button("Switch Computer", systemImage: "desktopcomputer", action: actions.openHosts)
+            } label: {
+                AirBuildAccountMark(size: 28)
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .accessibilityLabel("Account")
+        }
+        .axisBehavior(.verticalPreferred)
+        ToolbarItem(placement: .primaryAction) {
+            Button(
+                "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
+                action: actions.openSettings)
+        }
+        .axisBehavior(.verticalPreferred)
+    }
+}
+#endif
+
 /// The task title and launch folder; Chat adds its live model separately.
 struct AgentDetailHeaderTitle: Equatable {
     let title: String
@@ -708,6 +750,19 @@ extension View {
         }
     }
 
+    /// The home screen's side-bar controls (`AirBuildHomeBarControls`).
+    func airBuildHomeBarControls(
+        isVisible: Bool, onNewAgent: (() -> Void)?, actions: AirBuildGlobalActions
+    ) -> some View {
+        toolbar {
+            #if compiler(>=6.4)
+            if #available(iOS 27.1, *), isVisible {
+                AirBuildHomeBarControls(onNewAgent: onNewAgent, actions: actions)
+            }
+            #endif
+        }
+    }
+
     /// Agent and terminal details are task-oriented: when their native side
     /// controls compete with tabs, keep the controls and compact the tabs.
     @ViewBuilder
@@ -781,3 +836,18 @@ private struct VerticalToolbarReader: ViewModifier {
     }
 }
 #endif
+
+/// Hands `usesVerticalToolbar` up to a view that sits above the reader, as the
+/// split view's sidebar toolbar does. The edge is the screen's, not the
+/// toolbar's contents, so writing it back cannot loop.
+struct VerticalToolbarProbe: View {
+    @Binding var usesVerticalToolbar: Bool
+    @Environment(\.usesVerticalToolbar) private var reads
+
+    var body: some View {
+        Color.clear
+            .onAppear { usesVerticalToolbar = reads }
+            .onChange(of: reads) { _, value in usesVerticalToolbar = value }
+            .accessibilityHidden(true)
+    }
+}
