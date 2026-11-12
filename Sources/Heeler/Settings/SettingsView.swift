@@ -152,6 +152,8 @@ struct SettingsView: View {
         }
     }
 
+    @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
+
     var body: some View {
         NavigationStack {
             Form {
@@ -187,6 +189,14 @@ struct SettingsView: View {
                     } label: {
                         Label("Appearance", systemImage: "paintpalette")
                     }
+                    Picker(selection: $homeGrid) {
+                        ForEach(AirBuildProjectLayout.homeGridChoices, id: \.self) { size in
+                            Text(verbatim: "\(size) × \(size)").tag(size)
+                        }
+                    } label: {
+                        Label("Home Grid", systemImage: "square.grid.3x3")
+                    }
+                    .accessibilityIdentifier("settings.homeGrid")
                     // iOS keeps an app's language in the app's own Settings page.
                     if let appSettings = URL(string: UIApplication.openSettingsURLString) {
                         ExternalLinkRow(

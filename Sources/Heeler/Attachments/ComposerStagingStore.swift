@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// Owns one cross-media Composer staging workflow. Prepared local files belong
 /// to this store; completed Host files intentionally outlive it (ADR 0005).
@@ -138,6 +139,8 @@ final class ComposerStagingStore {
         let medium: Medium
         let path: String
         var copied: Bool
+        /// In the Composer's attachment tiles, which say so themselves.
+        var attached = false
     }
 
     struct Presentation: Sendable, Equatable {
@@ -506,8 +509,12 @@ final class ComposerStagingStore {
         if insertsPathIntoComposer {
             composer.attachPath(staged.path)
         }
-        state = .completed(
-            Outcome(medium: staged.medium, path: staged.path, copied: copied))
+        let outcome = Outcome(
+            medium: staged.medium, path: staged.path, copied: copied, attached: insertsPathIntoComposer)
+        state = .completed(outcome)
+        if Self.presentation(for: state) == nil {
+            UIAccessibility.post(notification: .announcement, argument: outcome.medium.inserted(copied: copied))
+        }
         publish(.completed(id: operationID, path: staged.path))
         // Nothing is left to do with a path that was copied: the line goes by itself.
         if copied { dismissCompleted(operationID, after: Self.completedLinger) }
@@ -706,6 +713,9 @@ final class ComposerStagingStore {
                 title: failure.message,
                 accessibilityLabel: failure.message,
                 commands: failure.isRetryable ? [.retry, .dismiss] : [.dismiss])
+        case .completed(let outcome) where outcome.copied && outcome.attached:
+            // The tile that appears is the confirmation; a line above it only repeats it.
+            return nil
         case .completed(let outcome):
             let title = outcome.medium.inserted(copied: outcome.copied)
             return Presentation(

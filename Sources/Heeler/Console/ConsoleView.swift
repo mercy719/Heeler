@@ -75,6 +75,9 @@ struct ConsoleView: View {
     @State private var isShowingHostsSheet = false
     @State private var isShowingSettingsSheet = false
     @State private var isShowingAllArcProjects = false
+    /// The project tile whose long press asked to rename its Workspace.
+    @State private var arcRenamingProject: ArcProjectGroup.Project?
+    @State private var arcNewTerminalFailure: String?
     /// A Host added in Settings, or one whose Host Helper Settings opens,
     /// waits for that sheet to close before the Hosts sheet can present
     /// onboarding and its trust alert.
@@ -362,6 +365,26 @@ struct ConsoleView: View {
             AirBuildAllProjectsView(
                 groups: arcProjectGroups, selected: arcSelectedProjectID,
                 onSelect: { arcSelect($0) })
+        }
+        .sheet(item: $arcRenamingProject) { project in
+            RenameSheetView(
+                title: String(localized: "Rename Workspace"),
+                store: RenameStore.workspace(currentLabel: project.label) { [console] label in
+                    try await console.renameWorkspace(
+                        project.id.workspaceID, label: label, on: project.id.hostID)
+                })
+            .modifier(ConsoleSheetPresentationModifier(
+                presentation: ConsoleSheetPresentation(horizontalSizeClass: horizontalSizeClass)))
+        }
+        .alert(
+            "Couldn't Open Terminal",
+            isPresented: Binding(
+                get: { arcNewTerminalFailure != nil },
+                set: { if !$0 { arcNewTerminalFailure = nil } })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(arcNewTerminalFailure ?? "")
         }
         // Progress beside a sidebar; a project picked there opens in it.
         .sheet(isPresented: $isShowingProgressSheet, onDismiss: { progressSheetPath = [] }) {
@@ -1997,7 +2020,8 @@ struct ConsoleView: View {
                         arcSelect(id)
                         agentSearchText = ""
                         isAgentSearchPresented = false
-                    })
+                    },
+                    actions: { arcProjectActions($0) })
                     .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 12, trailing: 0))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -2013,11 +2037,13 @@ struct ConsoleView: View {
             }
         } else {
             if foldedHome {
-                // The bar's title is gone with its buttons; the brand leads the page, as AirBuild's does.
-                Text(verbatim: "Heeler")
-                    .font(.system(size: 26, weight: .bold))
-                    .accessibilityAddTraits(.isHeader)
-                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 0))
+                // No brand title: the grid leads the page. The pages' last tile opens
+                // the same list; this one needs no swiping to find.
+                Button("Show All") { isShowingAllArcProjects = true }
+                    .font(.system(size: 15, weight: .semibold))
+                    .buttonStyle(.borderless)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .selectionDisabled()
@@ -2026,7 +2052,8 @@ struct ConsoleView: View {
                 projects: arcProjectGroups.flatMap(\.projects),
                 selected: arcSelectedProjectID,
                 onSelect: { arcSelect($0) },
-                onShowAll: { isShowingAllArcProjects = true })
+                onShowAll: { isShowingAllArcProjects = true },
+                actions: { arcProjectActions($0) })
                 .listRowInsets(EdgeInsets(top: usesSidebarNavigation || foldedHome ? 8 : 44, leading: 0, bottom: 12, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -2738,13 +2765,54 @@ struct ConsoleView: View {
         for project: ArcProjectGroup.Project
     ) -> StartAgentStore.LaunchOrigin? {
         guard console.capabilities(for: project.id.hostID).startsAgents else { return nil }
+        return StartAgentStore.LaunchOrigin(
+            hostID: project.id.hostID, workspaceID: project.id.workspaceID,
+            cwd: arcProjectDirectory(project))
+    }
+
+    private func arcProjectDirectory(_ project: ArcProjectGroup.Project) -> String {
         let workspace = console.workspaces(for: project.id.hostID)
             .first { $0.id == project.id.workspaceID }
         let asked = project.agents.first?.agent.cwd ?? workspace?.checkoutPath ?? ""
-        return StartAgentStore.LaunchOrigin(
-            hostID: project.id.hostID, workspaceID: project.id.workspaceID,
-            cwd: console.launchDirectory(
-                ofWorkspace: project.id.workspaceID, asked: asked, on: project.id.hostID))
+        return console.launchDirectory(
+            ofWorkspace: project.id.workspaceID, asked: asked, on: project.id.hostID)
+    }
+
+    /// A project tile's long press: what its page offers, without opening it first.
+    private func arcProjectActions(_ project: ArcProjectGroup.Project) -> AirBuildProjectActions {
+        let hostID = project.id.hostID
+        let capabilities = console.capabilities(for: hostID)
+        let directory = arcProjectDirectory(project)
+        var actions = AirBuildProjectActions()
+        if let origin = arcNewAgentOrigin(for: project) {
+            actions.newAgent = { startAgentRequest = StartAgentRequest(origin: origin) }
+        }
+        if let request = capabilities.newTerminalRequest(
+            workspaceID: project.id.workspaceID, cwd: directory) {
+            actions.newTerminal = {
+                Task { @MainActor in
+                    do {
+                        let identity = try await console.createShellTerminal(request, on: hostID)
+                        guard let terminal = await console.waitForTerminal(identity, on: hostID) else {
+                            arcNewTerminalFailure = String(
+                                localized: "The terminal was created, but its Workspace hasn't refreshed yet.")
+                            return
+                        }
+                        arcSelect(project.id)
+                        openTerminal(terminal, from: .agents, bySidebar: true)
+                    } catch {
+                        arcNewTerminalFailure = AgentOpenTerminalStore.presentation(for: error).message
+                    }
+                }
+            }
+        }
+        if capabilities.renameWorkspace(id: project.id.workspaceID) {
+            actions.rename = { arcRenamingProject = project }
+        }
+        if !directory.isEmpty {
+            actions.copyPath = { UIPasteboard.general.string = directory }
+        }
+        return actions
     }
 
     /// Where previous and next can land.

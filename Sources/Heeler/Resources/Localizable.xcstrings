@@ -20093,6 +20093,22 @@
         }
       }
     },
+    "Home Grid" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホームのグリッド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主页网格"
+          }
+        }
+      }
+    },
     "Hosts" : {
       "localizations" : {
         "ja" : {

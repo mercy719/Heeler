@@ -25,6 +25,18 @@ enum AirBuildProjectLayout {
         max(1, Int(width / 100))
     }
 
+    /// The folded home's grid, N × N, as Settings sets it.
+    static let homeGridKey = "arc.home-grid"
+    static let homeGridChoices = [3, 4, 5]
+
+    /// The largest tile `columns` fit across `width`, its label and the gaps
+    /// included, never bigger than the 3 × 3 tile.
+    static func tileSize(columns: Int, width: CGFloat) -> CGFloat {
+        guard width > 0, columns > 0 else { return 84 }
+        let cell = (width - CGFloat(columns - 1) * 8) / CGFloat(columns)
+        return min(84, max(36, cell - 14))
+    }
+
     static func badge(for project: ArcProjectGroup.Project) -> Badge? {
         let blocked = project.statuses.count { $0 == .blocked }
         if blocked > 0 { return .blocked(blocked) }
@@ -58,22 +70,34 @@ enum AirBuildProjectLayout {
     }
 }
 
+/// What a long press on a project tile offers, most used first; nil leaves
+/// an item out where the Host can't do it.
+struct AirBuildProjectActions {
+    var newAgent: (() -> Void)?
+    var newTerminal: (() -> Void)?
+    var rename: (() -> Void)?
+    var copyPath: (() -> Void)?
+}
+
 struct AirBuildProjectGrid: View {
     let projects: [ArcProjectGroup.Project]
     let selected: ConsoleWorkspaceSection.ID?
     var limitsToTwoRows = true
     let onSelect: (ConsoleWorkspaceSection.ID) -> Void
     var onShowAll: (() -> Void)?
+    var actions: ((ArcProjectGroup.Project) -> AirBuildProjectActions)?
 
     @State private var width: CGFloat = 0
     @Environment(\.isSidebarColumn) private var isSidebarColumn
+    @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
 
-    private var columns: Int { AirBuildProjectLayout.columns(for: width) }
-    /// Three rows like a home screen when folded; two beside the detail, where
-    /// the conversations below need the room.
-    private var rows: Int { isSidebarColumn ? 2 : 3 }
-    /// The tile's square; the home screen has the room for a bigger one.
-    private var tileSize: CGFloat { isSidebarColumn ? 62 : 84 }
+    /// The folded home's own N × N; beside the detail, as many as fit in two
+    /// rows, where the conversations below need the room.
+    private var columns: Int { isSidebarColumn ? AirBuildProjectLayout.columns(for: width) : homeGrid }
+    private var rows: Int { isSidebarColumn ? 2 : homeGrid }
+    private var tileSize: CGFloat {
+        isSidebarColumn ? 62 : AirBuildProjectLayout.tileSize(columns: homeGrid, width: width)
+    }
     private var rowHeight: CGFloat { tileSize + 30 }
     private static let pageTopInset: CGFloat = 8
 
@@ -119,7 +143,8 @@ struct AirBuildProjectGrid: View {
                     switch slot {
                     case .project(let project):
                         AirBuildProjectTile(
-                            project: project, isSelected: project.id == selected, size: tileSize
+                            project: project, isSelected: project.id == selected, size: tileSize,
+                            actions: actions?(project)
                         ) { onSelect(project.id) }
                     case .all(let count):
                         Button {
@@ -158,6 +183,7 @@ private struct AirBuildProjectTile: View {
     let project: ArcProjectGroup.Project
     let isSelected: Bool
     var size: CGFloat = 62
+    var actions: AirBuildProjectActions?
     /// The badge's ring cuts it from the tile against the page behind.
     private let background = Color(uiColor: .systemBackground)
     let action: () -> Void
@@ -190,6 +216,20 @@ private struct AirBuildProjectTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if let newAgent = actions?.newAgent {
+                Button("New Agent", systemImage: "plus", action: newAgent)
+            }
+            if let newTerminal = actions?.newTerminal {
+                Button("New Terminal", systemImage: "apple.terminal", action: newTerminal)
+            }
+            if let rename = actions?.rename {
+                Button("Rename", systemImage: "pencil", action: rename)
+            }
+            if let copyPath = actions?.copyPath {
+                Button("Copy Path", systemImage: "doc.on.doc", action: copyPath)
+            }
+        }
         .accessibilityLabel(Text(verbatim: accessibilityText))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

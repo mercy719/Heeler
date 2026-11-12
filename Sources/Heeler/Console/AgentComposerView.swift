@@ -635,9 +635,8 @@ struct AgentComposerView: View {
             .accessibilityElement(children: .contain)
             .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             if isCollapsed || airBuildStyle {
-                if !airBuildStyle || (store.outgoingDraft.isEmpty && primaryControl != .stop) || isVoiceBarShown {
-                    voiceButton
-                }
+                // Beside Send, as WeChat keeps it: a draft or an image can still take dictation.
+                voiceButton
                 if !airBuildStyle || !store.outgoingDraft.isEmpty || primaryControl == .stop {
                     primaryButton
                         .modifier(ComposerVoiceCover(isCovered: isVoiceBarShown))
@@ -797,7 +796,9 @@ struct AgentComposerView: View {
     private var voiceButton: some View {
         if let voiceInput, inputMode == .composer {
             ComposerVoiceButton(
-                voice: store.voice, tint: airBuildStyle ? .accentColor : secondaryActionTint,
+                // One filled accent at a time: Send takes it once there is something to send.
+                voice: store.voice,
+                tint: airBuildStyle && store.outgoingDraft.isEmpty ? .accentColor : secondaryActionTint,
                 compact: airBuildStyle,
                 openSettings: { isVoiceSetupPresented = true }
             ) {

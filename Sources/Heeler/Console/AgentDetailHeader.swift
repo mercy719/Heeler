@@ -557,6 +557,12 @@ private struct AirBuildHomeBarControls: ToolbarContent {
         }
         .axisBehavior(.verticalPreferred)
         ToolbarSpacer(.flexible, placement: .primaryAction)
+        // The computers and their latency, one tap from home.
+        ToolbarItem(placement: .primaryAction) {
+            Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+                .tint(nil)
+        }
+        .axisBehavior(.verticalPreferred)
         ToolbarItem(placement: .primaryAction) {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,

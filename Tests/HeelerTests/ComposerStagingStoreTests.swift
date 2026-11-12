@@ -21,18 +21,14 @@ struct ComposerStagingStoreTests {
                     ComposerStagingStore.Outcome(
                         medium: medium.storeMedium,
                         path: path,
-                        copied: true)))
+                        copied: true,
+                        attached: true)))
         #expect(fixture.sideEffects.events == [.copied(path), .inserted("\(path) ")])
         #expect(fixture.composer.draft == "\(path) ")
         #expect(!fixture.preparedFileExists(for: medium))
         #expect(await fixture.stageRequestCount(for: medium) == 1)
-        #expect(
-            fixture.store.presentation
-                == ComposerStagingStore.Presentation(
-                    icon: "checkmark.circle",
-                    title: "\(medium.displayName) attached; path copied.",
-                    accessibilityLabel: "\(medium.displayName) attached; path copied.",
-                    commands: [.dismiss]))
+        // The tile that appears is the confirmation; no line repeats it.
+        #expect(fixture.store.presentation == nil)
     }
 
     @Test func pickerBeginStillInsertsAndPublishesTheSameOperation() async throws {
@@ -441,7 +437,7 @@ struct ComposerStagingStoreTests {
         #expect(fixture.clipboard.copiedPaths == [path])
         #expect(fixture.composer.draft == "\(path) ")
         #expect(await fixture.stageRequestCount(for: medium) == 1)
-        #expect(fixture.store.presentation?.commands == [.dismiss])
+        #expect(fixture.store.presentation == nil)
     }
 
     @Test(arguments: StagingTestMedium.allCases)
@@ -549,7 +545,7 @@ struct ComposerStagingStoreTests {
             completedFixture.store.state.isCompleted
         }
         #expect(completedFixture.store.state.outcome?.medium == .image)
-        #expect(completedFixture.store.presentation?.commands == [.dismiss])
+        #expect(completedFixture.store.presentation == nil)
 
         completedFixture.begin(.file)
 

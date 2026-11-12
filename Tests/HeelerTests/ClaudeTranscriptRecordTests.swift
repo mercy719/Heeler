@@ -1081,6 +1081,15 @@ struct ArcProjectTests {
         #expect(AirBuildProjectLayout.columns(for: 380) == 3)
     }
 
+    @Test("The home grid's tiles shrink to fit 4 × 4 and 5 × 5, never past 3 × 3's")
+    func airBuildHomeGridTileSize() {
+        #expect(AirBuildProjectLayout.tileSize(columns: 3, width: 350) == 84)
+        let four = AirBuildProjectLayout.tileSize(columns: 4, width: 350)
+        let five = AirBuildProjectLayout.tileSize(columns: 5, width: 350)
+        #expect(four < 84 && five < four && five >= 36)
+        #expect(AirBuildProjectLayout.tileSize(columns: 5, width: 0) == 84)
+    }
+
     @Test("AirBuild pages projects and adds All only past one page")
     func airBuildAllSlotCondition() {
         let host = Host.fixture(name: "alpha")
