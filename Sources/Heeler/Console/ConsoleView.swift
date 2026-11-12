@@ -1440,7 +1440,7 @@ struct ConsoleView: View {
             if !usesSidebarNavigation || !detailHasGlobalBar {
                 HStack(spacing: 8) {
                     AirBuildGlassCapsule {
-                        AirBuildIconButton(systemImage: "cloud", label: ConsoleTab.hosts.title) {
+                        AirBuildIconButton(systemImage: "desktopcomputer", label: ConsoleTab.hosts.title) {
                             showHosts()
                         }
                     }

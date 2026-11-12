@@ -498,9 +498,10 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
     let surfaceSwitch: AgentDetailSurfaceSwitch?
     @Binding var workspacePresented: Bool
     let actions: AirBuildGlobalActions
-    /// The terminal's own More; Chat keeps its More on its top line, so passes none.
+    /// The terminal's own More; Chat passes its menu as `more` instead.
     var moreActions: [AgentDetailHeaderAction] = []
     var isMoreExpanded: Binding<Bool> = .constant(false)
+    var more: AnyView?
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -519,6 +520,12 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             .axisBehavior(.verticalPreferred)
             .visibilityPriority(.high)
         }
+        // Hosts above Settings, as on the home screen's bar.
+        ToolbarItem(placement: .primaryAction) {
+            Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+                .tint(nil)
+        }
+        .axisBehavior(.verticalPreferred)
         ToolbarItem(placement: .primaryAction) {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
@@ -526,7 +533,11 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
-        if !moreActions.isEmpty {
+        // More last on both surfaces, so a swap keeps every button where it was.
+        if let more {
+            ToolbarItem(placement: .primaryAction) { more.tint(nil) }
+                .axisBehavior(.verticalPreferred)
+        } else if !moreActions.isEmpty {
             ToolbarOverflowMenu {
                 AgentDetailHeaderMenuItems(actions: moreActions, isExpanded: isMoreExpanded)
             }
@@ -717,25 +728,13 @@ extension View {
         }
     }
 
-    /// Chat's More at the foot of the global side bar, where the terminal keeps its own.
-    func airBuildBarMore<More: View>(isVisible: Bool, @ViewBuilder more: () -> More) -> some View {
-        let more = more()
-        return toolbar {
-            #if compiler(>=6.4)
-            if #available(iOS 27.1, *), isVisible {
-                ToolbarItem(placement: .primaryAction) { more.tint(nil) }
-                    .axisBehavior(.verticalPreferred)
-            }
-            #endif
-        }
-    }
-
     /// Arc's global side bar, without adding the terminal header's horizontal controls to Chat.
     func airBuildGlobalBarControls(
         isVisible: Bool,
         surfaceSwitch: AgentDetailSurfaceSwitch?,
         workspace: Binding<Bool>?,
-        actions: AirBuildGlobalActions?
+        actions: AirBuildGlobalActions?,
+        more: AnyView? = nil
     ) -> some View {
         toolbar {
             #if compiler(>=6.4)
@@ -745,7 +744,8 @@ extension View {
                 AirBuildGlobalBarControls(
                     surfaceSwitch: surfaceSwitch,
                     workspacePresented: workspace,
-                    actions: actions)
+                    actions: actions,
+                    more: more)
             }
             #endif
         }

@@ -595,8 +595,9 @@ struct AgentChatSurfaceView: View {
             isVisible: globalBarShows,
             surfaceSwitch: terminalSurfaceSwitch,
             workspace: airBuildWorkspacePresented,
-            actions: airBuildGlobalActions)
-        .airBuildBarMore(isVisible: globalBarShows) { airBuildHeader(mode: .barMore) }
+            actions: airBuildGlobalActions,
+            // In the same group as the others: a toolbar of its own put it first.
+            more: AnyView(airBuildHeader(mode: .barMore)))
         .airBuildFoldedBarControls(
             isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch
         ) {
