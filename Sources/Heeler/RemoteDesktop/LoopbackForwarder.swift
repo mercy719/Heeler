@@ -60,6 +60,11 @@ final class LoopbackForwarder: Sendable {
         let resumed = Mutex(false)
         return try await withCheckedThrowingContinuation { continuation in
             listener.stateUpdateHandler = { state in
+                // Only an answer spends the one resume; .setup and .waiting pass.
+                switch state {
+                case .ready, .failed, .cancelled: break
+                default: return
+                }
                 let first = resumed.withLock { resumed -> Bool in
                     guard !resumed else { return false }
                     resumed = true
