@@ -1128,7 +1128,8 @@ struct ConsoleView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: tab == .terminals ? String(localized: "Search Terminals") : String(localized: "Search Agents"))
             .searchFocused($focusedSearch, equals: tab)
-            .sidebarSearchDrawer(following: tab, isDisabled: listPresentation.mode == .arc)
+            // Arc too: search waits under a pull, as on the folded home.
+            .sidebarSearchDrawer(following: tab)
             // The title's list menu opens from here rather than from the
             // title: anything a bar item presents folds back onto the item's
             // frame, which lingers as a rectangle around a bare title for
@@ -1962,7 +1963,7 @@ struct ConsoleView: View {
             .modifier(ConsoleSidebarListTint())
             .modifier(AirBuildScrollEdgeEffectStyle(isEnabled: listPresentation.mode == .arc))
             // Folded, the title leads the page and search waits under a pull, as on the home screen.
-            .searchDrawerStartsTucked(isDisabled: listPresentation.mode == .arc && !foldedHome)
+            .searchDrawerStartsTucked()
         }
     }
 
@@ -2036,16 +2037,24 @@ struct ConsoleView: View {
                 }
             }
         } else {
-            // No brand title: the grid leads the page. The pages' last tile opens
-            // the same list; this one needs no swiping to find, in every layout.
-            Button("Show All") { isShowingAllArcProjects = true }
-                .font(.system(size: 15, weight: .semibold))
-                .buttonStyle(.borderless)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .selectionDisabled()
+            // The grid's own header: how many, and the way to all of them
+            // without swiping to the last page's tile.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Projects")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(verbatim: "\(arcProjectGroups.reduce(0) { $0 + $1.projects.count })")
+                    .font(.system(size: 15, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button("Show All") { isShowingAllArcProjects = true }
+                    .font(.system(size: 15, weight: .medium))
+                    .buttonStyle(.borderless)
+            }
+            .accessibilityElement(children: .contain)
+            .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 0, trailing: 18))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .selectionDisabled()
             AirBuildProjectGrid(
                 projects: arcProjectGroups.flatMap(\.projects),
                 selected: arcSelectedProjectID,
