@@ -415,6 +415,174 @@ struct ConsoleStoreTests {
         #expect(!ConsoleStore.chatPrefetchRetries(after: 0, phase: .following(path: "/p.jsonl")))
     }
 
+    /// A Chat the user opened on a working Agent is read again in the
+    /// background, so returning to it shows the turn's latest without an
+    /// open Chat's first reads.
+    @Test func aWorkingChatOpenedBeforeKeepsReadingInTheBackground() async throws {
+        let host = Host.fixture()
+        let sessionID = "e951205e-24af-4a5e-baa7-3ccbebd2de2c"
+        let session = AgentSessionInfo(
+            agent: "claude", kind: .id, source: "herdr:claude", value: sessionID)
+        let info = AgentInfo(
+            agentStatus: .working, focused: false, paneID: "w1:p1", revision: 1,
+            tabID: "t1", terminalID: "term-1", workspaceID: "w1", agent: "claude",
+            agentSession: session, cwd: "/home/dev/proj")
+        let transport = ScriptedTransport(snapshot: .fixture(agents: [info]))
+        let files = VirtualHostFiles()
+        await files.write(
+            NumberedChatReducer.lines(0..<3),
+            at: "/home/dev/.claude/projects/-home-dev-proj/\(sessionID).jsonl")
+        await transport.scriptChat(files: files.hostFiles(), agent: Agent(info))
+        let store = ConsoleStore(
+            snapshotRetryDelay: .milliseconds(10),
+            chatWarmInterval: .milliseconds(20), chatWarmDefaults: Self.warmDefaults(),
+            makeSession: { _, subscriptions in
+                EventsSession(
+                    subscriptions: subscriptions, connect: { transport },
+                    reconnectPolicy: Self.fastPolicy, keepalive: nil)
+            }, chatAdapter: { _ in NumberedChatReducer.adapter() })
+        defer { store.setHosts([]) }
+
+        store.setHosts([host])
+        await store.resume()
+        try await waitUntil("the connect prefetch") { await transport.chatAgentReads.count >= 1 }
+        let baseline = await transport.chatAgentReads.count
+        store.noteChatOpened(ConsoleAgent.ID(hostID: host.id, paneID: "w1:p1"))
+        try await waitUntil("three more background reads") {
+            await transport.chatAgentReads.count >= baseline + 3
+        }
+        await store.suspend()
+    }
+
+    /// Idle Chats already get a prefetch per status; the warm loop adds none.
+    @Test func anIdleChatOpenedBeforeIsNotPolled() async throws {
+        let host = Host.fixture()
+        let sessionID = "e951205e-24af-4a5e-baa7-3ccbebd2de2c"
+        let info = AgentInfo(
+            agentStatus: .idle, focused: false, paneID: "w1:p1", revision: 1,
+            tabID: "t1", terminalID: "term-1", workspaceID: "w1", agent: "claude",
+            agentSession: AgentSessionInfo(
+                agent: "claude", kind: .id, source: "herdr:claude", value: sessionID),
+            cwd: "/home/dev/proj")
+        let transport = ScriptedTransport(snapshot: .fixture(agents: [info]))
+        let files = VirtualHostFiles()
+        await files.write(
+            NumberedChatReducer.lines(0..<3),
+            at: "/home/dev/.claude/projects/-home-dev-proj/\(sessionID).jsonl")
+        await transport.scriptChat(files: files.hostFiles(), agent: Agent(info))
+        let store = ConsoleStore(
+            snapshotRetryDelay: .milliseconds(10),
+            chatWarmInterval: .milliseconds(20), chatWarmDefaults: Self.warmDefaults(),
+            makeSession: { _, subscriptions in
+                EventsSession(
+                    subscriptions: subscriptions, connect: { transport },
+                    reconnectPolicy: Self.fastPolicy, keepalive: nil)
+            }, chatAdapter: { _ in NumberedChatReducer.adapter() })
+        defer { store.setHosts([]) }
+
+        store.setHosts([host])
+        await store.resume()
+        try await waitUntil("the connect prefetch") { await transport.chatAgentReads.count >= 1 }
+        let baseline = await transport.chatAgentReads.count
+        store.noteChatOpened(ConsoleAgent.ID(hostID: host.id, paneID: "w1:p1"))
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await transport.chatAgentReads.count == baseline, "idle is left to the status prefetch")
+
+        // The same Chat working is the warm loop's: it proves the silence
+        // above was about the status, not about warming never starting.
+        await transport.setSnapshot(.fixture(agents: [AgentInfo(
+            agentStatus: .working, focused: false, paneID: "w1:p1", revision: 2,
+            tabID: "t1", terminalID: "term-1", workspaceID: "w1", agent: "claude",
+            agentSession: AgentSessionInfo(
+                agent: "claude", kind: .id, source: "herdr:claude", value: sessionID),
+            cwd: "/home/dev/proj")]))
+        try await waitUntil("the status event lands") {
+            _ = await transport.emit(.agentStatusChanged(paneID: "w1:p1", status: .working))
+            return store.agents.first?.agent.status == .working
+        }
+        try await waitUntil("working reads again") { await transport.chatAgentReads.count > baseline + 1 }
+        await store.suspend()
+    }
+
+    @Test func goingInactiveStopsTheWarmReads() async throws {
+        let host = Host.fixture()
+        let sessionID = "e951205e-24af-4a5e-baa7-3ccbebd2de2c"
+        let info = AgentInfo(
+            agentStatus: .working, focused: false, paneID: "w1:p1", revision: 1,
+            tabID: "t1", terminalID: "term-1", workspaceID: "w1", agent: "claude",
+            agentSession: AgentSessionInfo(
+                agent: "claude", kind: .id, source: "herdr:claude", value: sessionID),
+            cwd: "/home/dev/proj")
+        let transport = ScriptedTransport(snapshot: .fixture(agents: [info]))
+        let files = VirtualHostFiles()
+        await files.write(
+            NumberedChatReducer.lines(0..<3),
+            at: "/home/dev/.claude/projects/-home-dev-proj/\(sessionID).jsonl")
+        await transport.scriptChat(files: files.hostFiles(), agent: Agent(info))
+        let store = ConsoleStore(
+            snapshotRetryDelay: .milliseconds(10),
+            chatWarmInterval: .milliseconds(20), chatWarmDefaults: Self.warmDefaults(),
+            makeSession: { _, subscriptions in
+                EventsSession(
+                    subscriptions: subscriptions, connect: { transport },
+                    reconnectPolicy: Self.fastPolicy, keepalive: nil)
+            }, chatAdapter: { _ in NumberedChatReducer.adapter() })
+        defer { store.setHosts([]) }
+
+        store.setHosts([host])
+        await store.resume()
+        store.noteChatOpened(ConsoleAgent.ID(hostID: host.id, paneID: "w1:p1"))
+        try await waitUntil("the warm reads start") {
+            await transport.chatAgentReads.count >= 2
+        }
+        await store.suspend()
+        // The suspend's teardown may finish one read; nothing follows it.
+        try await Task.sleep(for: .milliseconds(60))
+        let whileInactive = await transport.chatAgentReads.count
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await transport.chatAgentReads.count == whileInactive)
+
+        await store.resume()
+        try await waitUntil("the warm reads come back") {
+            await transport.chatAgentReads.count > whileInactive
+        }
+        await store.suspend()
+    }
+
+    /// Nine Chats opened: the first opened is out, and the rest survive a
+    /// relaunch through the same defaults.
+    @Test func theRecentlyOpenedChatsCapAtEightAndSurviveARelaunch() async throws {
+        let host = Host.fixture()
+        let defaults = Self.warmDefaults()
+        func makeStore() -> ConsoleStore {
+            ConsoleStore(
+                snapshotRetryDelay: .milliseconds(10), chatWarmDefaults: defaults,
+                makeSession: { _, subscriptions in
+                    EventsSession(
+                        subscriptions: subscriptions,
+                        connect: { throw TransportError.sshUnreachable(detail: "unscripted host") },
+                        keepalive: nil)
+                })
+        }
+        let store = makeStore()
+        defer { store.setHosts([]) }
+        let ids = (1...9).map { ConsoleAgent.ID(hostID: host.id, paneID: "w1:p\($0)") }
+        for id in ids { store.noteChatOpened(id) }
+
+        #expect(store.chatWarmAgents == Array(ids.dropFirst()))
+        #expect(store.chatWarmAgents.count == ConsoleStore.chatWarmLimit)
+
+        let relaunched = makeStore()
+        defer { relaunched.setHosts([]) }
+        #expect(relaunched.chatWarmAgents == Array(ids.dropFirst()))
+    }
+
+    /// An isolated defaults suite, so one test's opened Chats never warm
+    /// another's.
+    private static func warmDefaults() -> UserDefaults {
+        UserDefaults(suiteName: "hm-console-warm-\(UUID().uuidString)") ?? .standard
+    }
+
     @Test func aStatusChangeRearmsAStoppedPrefetch() async throws {
         let host = Host.fixture()
         let session = AgentSessionInfo(

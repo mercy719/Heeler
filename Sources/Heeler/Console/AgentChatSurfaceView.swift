@@ -434,6 +434,8 @@ struct AgentChatSurfaceView: View {
                 // its tools dock.
                 prepareComposerKeyboardPresentation(composerKeyboardPresentation)
                 chat?.show(viewerID)
+                // Warm its conversation in the background from now on.
+                console.noteChatOpened(agent.id)
             }
             // The dissolve waits for the list's first positioned layout;
             // anything else is in place as it appears.

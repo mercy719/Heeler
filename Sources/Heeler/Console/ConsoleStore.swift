@@ -148,6 +148,18 @@ final class ConsoleStore {
     @ObservationIgnored private let connectCore: @Sendable (Host) async throws -> any HerdrCoreTransport
     @ObservationIgnored private let snapshotRetryDelay: Duration
     @ObservationIgnored private let chatPrefetchRetryDelay: Duration
+    /// How often a working Chat the user opened recently is read again while
+    /// Chat is hidden, so opening it shows what the Agent has said since.
+    @ObservationIgnored private let chatWarmInterval: Duration
+    /// Chats opened recently, oldest first, capped at `chatWarmLimit`. Saved
+    /// as `"<host UUID>:<pane>"` so warming picks up after a relaunch where
+    /// the user left off.
+    @ObservationIgnored private(set) var chatWarmAgents: [ConsoleAgent.ID]
+    @ObservationIgnored private let chatWarmDefaults: UserDefaults
+    /// One warm loop per Host, so a slow read delays only its own Host.
+    @ObservationIgnored private var chatWarmTasks: [Host.ID: (id: UUID, task: Task<Void, Never>)] = [:]
+    private static let chatWarmDefaultsKey = "chat-warm-agents"
+    static let chatWarmLimit = 8
     @ObservationIgnored private var isActive = false
     /// The most recently enqueued lifecycle transition. Suspend and resume
     /// are each several awaits long, so without a chain a resume racing a
@@ -209,6 +221,8 @@ final class ConsoleStore {
     init(
         snapshotRetryDelay: Duration = .seconds(2),
         chatPrefetchRetryDelay: Duration = .seconds(5),
+        chatWarmInterval: Duration = .seconds(5),
+        chatWarmDefaults: UserDefaults = .standard,
         pins: PinnedAgentsStore = PinnedAgentsStore(),
         rowLayouts: AgentRowLayoutStore = AgentRowLayoutStore(),
         chatCache: any ChatTranscriptCache = VolatileChatTranscriptCache(),
@@ -257,6 +271,14 @@ final class ConsoleStore {
         agentTerminals = AgentTerminalCache(budget: terminalBudget)
         self.snapshotRetryDelay = snapshotRetryDelay
         self.chatPrefetchRetryDelay = chatPrefetchRetryDelay
+        self.chatWarmInterval = chatWarmInterval
+        self.chatWarmDefaults = chatWarmDefaults
+        chatWarmAgents = (chatWarmDefaults.stringArray(forKey: Self.chatWarmDefaultsKey) ?? [])
+            .compactMap { entry in
+                let parts = entry.split(separator: ":", maxSplits: 1)
+                guard parts.count == 2, let hostID = UUID(uuidString: String(parts[0])) else { return nil }
+                return ConsoleAgent.ID(hostID: hostID, paneID: String(parts[1]))
+            }
         self.pins = pins
         self.rowLayouts = rowLayouts
         self.makeSession = makeSession
@@ -358,6 +380,9 @@ final class ConsoleStore {
         await enqueueLifecycleTransition { [self] in
             isActive = true
             for store in chatStores.values { store.resume() }
+            // After the resume: a warm read is a prefetch, which a suspended
+            // Chat refuses.
+            reconcileChatWarm()
             let projections = Array(self.projections.values)
             for projection in projections {
                 await projection.resume()
@@ -392,6 +417,8 @@ final class ConsoleStore {
     func suspend() async {
         await enqueueLifecycleTransition { [self] in
             isActive = false
+            for warm in chatWarmTasks.values { warm.task.cancel() }
+            chatWarmTasks.removeAll()
             for refresh in widgetUsageRefreshes.values { refresh.task.cancel() }
             widgetUsageRefreshes.removeAll()
             for store in chatStores.values { store.suspend() }
@@ -2332,6 +2359,7 @@ final class ConsoleStore {
                 reconcileChatCache()
             }
         }
+        reconcileChatWarm()
     }
 
     /// Whether a prefetch that ended in `phase` looks again in a while: the
@@ -2355,6 +2383,76 @@ final class ConsoleStore {
 
     private func chatPrefetchKey(_ agent: ConsoleAgent, generation: UInt64) -> String {
         "\(generation):\(agent.agent.terminalID):\(agent.agent.kind):\(agent.agent.status):\(agent.agent.agentSession?.value ?? "")"
+    }
+
+    /// The user opened this Agent's Chat: it joins the recently opened set
+    /// that the warm loop keeps current while the app is in front, oldest
+    /// out past ``chatWarmLimit``.
+    func noteChatOpened(_ id: ConsoleAgent.ID) {
+        chatWarmAgents.removeAll { $0 == id }
+        chatWarmAgents.append(id)
+        if chatWarmAgents.count > Self.chatWarmLimit {
+            chatWarmAgents.removeFirst(chatWarmAgents.count - Self.chatWarmLimit)
+        }
+        chatWarmDefaults.set(
+            chatWarmAgents.map { "\($0.hostID.uuidString):\($0.paneID)" },
+            forKey: Self.chatWarmDefaultsKey)
+        reconcileChatWarm()
+    }
+
+    /// Reads a recently opened Chat whose Agent is working again every
+    /// `chatWarmInterval`, so switching back to it shows what the turn has
+    /// said since instead of waiting for an open Chat's reads.
+    private func reconcileChatWarm() {
+        for hostID in Array(chatWarmTasks.keys) {
+            guard let projection = projections[hostID], !warmChats(on: projection).isEmpty else {
+                chatWarmTasks.removeValue(forKey: hostID)?.task.cancel()
+                continue
+            }
+        }
+        for projection in projections.values {
+            let hostID = projection.host.id
+            guard chatWarmTasks[hostID] == nil, !warmChats(on: projection).isEmpty else { continue }
+            let generation = projection.transportGeneration
+            let token = UUID()
+            let task = Task { [weak self, weak projection] in
+                guard let self, let projection else { return }
+                while !Task.isCancelled, self.isActive, self.projections[hostID] === projection,
+                    projection.status == .connected, !projection.isAwaitingSnapshot,
+                    projection.transportGeneration == generation
+                {
+                    for agent in self.warmChats(on: projection) {
+                        guard let program = ChatProgram(rawValue: agent.agent.kind),
+                            let chat = self.chatStore(for: agent, program: program) else { continue }
+                        // A Chat on screen reads on its own; prefetch says so.
+                        _ = await chat.prefetch()
+                        guard !Task.isCancelled else { return }
+                    }
+                    try? await Task.sleep(for: self.chatWarmInterval)
+                }
+                guard !Task.isCancelled, self.chatWarmTasks[hostID]?.id == token else { return }
+                self.chatWarmTasks[hostID] = nil
+                self.reconcileChatWarm()
+            }
+            chatWarmTasks[hostID] = (token, task)
+        }
+    }
+
+    /// Recently opened Chats working now on a Host ready to read. Idle and
+    /// blocked ones are left to the by-status prefetch, and a conversation
+    /// read by query would cost an exec a look (ADR 0025).
+    private func warmChats(on projection: any ConsoleHostProjection) -> [ConsoleAgent] {
+        guard isActive, projection.host.capabilities.chat, projection.status == .connected,
+            !projection.isAwaitingSnapshot, hostPlatforms[projection.host.id] == .posix
+        else { return [] }
+        return chatWarmAgents.compactMap { id in
+            guard id.hostID == projection.host.id, let agent = projection.agentsByPane[id.paneID],
+                agent.agent.status == .working,
+                AgentChatAvailability.mayOfferChat(for: agent.agent, hasAdapter: { chatAdapter($0) != nil }),
+                ChatProgram(rawValue: agent.agent.kind).flatMap(chatAdapter)?.readsByQuery != true
+            else { return nil }
+            return agent
+        }
     }
 
     /// Hands each Chat its Agent's latest record, and ends the Chats of

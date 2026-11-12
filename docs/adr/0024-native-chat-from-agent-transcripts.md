@@ -789,7 +789,11 @@ no Attach at all.
   when the Agent's status changes; OpenCode's, which would cost an exec each
   time, is read only by an open Chat. A missing one is looked for a few times,
   then not again until the Agent's status or session changes or the Host
-  reconnects; an open Chat keeps looking on its own.
+  reconnects; an open Chat keeps looking on its own. The eight Chats the user
+  opened most recently are read again every five seconds while their Agent
+  is working and the app is in front, so coming back to one shows the turn's
+  latest instead of what the connect left; idle and blocked ones keep to the
+  by-status read.
 - Stop interrupts the running turn, unlike the Blocked card's Stop, which
   answers a dialog and leaves a Stopped row. Codex 0.162.1 records a Chat
   send during a turn at once, as a steer, so Esc only aborts the turn and the
