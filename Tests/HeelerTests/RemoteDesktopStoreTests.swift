@@ -277,9 +277,12 @@ struct RemoteDesktopStoreTests {
         #expect(RemoteDesktopTyped.change(before: "", after: "a") == (0, "a"))
         // The phone's keyboard can replace every character at once.
         #expect(RemoteDesktopTyped.change(before: "cat", after: "dog") == (3, "dog"))
-        // An emoji is one Character, not two code points.
-        #expect(RemoteDesktopTyped.change(before: "", after: "🙂") == (0, "🙂"))
-        #expect(RemoteDesktopTyped.change(before: "🙂", after: "") == (1, ""))
+        // A Mac gets only what a US keyboard types: an emoji or a Chinese
+        // character is neither sent nor answered with a Backspace when deleted.
+        #expect(RemoteDesktopTyped.change(before: "", after: "🙂") == (0, ""))
+        #expect(RemoteDesktopTyped.change(before: "a🙂", after: "a") == (0, ""))
         #expect(RemoteDesktopTyped.change(before: "a🙂", after: "a🙂b") == (0, "b"))
+        #expect(RemoteDesktopTyped.change(before: "a你好", after: "a") == (0, ""))
+        #expect(RemoteDesktopTyped.change(before: "ls", after: "ls\n") == (0, "\n"))
     }
 }

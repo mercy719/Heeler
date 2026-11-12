@@ -216,6 +216,8 @@ final class RemoteDesktopStore {
 
     /// Starts a link. Idempotent while one is starting or running: the one
     /// that is already under way owns `runID`.
+    @ObservationIgnored private var stopTask: Task<Void, Never>?
+
     func start() {
         guard session == nil, !isStarting else { return }
         runID += 1
@@ -224,7 +226,12 @@ final class RemoteDesktopStore {
         sawFirstFrame = false
         clearPage()
         state = .connecting(step: 1)
-        Task { await connect(id: id) }
+        // A Host session still closing would tear down this one's processes.
+        let previous = stopTask
+        Task {
+            await previous?.value
+            await connect(id: id)
+        }
     }
 
     /// Idempotent: a second stop while the first is still closing does nothing.
@@ -233,7 +240,7 @@ final class RemoteDesktopStore {
         isStarting = false
         guard let session else { return }
         clearPage()
-        Task { await session.stop() }
+        stopTask = Task { await session.stop() }
     }
 
     /// The menu's Reconnect, and a quality change: the page loads again at the

@@ -24,8 +24,12 @@ out() { printf '%s\n' "$1"; }
 pj() { plutil -extract "$1" raw -o - "$2" 2>/dev/null; }   # 读 JSON 文件里的键
 num() { case "${1:-}" in ''|*[!0-9]*) echo 0 ;; *) echo "$1" ;; esac; }
 
+OWNER="$DIR/.session-owner"   # 当前会话的 PID：新会话起来后，旧会话迟到的收尾不许动新会话的进程
+owns() { [ "$(cat "$OWNER" 2>/dev/null)" = "$$" ]; }
+
 cleanup() {
   trap - EXIT INT TERM HUP
+  owns || { rm -rf "$WORK"; return; }
   [ -n "$WPID" ] && kill "$WPID" 2>/dev/null
   pkill -f "$ML/web-server" 2>/dev/null
   launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1
@@ -33,9 +37,12 @@ cleanup() {
   while [ $i -lt 100 ] && { pgrep -f "$ML/web-server" >/dev/null || pgrep -f "$SUN" >/dev/null; }; do
     sleep 0.1; i=$((i+1))
   done
-  # bootout 之后还有残留就按绝对路径收掉（只碰本套件自己的进程）。
-  pkill -f "$SUN" 2>/dev/null
-  pkill -f "$ML/web-server" 2>/dev/null
+  # bootout 之后还有残留就按绝对路径收掉（只碰本套件自己的进程）；等待期间换了主人就不再动手。
+  if owns; then
+    pkill -f "$SUN" 2>/dev/null
+    pkill -f "$ML/web-server" 2>/dev/null
+    rm -f "$OWNER"
+  fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -83,6 +90,7 @@ start() {
   sunc() { curl -sk --max-time "${1}" -K "$WORK/curlrc" "${@:2}"; }
 
   clear_leftovers
+  printf '%s\n' "$$" > "$OWNER"
   launchctl print "gui/$(id -u)" >/dev/null 2>&1 || fail noGuiSession "no Aqua session for this user"
   # Sunshine 在显示器睡着时起不来：先点亮（不需要密码，也不会解锁）。
   caffeinate -u -t 5 >/dev/null 2>&1 &

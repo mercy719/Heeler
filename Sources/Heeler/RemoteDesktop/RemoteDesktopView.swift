@@ -68,13 +68,20 @@ struct RemoteDesktopView: View {
         }
         .onChange(of: quality) { _, value in
             store.quality = value
-            isKeyboardShown = false
+            // The stream's size and rate are fixed when it starts.
+            if store.state == .connected { reconnect() } else { isKeyboardShown = false }
         }
         .onChange(of: touchMode) { _, value in
             store.touchMode = value
             page.call("touchMode", value.pageValue)
         }
-        .onChange(of: store.state) { _, value in if value != .connected { isKeyboardShown = false } }
+        .onChange(of: store.state) { _, value in
+            // A new page holds no keys, so none shows as held.
+            if value != .connected {
+                isKeyboardShown = false
+                modifiers.removeAll()
+            }
+        }
     }
 
     // MARK: Controls
@@ -323,8 +330,14 @@ enum RemoteDesktopModifier: String, Hashable, Sendable, CaseIterable {
 
     var pageCode: String { rawValue }
 
-    /// Its SF Symbol, which is the key's own name.
-    var symbolName: String { pageCode.replacingOccurrences(of: "Left", with: "").lowercased() }
+    var symbolName: String {
+        switch self {
+        case .control: "control"
+        case .option: "option"
+        case .command: "command"
+        case .shift: "shift"
+        }
+    }
 }
 
 extension View {
