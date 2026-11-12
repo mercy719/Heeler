@@ -14,6 +14,10 @@ struct AgentDirectInputChromeContext {
         /// Ghostty first-responder / tools intent for the switcher toggle glyph.
         let isKeyboardUp: Bool
         let isToolsKeyboardPresented: Bool
+        /// Arc's look, as Chat has it: the header's lamp is the status, and
+        /// other Agents are a Back away, so neither the status line nor the
+        /// Agent strip shows.
+        var airBuildStyle = false
     }
 
     struct Interactions {
@@ -57,11 +61,13 @@ struct AgentDirectInputChrome: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                AgentDetailStatusChrome(
-                    status: presentation.status,
-                    hostTelemetry: presentation.hostTelemetry,
-                    changes: presentation.changes,
-                    chromeColorScheme: presentation.chromeColorScheme)
+                if !presentation.airBuildStyle {
+                    AgentDetailStatusChrome(
+                        status: presentation.status,
+                        hostTelemetry: presentation.hostTelemetry,
+                        changes: presentation.changes,
+                        chromeColorScheme: presentation.chromeColorScheme)
+                }
 
                 // Immediately above the Agent list/switcher strip. Keyboard
                 // show/hide stays on the switcher row — not duplicated here.
@@ -73,7 +79,8 @@ struct AgentDirectInputChrome: View {
                     toggleKeyboard: interactions.toggleKeyboard,
                     isToolsKeyboardPresented: presentation.isToolsKeyboardPresented,
                     switchKeyboard: interactions.switchKeyboard,
-                    modeControl: modeControl)
+                    modeControl: modeControl,
+                    showsAgents: !presentation.airBuildStyle)
             }
             .padding(.vertical, 8)
         }

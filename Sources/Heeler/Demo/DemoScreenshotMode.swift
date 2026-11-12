@@ -12,6 +12,12 @@
         static let hostProblemsArgument = "--demo-host-problems"
         /// Opens Agent details on Chat instead of the terminal.
         static let chatArgument = "--demo-chat"
+        /// Opens the selected project's first Agent at launch, for a screen that
+        /// has no way to tap one (the folded Duo's outer display).
+        static let openAgentArgument = "--demo-open-agent"
+        static var opensAgent: Bool {
+            ProcessInfo.processInfo.arguments.contains(openAgentArgument)
+        }
         /// Uses Pi and Oh My Pi JSONL samples through the production adapters.
         static let piChatArgument = "--demo-pi-chat"
 
@@ -196,6 +202,9 @@
                 connectionStatus: { _ in .connected })
             let detailSurface = AgentDetailSurfaceSettings(defaults: defaults)
             if DemoScreenshotMode.opensChat { detailSurface.select(.chat) }
+            if ProcessInfo.processInfo.arguments.contains("--demo-direct-input") {
+                defaults.set(AgentInputMode.direct.rawValue, forKey: "agent-input-mode")
+            }
             return DemoScreenshotComposition(
                 hosts: hosts,
                 console: console,

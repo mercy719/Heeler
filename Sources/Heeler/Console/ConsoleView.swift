@@ -235,6 +235,15 @@ struct ConsoleView: View {
         .onAppear {
             if listTab == nil { listTab = shownListTab }
         }
+        #if DEBUG && targetEnvironment(simulator)
+        .task {
+            guard DemoScreenshotMode.opensAgent else { return }
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(500))
+                if let id = visibleAgentIDs.first { selectAgent(id); return }
+            }
+        }
+        #endif
         // The board's now text, while the Console is on screen. A Host
         // without the board answers nothing, which reads as no text.
         .task {

@@ -547,7 +547,8 @@ struct AgentDetailView: View {
                     // Retention swaps `attach` on appear and rebuilds this
                     // view; the build before that swap is a placeholder and
                     // must not spend the keyboard handoff meant for the real one.
-                    inheritsKeyboardHandoff: !permitsRetention || retainedAgent != nil || isOwnViewer)
+                    inheritsKeyboardHandoff: !permitsRetention || retainedAgent != nil || isOwnViewer,
+                    airBuildProject: arcProject)
                 .id(ObjectIdentifier(attach))
             }
         })

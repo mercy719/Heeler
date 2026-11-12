@@ -648,6 +648,8 @@ struct TerminalAgentSwitcherRow: View {
     var switchKeyboard: (() -> Void)?
     /// Optional Hide Composer / Show Composer.
     var modeControl: TerminalAgentSwitcherModeControl?
+    /// Off in Arc's look: only the trailing controls, on the page's own black.
+    var showsAgents = true
     /// Matches `UIPasteControl`'s fixed glyph size in the row below. The
     /// optically smaller Composer symbol is corrected at its call site.
     private static let glyphPointSize: CGFloat = 12
@@ -660,12 +662,16 @@ struct TerminalAgentSwitcherRow: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            StripRepresentable(switcher: switcher)
-            // Fences the pinned button off from the strip, so the chips read
-            // as a list that ends rather than as one the button belongs to.
-            Rectangle()
-                .fill(Color(uiColor: .separator))
-                .frame(width: hairline, height: 20)
+            if showsAgents {
+                StripRepresentable(switcher: switcher)
+                // Fences the pinned button off from the strip, so the chips read
+                // as a list that ends rather than as one the button belongs to.
+                Rectangle()
+                    .fill(Color(uiColor: .separator))
+                    .frame(width: hairline, height: 20)
+            } else {
+                Spacer(minLength: 0)
+            }
             if let modeControl {
                 modeControlView(modeControl)
             }
@@ -690,11 +696,13 @@ struct TerminalAgentSwitcherRow: View {
         }
         .frame(height: TerminalAgentSwitcherBar.preferredHeight)
         .background(alignment: .top) {
-            Rectangle()
-                .fill(Color(uiColor: .separator))
-                .frame(height: hairline)
+            if showsAgents {
+                Rectangle()
+                    .fill(Color(uiColor: .separator))
+                    .frame(height: hairline)
+            }
         }
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(showsAgents ? Color(uiColor: .secondarySystemBackground) : .clear)
     }
 
     @ViewBuilder

@@ -363,7 +363,8 @@ struct AgentComposerView: View {
             toggleKeyboard: dismissOrPresentKeyboard,
             isToolsKeyboardPresented: isToolsKeyboardPresented,
             switchKeyboard: keyboardSwitchAction,
-            modeControl: modeControl)
+            modeControl: modeControl,
+            showsAgents: !airBuildStyle)
     }
 
     var body: some View {
@@ -391,7 +392,8 @@ struct AgentComposerView: View {
                             }
                         }
 
-                    if !airBuildStyle {
+                    // Arc's terminal keeps its keyboard and Direct Input buttons, without the Agent strip.
+                    if !airBuildStyle || modeControl != nil {
                         switcherRow
                     }
                 }

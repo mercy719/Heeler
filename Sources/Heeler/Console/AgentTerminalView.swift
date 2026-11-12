@@ -220,6 +220,8 @@ struct AgentTerminalView: View {
     /// Edge-docked Workspace navigation; nil where the detail cannot route
     /// to other terminals.
     private let workspaceDrawer: WorkspaceTerminalDrawer?
+    /// Arc's project: the page takes Chat's look, its header and its plain bottom.
+    private let airBuildProject: ArcProjectGroup.Project?
     /// Follows the Agent's own session file for the usage strip (#325).
     @State private var sessionUsage = AgentSessionUsageStore()
     @State private var attach: AgentAttachStore
@@ -340,8 +342,10 @@ struct AgentTerminalView: View {
         onRetainDeparture: ((_ keepingKeyboard: Bool) -> Void)? = nil,
         workspaceDrawer: WorkspaceTerminalDrawer? = nil,
         inheritsKeyboardHandoff: Bool = true,
-        interactionProbe: AgentTerminalInteractionProbe? = nil
+        interactionProbe: AgentTerminalInteractionProbe? = nil,
+        airBuildProject: ArcProjectGroup.Project? = nil
     ) {
+        self.airBuildProject = airBuildProject
         self.agent = agent
         self.console = console
         self.terminal = terminal
@@ -1159,8 +1163,21 @@ struct AgentTerminalView: View {
         // The navigation bar remains present only as the owner of the status
         // bar appearance. Its content stays hidden, while this inset keeps
         // terminal output below the system clock.
-        .padding(.top, terminalTopInset)
+        .padding(.top, terminalTopInset + arcHeaderHeight)
         .overlay(alignment: .top) {
+            if let project = arcHeaderProject {
+                AirBuildChatHeader(
+                    project: project,
+                    status: agent.agent.status,
+                    isHostConnected: console.hostStatuses[agent.hostID] == .connected,
+                    onOpenTerminal: {},
+                    onShowProject: { backToConsole() },
+                    actions: composerActions(anchorsClose: true),
+                    onTogglePanel: {},
+                    mode: .titleOnly)
+                .padding(.horizontal, 12)
+                .padding(.top, terminalTopInset)
+            } else {
             AgentDetailHeader(
                 palette: themePalette,
                 isExpanded: $isBackHeaderExpanded,
@@ -1177,6 +1194,7 @@ struct AgentTerminalView: View {
             .padding(.top, backHeaderTop)
             .onChange(of: isBackHeaderExpanded) { _, expanded in
                 if !expanded { isHeaderDrawerOpen = false }
+            }
             }
         }
         .onWindowControlsHeightChange { windowControlsHeight = $0 }
@@ -1237,6 +1255,16 @@ struct AgentTerminalView: View {
     private var headerControlPlacement: AgentDetailHeaderControlPlacement {
         AgentDetailHeaderControlPlacement(
             headerSharesBar: headerSharesBar, usesVerticalToolbar: usesVerticalToolbar)
+    }
+
+    /// Chat's header, where Back and More already sit in the side bar: the
+    /// project alone, given its own band so it never covers the output.
+    private var arcHeaderProject: ArcProjectGroup.Project? {
+        usesVerticalToolbar ? airBuildProject : nil
+    }
+
+    private var arcHeaderHeight: CGFloat {
+        arcHeaderProject == nil ? 0 : AirBuildChatHeader.height
     }
 
     private var terminalTopInset: CGFloat {
@@ -1331,7 +1359,8 @@ struct AgentTerminalView: View {
                     chromeColorScheme: terminal.themes.selection(for: colorScheme)
                         .chromeColorScheme(for: colorScheme),
                     isKeyboardUp: directSwitcherKeyboardIsUp,
-                    isToolsKeyboardPresented: usesDirectToolsKeyboard),
+                    isToolsKeyboardPresented: usesDirectToolsKeyboard,
+                    airBuildStyle: airBuildProject != nil),
                 interactions: .init(
                     switcher: agentSwitcher,
                     actions: composerActions(anchorsClose: true),
@@ -1403,7 +1432,8 @@ struct AgentTerminalView: View {
             sendPolicy: sendPolicy,
             collapsesWithoutKeyboard: false,
             interrupt: stopInterrupt,
-            offersSend: console.capabilities(for: agent.hostID).composerSend)
+            offersSend: console.capabilities(for: agent.hostID).composerSend,
+            airBuildStyle: airBuildProject != nil)
     }
 
     /// The Composer's Stop: one Esc over the Attach PTY, or on a core Host the
