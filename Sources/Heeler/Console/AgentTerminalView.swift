@@ -1292,7 +1292,7 @@ struct AgentTerminalView: View {
         }
         if let showChanges {
             actions.append(AgentDetailHeaderAction(
-                title: "Changes", systemImage: "arrow.triangle.branch", perform: showChanges))
+                title: "Changes", systemImage: "plus.forwardslash.minus", perform: showChanges))
         }
         if console.offersTitleRename(for: agent) {
             actions.append(AgentDetailHeaderAction(title: "Rename", systemImage: "pencil") {

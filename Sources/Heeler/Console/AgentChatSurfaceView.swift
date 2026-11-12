@@ -605,6 +605,10 @@ struct AgentChatSurfaceView: View {
         }
         .toolbar {
             if moreUsesNavigationBar {
+                // The swap beside More, as the terminal keeps Chat's beside its own.
+                ToolbarItem(placement: .topBarTrailing) {
+                    AgentDetailSurfaceButton(control: terminalSurfaceSwitch)
+                }
                 ToolbarItem(placement: .topBarTrailing) { airBuildHeader(mode: .barMore) }
             }
         }

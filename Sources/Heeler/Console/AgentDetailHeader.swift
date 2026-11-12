@@ -350,7 +350,7 @@ struct AgentDetailHeaderTrailingControls: View {
 /// The one-tap swap to the Agent surface not showing. Its Label gives a
 /// native toolbar both a symbol and the title it needs for expanded forms;
 /// the horizontal custom capsule applies its own frame and plain style.
-private struct AgentDetailSurfaceButton: View {
+struct AgentDetailSurfaceButton: View {
     let control: AgentDetailSurfaceSwitch
     /// In a native bar, which draws its symbols a size up from the capsule's.
     var inBar = false
@@ -453,6 +453,7 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
         if let onBack {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Back", systemImage: "chevron.left", action: onBack)
+                    .tint(nil)
             }
             .visibilityPriority(.high)
         }
@@ -558,16 +559,11 @@ private struct AirBuildHomeBarControls: ToolbarContent {
     let actions: AirBuildGlobalActions
 
     var body: some ToolbarContent {
+        // New Agent in one tap; Hosts below is the way to the computers.
         ToolbarItem(placement: .primaryAction) {
-            Menu {
-                if let onNewAgent {
-                    Button("New Agent", systemImage: "plus", action: onNewAgent)
-                }
-                Button("Connect Computer", systemImage: "desktopcomputer", action: actions.openHosts)
-            } label: {
-                Label("Add", systemImage: "plus")
-            }
-            .tint(nil)
+            Button("New Agent", systemImage: "plus") { onNewAgent?() }
+                .disabled(onNewAgent == nil)
+                .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
         ToolbarSpacer(.flexible, placement: .primaryAction)

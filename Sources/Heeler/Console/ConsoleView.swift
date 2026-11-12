@@ -1006,7 +1006,12 @@ struct ConsoleView: View {
                         if (usesAirBuildArcChrome(for: tab) || usesSidebarNavigation), !foldedHome {
                             // shortcut: landscape stands in for "the system draws a vertical bar" (true on iPhone Duo,
                             // not on iPad); read the sidebar's own toolbar edge if Arc ships on iPad.
-                            sidebarFooter(for: tab, detailHasGlobalBar: geometry.size.width > geometry.size.height)
+                            // Only an open Agent's detail draws the global bar; with a shell or
+                            // nothing open, Hosts and Settings stay here or they'd be nowhere.
+                            sidebarFooter(
+                                for: tab,
+                                detailHasGlobalBar: geometry.size.width > geometry.size.height
+                                    && notificationRouter.path.last != nil)
                         }
                     }
                     // iPadOS 27 draws the system's button on its own glass;
@@ -1313,24 +1318,19 @@ struct ConsoleView: View {
             .toolbarItemBackground(.hidden)
             ToolbarItem(placement: .topBarTrailing) {
                 AirBuildGlassCapsule {
-                    Menu {
-                        if offersNewItem(on: .agents) {
-                            Button("New Agent", systemImage: "plus") {
-                                startAgentRequest = StartAgentRequest(
-                                    origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
-                            }
-                        }
-                        Button("Connect Computer", systemImage: "desktopcomputer") { presentHosts() }
+                    // New Agent in one tap; computers have their own button in the footer.
+                    Button {
+                        startAgentRequest = StartAgentRequest(
+                            origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
                             .frame(width: 40, height: 40)
                             .contentShape(.circle)
                     }
-                    .menuStyle(.button)
                     .buttonStyle(.plain)
-                    .menuIndicator(.hidden)
-                    .accessibilityLabel("Add")
+                    .disabled(!offersNewItem(on: .agents))
+                    .accessibilityLabel("New Agent")
                 }
             }
             .toolbarItemBackground(.hidden)
@@ -2036,18 +2036,16 @@ struct ConsoleView: View {
                 }
             }
         } else {
-            if foldedHome {
-                // No brand title: the grid leads the page. The pages' last tile opens
-                // the same list; this one needs no swiping to find.
-                Button("Show All") { isShowingAllArcProjects = true }
-                    .font(.system(size: 15, weight: .semibold))
-                    .buttonStyle(.borderless)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+            // No brand title: the grid leads the page. The pages' last tile opens
+            // the same list; this one needs no swiping to find, in every layout.
+            Button("Show All") { isShowingAllArcProjects = true }
+                .font(.system(size: 15, weight: .semibold))
+                .buttonStyle(.borderless)
+                .frame(maxWidth: .infinity, alignment: .trailing)
                 .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .selectionDisabled()
-            }
             AirBuildProjectGrid(
                 projects: arcProjectGroups.flatMap(\.projects),
                 selected: arcSelectedProjectID,
