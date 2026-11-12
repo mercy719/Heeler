@@ -11,6 +11,9 @@ final class ConsoleChatCache {
     /// The Workspace structure of each Host's last snapshot, saved with its
     /// entries.
     private(set) var structures: [Host.ID: [ChatCachedWorkspace]] = [:]
+    /// Every Workspace each Host's last snapshot listed, for the arc grid to
+    /// keep its projects while the Host's own snapshot is gone.
+    private(set) var workspaceOrders: [Host.ID: [ChatCachedWorkspaceEntry]] = [:]
     @ObservationIgnored private let cache: any ChatTranscriptCache
     @ObservationIgnored private var hosts: [Host.ID: Host] = [:]
     @ObservationIgnored private var loads: [Host.ID: Task<Void, Never>] = [:]
@@ -22,7 +25,7 @@ final class ConsoleChatCache {
     @ObservationIgnored private var pendingUpdates: [Host.ID: [Update]] = [:]
 
     private enum Update {
-        case snapshot([ConsoleAgent])
+        case snapshot([ConsoleAgent], workspaces: [ConsoleWorkspace])
         case confirmation(Agent, ConsoleAgent)
         case removal(paneID: String)
         case branch(CheckoutHead.Branch, checkoutPath: String)
@@ -46,6 +49,7 @@ final class ConsoleChatCache {
             loads[id] = nil
             records[id] = nil
             structures[id] = nil
+            workspaceOrders[id] = nil
             pendingUpdates[id] = nil
             revisions[id, default: 0] += 1
             confirmed = confirmed.filter { $0.key.hostID != id }
@@ -60,6 +64,7 @@ final class ConsoleChatCache {
                     revisions[host.id, default: 0] == revision else { return }
                 records[host.id] = saved.agents
                 structures[host.id] = saved.workspaces
+                workspaceOrders[host.id] = saved.workspaceOrder
                 loads[host.id] = nil
                 applyPendingUpdates(on: host)
             }
@@ -83,6 +88,7 @@ final class ConsoleChatCache {
             if !belongs {
                 records[host.id] = nil
                 structures[host.id] = nil
+                workspaceOrders[host.id] = nil
                 confirmed = confirmed.filter { $0.key.hostID != host.id }
             }
             applyPendingUpdates(on: host)
@@ -94,7 +100,7 @@ final class ConsoleChatCache {
     private func applyPendingUpdates(on host: Host) {
         for update in pendingUpdates.removeValue(forKey: host.id) ?? [] {
             switch update {
-            case .snapshot(let agents): observe(agents, on: host)
+            case .snapshot(let agents, let workspaces): observe(agents, workspaces: workspaces, on: host)
             case .confirmation(let fresh, let snapshot): confirm(fresh, for: snapshot, on: host)
             case .removal(let paneID): remove(paneID: paneID, on: host)
             case .branch(let branch, let path): record(branch, atCheckoutPath: path, on: host)
@@ -104,10 +110,12 @@ final class ConsoleChatCache {
 
     /// A completed live snapshot supersedes the saved directory, including an
     /// empty one. An unchanged older session field must not undo agent.get.
-    func observe(_ agents: [ConsoleAgent], on host: Host) {
+    func observe(
+        _ agents: [ConsoleAgent], workspaces: [ConsoleWorkspace] = [], on host: Host
+    ) {
         guard hosts[host.id] == host else { return }
         if loads[host.id] != nil {
-            pendingUpdates[host.id, default: []].append(.snapshot(agents))
+            pendingUpdates[host.id, default: []].append(.snapshot(agents, workspaces: workspaces))
             return
         }
         let ids = Set(agents.map(\.id))
@@ -129,7 +137,9 @@ final class ConsoleChatCache {
             return entry
         }.sorted { $0.paneID < $1.paneID }
         let structure = ChatCachedWorkspace.structure(of: agents, keeping: structures[host.id] ?? [])
-        replace(next, structure: structure, on: host)
+        let order = workspaces.sorted { ($0.order, $0.label) < ($1.order, $1.label) }
+            .map(ChatCachedWorkspaceEntry.init)
+        replace(next, structure: structure, order: order, on: host)
     }
 
     /// Persist the exact binding that Chat actually queried, which can be
@@ -155,7 +165,9 @@ final class ConsoleChatCache {
         if entry.isValid(for: host), AgentChatAvailability.mayOfferChat(for: fresh) {
             next.append(entry)
         }
-        replace(next.sorted { $0.paneID < $1.paneID }, structure: structures[host.id] ?? [], on: host)
+        replace(
+            next.sorted { $0.paneID < $1.paneID }, structure: structures[host.id] ?? [],
+            order: workspaceOrders[host.id] ?? [], on: host)
     }
 
     /// A Changes read found the checkout at `path` on `branch`. Only a
@@ -174,7 +186,7 @@ final class ConsoleChatCache {
             return updated
         }
         guard next != current else { return }
-        replace(records[host.id] ?? [], structure: next, on: host)
+        replace(records[host.id] ?? [], structure: next, order: workspaceOrders[host.id] ?? [], on: host)
     }
 
     /// The user's removal of a saved entry: it and its saved messages leave
@@ -190,7 +202,9 @@ final class ConsoleChatCache {
         guard let removed = entries.first(where: { $0.paneID == paneID }) else { return }
         let remaining = entries.filter { $0.paneID != paneID }
         confirmed[ConsoleAgent.ID(hostID: host.id, paneID: paneID)] = nil
-        replace(remaining, structure: structures[host.id] ?? [], on: host)
+        replace(
+            remaining, structure: structures[host.id] ?? [], order: workspaceOrders[host.id] ?? [],
+            on: host)
         guard case .bound(let reference) = ConversationReference.resolve(removed.agentSession),
             !remaining.contains(where: { ConversationReference.resolve($0.agentSession) == .bound(reference) })
         else { return }
@@ -209,6 +223,13 @@ final class ConsoleChatCache {
     func structure(on host: Host) -> [ChatCachedWorkspace] {
         guard hosts[host.id] == host else { return [] }
         return structures[host.id] ?? []
+    }
+
+    /// Every Workspace the Host's last snapshot listed, as the arc grid
+    /// showed them; empty until one is saved.
+    func workspaceOrder(on host: Host) -> [ConsoleWorkspace] {
+        guard hosts[host.id] == host else { return [] }
+        return (workspaceOrders[host.id] ?? []).map { $0.consoleWorkspace() }
     }
 
     /// Local-only binding lookup for a live Agent that has not reported its
@@ -238,16 +259,22 @@ final class ConsoleChatCache {
         }?.agentSession
     }
 
-    private func replace(_ next: [ChatCachedAgent], structure: [ChatCachedWorkspace], on host: Host) {
+    private func replace(
+        _ next: [ChatCachedAgent], structure: [ChatCachedWorkspace],
+        order: [ChatCachedWorkspaceEntry], on host: Host
+    ) {
         // Invalidate a cold restore even when a fresh empty snapshot matches
         // the initial empty in-memory value.
         revisions[host.id, default: 0] += 1
         loads[host.id]?.cancel()
         loads[host.id] = nil
-        guard records[host.id] != next || structures[host.id] != structure else { return }
+        guard records[host.id] != next || structures[host.id] != structure
+            || workspaceOrders[host.id] != order else { return }
         records[host.id] = next
         structures[host.id] = structure
-        let contents = ChatAgentDirectory.Contents(agents: next, workspaces: structure)
+        workspaceOrders[host.id] = order
+        let contents = ChatAgentDirectory.Contents(
+            agents: next, workspaces: structure, workspaceOrder: order)
         writes[host.id] = Task { [previous = writes[host.id], cache] in
             await previous?.value
             await cache.saveAgentDirectory(contents, for: host)

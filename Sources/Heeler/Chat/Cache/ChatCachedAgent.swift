@@ -13,6 +13,9 @@ struct ChatCachedAgent: Codable, Equatable, Sendable {
     let title: String
     let paneTitle: String?
     var agentSession: AgentSessionInfo?
+    /// The status the Agent last reported, so a cold launch draws its row as
+    /// it was rather than as Unknown. Nil in directories saved before it.
+    var lastStatus: AgentStatus?
     let cwd: String
     let foregroundCwd: String?
     let workspaceLabel: String?
@@ -33,6 +36,7 @@ struct ChatCachedAgent: Codable, Equatable, Sendable {
         title = agent.agent.title
         paneTitle = agent.agent.paneTitle
         agentSession = agent.agent.agentSession
+        lastStatus = agent.agent.status
         cwd = agent.agent.cwd
         foregroundCwd = agent.directory
         workspaceLabel = agent.workspaceLabel
@@ -47,7 +51,7 @@ struct ChatCachedAgent: Codable, Equatable, Sendable {
         ConsoleAgent(
             hostID: host.id, hostName: host.displayName,
             agent: Agent(
-                terminalID: terminalID, kind: kind, title: title, status: .unknown,
+                terminalID: terminalID, kind: kind, title: title, status: lastStatus ?? .unknown,
                 workspaceID: workspaceID, tabID: tabID, paneID: paneID, cwd: cwd,
                 revision: 0, name: name, paneTitle: paneTitle, agentSession: agentSession,
                 foregroundCwd: foregroundCwd),
@@ -92,6 +96,24 @@ struct ChatCachedWorkspace: Codable, Equatable, Sendable {
     }
 }
 
+/// One Workspace as the Host's last snapshot listed it, for a Host whose
+/// snapshot this launch has not landed, so the arc grid keeps every project.
+struct ChatCachedWorkspaceEntry: Codable, Equatable, Sendable {
+    let id: String
+    let label: String?
+    let order: Int
+
+    init(_ workspace: ConsoleWorkspace) {
+        id = workspace.id
+        label = workspace.label
+        order = workspace.order
+    }
+
+    func consoleWorkspace() -> ConsoleWorkspace {
+        ConsoleWorkspace(id: id, label: label ?? id, order: order)
+    }
+}
+
 /// A Host id alone is insufficient: a Host whose herdr session, account, or
 /// machine changed must not revive another server's saved pane-to-
 /// conversation bindings. The machine is the host key the device trusts for
@@ -104,6 +126,8 @@ struct ChatAgentDirectory: Codable, Equatable, Sendable {
     struct Contents: Equatable, Sendable {
         var agents: [ChatCachedAgent] = []
         var workspaces: [ChatCachedWorkspace] = []
+        /// Every Workspace the snapshot listed, with or without a checkout.
+        var workspaceOrder: [ChatCachedWorkspaceEntry] = []
     }
 
     var formatVersion = 1
@@ -111,6 +135,8 @@ struct ChatAgentDirectory: Codable, Equatable, Sendable {
     let agents: [ChatCachedAgent]
     /// Nil in directories saved before the structure was kept.
     let workspaces: [ChatCachedWorkspace]?
+    /// Nil in directories saved before the Workspace list was kept.
+    let workspaceOrder: [ChatCachedWorkspaceEntry]?
 
     struct HostIdentity: Codable, Equatable, Sendable {
         let id: UUID
@@ -165,6 +191,7 @@ struct ChatAgentDirectory: Codable, Equatable, Sendable {
         self.host = HostIdentity(host, hostKeys: hostKeys)
         agents = contents.agents.filter { $0.isValid(for: host) }
         workspaces = contents.workspaces
+        workspaceOrder = contents.workspaceOrder.isEmpty ? nil : contents.workspaceOrder
     }
 
     func belongs(to host: Host, hostKeys: Set<Data>) -> Bool {
@@ -173,7 +200,9 @@ struct ChatAgentDirectory: Codable, Equatable, Sendable {
 
     func contents(for host: Host, hostKeys: Set<Data>) -> Contents {
         guard belongs(to: host, hostKeys: hostKeys) else { return Contents() }
-        return Contents(agents: agents.filter { $0.isValid(for: host) }, workspaces: workspaces ?? [])
+        return Contents(
+            agents: agents.filter { $0.isValid(for: host) }, workspaces: workspaces ?? [],
+            workspaceOrder: workspaceOrder ?? [])
     }
 
     /// The digests of the host keys the device trusts for `hostID`, read

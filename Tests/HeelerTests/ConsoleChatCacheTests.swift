@@ -30,7 +30,7 @@ struct ConsoleChatCacheTests {
         #expect(console.agents.isEmpty)
         let displayed = try #require(console.chatDisplayAgents.first)
         #expect(displayed.id == agent.id)
-        #expect(displayed.agent.status == .unknown)
+        #expect(displayed.agent.status == .working)
         #expect(console.chatProgram(for: displayed) == .codex)
         let chat = try #require(console.chatStore(for: displayed, program: .codex))
         await chat.step()

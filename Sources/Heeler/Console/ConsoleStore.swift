@@ -1988,6 +1988,18 @@ final class ConsoleStore {
         return structures
     }
 
+    /// The Workspace list each Host's last snapshot reported, for the Hosts
+    /// whose snapshot this launch has not landed, so the arc grid keeps every
+    /// project it showed rather than only those with a saved Agent.
+    var savedWorkspacesByHost: [Host.ID: [ConsoleWorkspace]] {
+        var workspaces: [Host.ID: [ConsoleWorkspace]] = [:]
+        for projection in projections.values where projection.showsSavedChats {
+            let saved = cachedChats.workspaceOrder(on: projection.host)
+            if !saved.isEmpty { workspaces[projection.host.id] = saved }
+        }
+        return workspaces
+    }
+
     /// The branch the latest Changes read of the Host's checkout at `path`
     /// found, saved with the Workspace structure, so a card titles the
     /// checkout as it last did until a read of this launch lands.
@@ -2258,7 +2270,8 @@ final class ConsoleStore {
                 chatCacheValidatedGenerations[host.id] = projection.transportGeneration
                 cachedChats.revalidate(on: host)
             }
-            cachedChats.observe(Array(projection.agentsByPane.values), on: host)
+            cachedChats.observe(
+                Array(projection.agentsByPane.values), workspaces: projection.workspaces, on: host)
             guard chatPrefetchTasks[host.id] == nil else { continue }
             let generation = projection.transportGeneration
             let candidates = projection.agentsByPane.values.filter { agent in

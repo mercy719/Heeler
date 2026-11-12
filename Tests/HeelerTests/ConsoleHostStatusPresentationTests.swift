@@ -249,6 +249,21 @@ struct ConsoleHostStatusPresentationTests {
                 visibleIssueCount: 1) == .rows)
     }
 
+    @Test func arcSurfaceNeverClaimsNoAgentsWhileAHostIsStillConnecting() {
+        #expect(
+            ConsoleAgentsSurface(
+                hostCount: 1, filteredHostName: nil, filteredAgentCount: 0,
+                visibleIssueCount: 1, presentationMode: .arc) == .rows)
+        #expect(
+            ConsoleAgentsSurface(
+                hostCount: 1, filteredHostName: nil, filteredAgentCount: 0,
+                visibleIssueCount: 0, presentationMode: .arc) == .noAgents)
+        #expect(
+            ConsoleAgentsSurface(
+                hostCount: 1, filteredHostName: nil, filteredAgentCount: 0,
+                visibleIssueCount: 0, presentationMode: .arc, projectCount: 2) == .rows)
+    }
+
     @Test func eachConditionHasACompactStatusAndBadge() throws {
         func issue(
             _ status: EventsSessionStatus?, standingFailure: TransportError? = nil,

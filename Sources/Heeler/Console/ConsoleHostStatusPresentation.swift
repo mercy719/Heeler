@@ -265,7 +265,9 @@ enum ConsoleAgentsSurface: Equatable {
         } else if presentationMode == .arc && !isSearching {
             // Arc leads with its project tiles, which stand for a project
             // with no Agent as well; with no project at all it says so.
-            self = projectCount > 0 ? .rows : .noAgents
+            // A Host still connecting has not said what it runs, so its empty
+            // grid is loading, not empty.
+            self = projectCount > 0 || visibleIssueCount > 0 ? .rows : .noAgents
         } else if presentationMode == .grouped {
             if projectedSectionCount > 0 {
                 self = .rows

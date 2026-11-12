@@ -2638,7 +2638,7 @@ struct ConsoleView: View {
         let scoped = hostFilter.isEmpty
             ? hosts.consoleHosts : hosts.consoleHosts.filter { hostFilter.contains($0.id) }
         return ArcProjectGroup.groups(
-            hosts: scoped, agents: filteredAgents, workspacesByHost: console.workspacesByHost,
+            hosts: scoped, agents: filteredAgents, workspacesByHost: arcWorkspacesByHost,
             terminals: console.terminals)
     }
 
@@ -2647,7 +2647,18 @@ struct ConsoleView: View {
     private var arcAllGroups: [ArcProjectGroup] {
         ArcProjectGroup.groups(
             hosts: hosts.consoleHosts, agents: console.chatDisplayAgents,
-            workspacesByHost: console.workspacesByHost, terminals: console.terminals)
+            workspacesByHost: arcWorkspacesByHost, terminals: console.terminals)
+    }
+
+    /// The live Workspace list, else the one the Host's last snapshot saved
+    /// for a Host this launch has not proven yet. An invalidated snapshot
+    /// leaves the live list empty rather than unknown.
+    private var arcWorkspacesByHost: [Host.ID: [ConsoleWorkspace]] {
+        var merged = console.savedWorkspacesByHost
+        for (hostID, live) in console.workspacesByHost where !live.isEmpty {
+            merged[hostID] = live
+        }
+        return merged
     }
 
     private func arcProject(for agent: ConsoleAgent) -> ArcProjectGroup.Project? {
@@ -2836,12 +2847,14 @@ struct ConsoleView: View {
     }
 
     /// One actionable status per Host. A disconnected session takes priority;
-    /// otherwise a connected Host can still have a failing snapshot RPC.
+    /// otherwise a connected Host can still have a failing snapshot RPC. A
+    /// Host the Console has not published yet counts as connecting, as its
+    /// own rebuild will say a moment later.
     private var hostIssues: [ConsoleHostStatusPresentation] {
         hosts.consoleHosts.compactMap { host in
             ConsoleHostStatusPresentation(
                 host: host,
-                status: console.hostStatuses[host.id],
+                status: console.hostStatuses[host.id] ?? .connecting,
                 standingFailure: console.hostStandingFailures[host.id],
                 isAwaitingSnapshot: console.hostsAwaitingSnapshot.contains(host.id),
                 syncError: console.hostSyncErrors[host.id])

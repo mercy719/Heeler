@@ -301,7 +301,7 @@ struct ChatTranscriptCacheTests {
             paneLabel: "Worker pane"))
     }
 
-    @Test func agentDirectorySurvivesRelaunchWithoutRestoringLiveStatus() async throws {
+    @Test func agentDirectorySurvivesRelaunchWithItsLastStatus() async throws {
         let fixture = Fixture()
         defer { fixture.cleanUp() }
         let host = Host(id: Self.hostA, address: "host.example", username: "dev")
@@ -314,7 +314,7 @@ struct ChatTranscriptCacheTests {
         let restored = try #require(entries.first).consoleAgent(for: host)
         #expect(restored.id == ConsoleAgent.ID(hostID: host.id, paneID: "pane-1"))
         #expect(restored.agent.agentSession == cached.agentSession)
-        #expect(restored.agent.status == .unknown)
+        #expect(restored.agent.status == .working)
         #expect(restored.agent.tokens.isEmpty)
         #expect(restored.agent.stateLabels.isEmpty)
         #expect(restored.agent.stateChangeSeq == nil)
@@ -355,6 +355,56 @@ struct ChatTranscriptCacheTests {
         #expect(saved.removeValue(forKey: "workspaces") != nil)
         try JSONSerialization.data(withJSONObject: saved).write(to: url)
         #expect(await reopened.loadAgentDirectory(for: host) == .init(agents: [cached]))
+    }
+
+    /// A directory saved before the Workspace list or the last status was
+    /// kept still decodes, with neither.
+    @Test func agentDirectorySavedWithoutStatusOrWorkspaceOrderStillReads() async throws {
+        let fixture = Fixture()
+        defer { fixture.cleanUp() }
+        let host = Host(id: Self.hostA, address: "host.example", username: "dev")
+        let cached = Self.cachedAgent(for: host)
+        await fixture.cache.saveAgentDirectory(
+            .init(agents: [cached], workspaceOrder: [ChatCachedWorkspaceEntry(
+                ConsoleWorkspace(id: "workspace-1", label: "Project", order: 0))]),
+            for: host)
+
+        let url = fixture.root.appending(path: "v1/\(host.id.uuidString.lowercased())/agents.json")
+        var saved = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(saved.removeValue(forKey: "workspaceOrder") != nil)
+        var entries = try #require(saved["agents"] as? [[String: Any]])
+        #expect(entries[0].removeValue(forKey: "lastStatus") != nil)
+        saved["agents"] = entries
+        try JSONSerialization.data(withJSONObject: saved).write(to: url)
+
+        let reopened = FileChatTranscriptCache(root: fixture.root, knownHosts: fixture.knownHosts)
+        let contents = await reopened.loadAgentDirectory(for: host)
+        #expect(contents.workspaceOrder.isEmpty)
+        let restored = try #require(contents.agents.first).consoleAgent(for: host)
+        #expect(restored.agent.status == .unknown)
+    }
+
+    @Test func agentDirectoryRoundTripsItsWorkspaceOrderAndLastStatus() async throws {
+        let fixture = Fixture()
+        defer { fixture.cleanUp() }
+        let host = Host(id: Self.hostA, address: "host.example", username: "dev")
+        let order = [
+            ChatCachedWorkspaceEntry(ConsoleWorkspace(id: "workspace-2", label: "Nest", order: 1)),
+            ChatCachedWorkspaceEntry(ConsoleWorkspace(id: "workspace-1", label: "One", order: 0)),
+        ]
+        // No saved entry at all: the grid still needs the projects.
+        await fixture.cache.saveAgentDirectory(.init(workspaceOrder: order), for: host)
+
+        let reopened = FileChatTranscriptCache(root: fixture.root, knownHosts: fixture.knownHosts)
+        #expect(await reopened.loadAgentDirectory(for: host) == .init(workspaceOrder: order))
+
+        let cached = Self.cachedAgent(for: host)
+        await fixture.cache.saveAgentDirectory(
+            .init(agents: [cached], workspaceOrder: order), for: host)
+        let contents = await reopened.loadAgentDirectory(for: host)
+        #expect(contents.workspaceOrder == order)
+        #expect(contents.agents.first?.lastStatus == .working)
+        #expect(contents.agents.first?.consoleAgent(for: host).agent.status == .working)
     }
 
     /// A Host the device holds no key for yet compares the primary route,
