@@ -1708,6 +1708,97 @@ struct AgentComposerStoreTests {
         #expect(await condition(), comment)
     }
 
+    // MARK: Send When Connected
+
+    @Test func aHeldSendSendsTheSameDraftToTheSameConversationWithinItsWindow() {
+        let madeAt = Date(timeIntervalSince1970: 1000)
+        let reservation = ComposerSendReservation(
+            conversationGeneration: 4, terminalID: "term-1", draft: "Deploy it", madeAt: madeAt)
+
+        #expect(
+            reservation.isStillValid(
+                generation: 4, terminalID: "term-1", draft: "Deploy it",
+                now: madeAt + ComposerSendReservation.lifetime - 0.1))
+    }
+
+    @Test func aHeldSendLapsesWhenItsMomentHasPassed() {
+        let madeAt = Date(timeIntervalSince1970: 1000)
+        let reservation = ComposerSendReservation(
+            conversationGeneration: 4, terminalID: "term-1", draft: "Deploy it", madeAt: madeAt)
+        typealias Case = (
+            reason: String, generation: Int, terminalID: String, draft: String, now: Date
+        )
+        let cases: [Case] = [
+            ("its window", 4, "term-1", "Deploy it", madeAt + ComposerSendReservation.lifetime),
+            ("another conversation", 5, "term-1", "Deploy it", madeAt + 1),
+            ("another Agent", 4, "term-2", "Deploy it", madeAt + 1),
+            ("an edited draft", 4, "term-1", "Deploy it now", madeAt + 1),
+        ]
+        for testCase in cases {
+            #expect(
+                !reservation.isStillValid(
+                    generation: testCase.generation, terminalID: testCase.terminalID,
+                    draft: testCase.draft, now: testCase.now),
+                "A held Send should lapse on \(testCase.reason)")
+        }
+    }
+
+    @Test func aHeldSendIsDroppedWhenTheDraftChanges() {
+        let store = AgentComposerStore(target: "w1:p1") { _ in
+            throw TransportError.cancelled
+        }
+        store.replaceDraft(with: "Deploy it")
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+        #expect(store.sendReservation != nil)
+
+        store.replaceDraft(with: "Deploy it now")
+
+        #expect(store.sendReservation == nil)
+    }
+
+    @Test func aHeldSendIsDroppedWhenTheConversationOrAgentChanges() {
+        let store = AgentComposerStore(target: "w1:p1") { _ in
+            throw TransportError.cancelled
+        }
+        store.replaceDraft(with: "Deploy it")
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+        #expect(store.sendReservation == nil, "The second tap should cancel")
+
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+        store.conversationDidChange(to: 2)
+
+        #expect(store.sendReservation == nil)
+    }
+
+    @Test func aHeldSendIsOnlyValidForTheDraftItHeld() {
+        let store = AgentComposerStore(target: "w1:p1") { _ in
+            throw TransportError.cancelled
+        }
+        store.replaceDraft(with: "Deploy it")
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+
+        #expect(
+            store.validSendReservation(terminalID: "term-1", conversation: 1) != nil)
+        #expect(
+            store.validSendReservation(
+                terminalID: "term-1", conversation: 1,
+                now: Date().addingTimeInterval(ComposerSendReservation.lifetime)) == nil,
+            "A reservation past its window must not send")
+        #expect(store.validSendReservation(terminalID: "term-2", conversation: 1) == nil)
+    }
+
+    @Test func anEmptyDraftHoldsNothing() {
+        let store = AgentComposerStore(target: "w1:p1") { _ in
+            throw TransportError.cancelled
+        }
+        store.replaceDraft(with: "   ")
+
+        store.toggleSendReservation(terminalID: "term-1", conversation: 1)
+
+        #expect(store.sendReservation == nil)
+    }
+
     private func makeAgent(hostID: Host.ID, status: AgentStatus) -> ConsoleAgent {
         ConsoleAgent(
             hostID: hostID,

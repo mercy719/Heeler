@@ -1,6 +1,29 @@
 import Foundation
 import Observation
 
+/// One "Send when connected" held for a Host that is not ready yet: the
+/// draft it would send, the conversation and Agent it was made for, and
+/// when. It is display state only; nothing reaches the Agent until the
+/// connection is ready and the reservation still matches its own moment.
+struct ComposerSendReservation: Equatable, Sendable {
+    /// How long a reservation waits before it lapses.
+    static let lifetime: TimeInterval = 20
+
+    let conversationGeneration: Int
+    let terminalID: String
+    let draft: String
+    let madeAt: Date
+
+    /// Whether this reservation may still send the draft now on screen: the
+    /// same conversation, the same Agent, the same text, inside its window.
+    func isStillValid(
+        generation: Int, terminalID: String, draft: String, now: Date
+    ) -> Bool {
+        conversationGeneration == generation && self.terminalID == terminalID
+            && self.draft == draft && now.timeIntervalSince(madeAt) < Self.lifetime
+    }
+}
+
 /// Local draft operations shared by the plain-text Composer now and future
 /// Snippet, Skill, and Staged Image path insertion surfaces.
 @MainActor
@@ -73,10 +96,15 @@ final class AgentComposerStore: ComposerDraftOperations {
     private(set) var messages: [Message] = []
     private(set) var draft = "" {
         didSet {
-            if draft != oldValue { notice = nil }
+            if draft != oldValue {
+                notice = nil
+                // The held Send belongs to the text the user held.
+                if sendReservation?.draft != draft { clearSendReservation() }
+            }
         }
     }
-    /// Recovery keeps the draft editable, but never queues it for delivery.
+    /// Recovery keeps the draft editable; Chat holds one Send When Connected
+    /// reservation on screen, and never queues a draft for delivery.
     var isConnectionAvailable = true
     /// Why the last Send or Retry was refused. Changing the draft ends it,
     /// as does the next Send that goes; a transient refusal also ends when
@@ -84,6 +112,9 @@ final class AgentComposerStore: ComposerDraftOperations {
     private(set) var notice: ComposerNotice?
     /// UTF-16 caret/selection, matching the Composer text view.
     private(set) var draftSelection = NSRange(location: 0, length: 0)
+    /// Chat's one held Send, made while its Host is not ready. Not persisted
+    /// and not a message: nothing is queued for delivery.
+    private(set) var sendReservation: ComposerSendReservation?
     /// Stop's wait, per Agent like the draft: the other surface, a rebuilt
     /// one or a reconnect finds an Esc still waiting on the Agent.
     let stop: AgentComposerStopStore
@@ -179,8 +210,12 @@ final class AgentComposerStore: ComposerDraftOperations {
         statusTask?.cancel()
     }
 
-    var canSend: Bool {
-        isConnectionAvailable && !hasPendingDroppedImages && !voice.blocksSend
+    var canSend: Bool { isConnectionAvailable && hasDeliverableDraft }
+
+    /// Whether the draft holds text Send could deliver once the Host is
+    /// ready: everything `canSend` asks but the connection.
+    var hasDeliverableDraft: Bool {
+        !hasPendingDroppedImages && !voice.blocksSend
             && draft.contains(where: { !$0.isWhitespace })
     }
 
@@ -449,10 +484,43 @@ final class AgentComposerStore: ComposerDraftOperations {
     /// input box described the one it followed, so it ends. Noted after the
     /// change, as when the Send's own check moved Chat, it stays.
     func conversationDidChange(to conversation: Int) {
+        if let sendReservation, sendReservation.conversationGeneration != conversation {
+            clearSendReservation()
+        }
         guard let notice, let noted = notice.conversation, noted != conversation,
             case .inputNotReady = notice.refusal
         else { return }
         self.notice = nil
+    }
+
+    /// Holds one Send for a Host that is not ready yet, or lets a held one
+    /// go. The draft stays in the field either way.
+    func toggleSendReservation(terminalID: String, conversation: Int, now: Date = Date()) {
+        guard sendReservation == nil else {
+            clearSendReservation()
+            return
+        }
+        guard hasDeliverableDraft else { return }
+        sendReservation = ComposerSendReservation(
+            conversationGeneration: conversation, terminalID: terminalID,
+            draft: draft, madeAt: now)
+    }
+
+    /// The reservation this store would send now: the same conversation, the
+    /// same Agent, the same text, inside its window. Holding one is never
+    /// enough on its own.
+    func validSendReservation(
+        terminalID: String, conversation: Int, now: Date = Date()
+    ) -> ComposerSendReservation? {
+        guard let sendReservation,
+            sendReservation.isStillValid(
+                generation: conversation, terminalID: terminalID, draft: draft, now: now)
+        else { return nil }
+        return sendReservation
+    }
+
+    func clearSendReservation() {
+        sendReservation = nil
     }
 
     /// Removes a failed or unanswered echo and restores all of its text to the

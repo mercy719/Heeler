@@ -643,8 +643,12 @@ struct ConsoleView: View {
     /// The arc list's light conversation row, wrapped in the same link as
     /// the full card so its detail, menu and swipes stay.
     private func arcAgentRow(_ agent: ConsoleAgent, projectName: String? = nil) -> some View {
-        agentLink(
-            agent, isSaved: console.savedChatEntries[agent.id] != nil,
+        let readiness = console.savedChatEntries[agent.id]
+        // A Host still connecting draws its saved entries as live rows; a
+        // Host that stopped draws them as saved, with no status of their own.
+        let shown = console.isHostConnecting(agent.hostID) ? nil : readiness
+        return agentLink(
+            agent, isSaved: readiness != nil,
             background: ConsoleRowSelectionBackground(
                 isSelected: selectedItem.wrappedValue == .agent(agent.id))
         ) {
@@ -659,7 +663,7 @@ struct ConsoleView: View {
                 isPinned: console.pins.isPinned(
                     hostID: agent.hostID, paneID: agent.agent.paneID),
                 qualifier: nil,
-                saved: console.savedChatEntries[agent.id],
+                saved: shown,
                 hiddenTokens: [])
         }
         .listRowSeparator(.hidden)

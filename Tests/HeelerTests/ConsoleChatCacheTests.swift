@@ -209,6 +209,46 @@ struct ConsoleChatCacheTests {
         #expect(readiness.tone != .connected)
     }
 
+    @Test func aSavedChatOnAFailedHostCarriesNoStatus() async throws {
+        let host = Host(address: "offline.invalid", username: "reader")
+        let cache = VolatileChatTranscriptCache()
+        let agent = Self.agent(host: host, session: Self.sessionA)
+        await cache.saveAgentDirectory([ChatCachedAgent(agent)], for: host)
+        let store = ConsoleStore(snapshotRetryDelay: .milliseconds(10), chatCache: cache) {
+            _, subscriptions in
+            EventsSession(
+                subscriptions: subscriptions,
+                connect: { throw TransportError.authenticationFailed }, keepalive: nil)
+        }
+        defer { store.setHosts([]) }
+        store.setHosts([host])
+        await store.resume()
+        await store.cachedChats.settled()
+        try await Self.waitUntil { store.hostStatuses[host.id] == .failed(.authenticationFailed) }
+
+        let displayed = try #require(store.chatDisplayAgents.first)
+
+        // Its last status described a Host that has stopped trying.
+        #expect(!store.isHostConnecting(host.id))
+        #expect(displayed.agent.status == .unknown)
+    }
+
+    @Test func aSavedChatOnAConnectingHostKeepsItsLastStatus() async throws {
+        let host = Host(address: "offline.invalid", username: "reader")
+        let cache = VolatileChatTranscriptCache()
+        let agent = Self.agent(host: host, session: Self.sessionA)
+        await cache.saveAgentDirectory([ChatCachedAgent(agent)], for: host)
+        let store = ConsoleStore(chatCache: cache)
+        defer { store.setHosts([]) }
+        store.setHosts([host])
+        await store.cachedChats.settled()
+
+        let displayed = try #require(store.chatDisplayAgents.first)
+
+        #expect(store.isHostConnecting(host.id))
+        #expect(displayed.agent.status == .working)
+    }
+
     @Test func liveAgentWithoutSessionOpensItsExactSavedConversation() async throws {
         let host = Host(address: "offline.invalid", username: "reader")
         let cache = VolatileChatTranscriptCache()

@@ -323,11 +323,19 @@ struct AgentComposerView: View {
     var offersSend = true
     /// AirBuild's compact capsule; terminal Composer keeps its original card.
     var airBuildStyle = false
+    /// The Agent this Composer writes to and the conversation it shows, for
+    /// Chat's Send When Connected to know it is still the one the draft was
+    /// held for. A nil terminal ID keeps that offer out.
+    var agentTerminalID: String? = nil
+    var conversationGeneration = 0
     /// Chat's existing key delivery, named in herdr's grammar (Esc, Tab, Ctrl-C…).
     var sendAgentKey: ((String) -> Void)? = nil
     /// The app's microphone owner; absent in previews and tests, which
     /// leaves the mic out.
     @Environment(VoiceInputSession.self) private var voiceInput: VoiceInputSession?
+    @Environment(\.scenePhase) private var scenePhase
+    /// The lifetime timer of Chat's held Send.
+    @State private var sendReservationTimeout: Task<Void, Never>?
     @State private var isVoiceSetupPresented = false
     @State private var isInputFocused = false
     /// An explicit dismissal hides suggestions for the current trigger token;
@@ -452,6 +460,23 @@ struct AgentComposerView: View {
                 // then reuse (the ConsoleStore caches underneath).
                 Task { await skills.loadIfNeeded() }
             }
+        }
+        .onChange(of: store.isConnectionAvailable) { _, isAvailable in
+            guard isAvailable else { return }
+            sendReservedDraftIfReady()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active else { return }
+            cancelSendReservation()
+        }
+        .onChange(of: conversationGeneration) { _, _ in
+            cancelSendReservation()
+        }
+        .onChange(of: agentTerminalID) { _, _ in
+            cancelSendReservation()
+        }
+        .onDisappear {
+            cancelSendReservation()
         }
     }
 
@@ -861,18 +886,30 @@ struct AgentComposerView: View {
         Task { await deliverDraft { await store.send(policy: sendPolicy) } }
     }
 
-    /// Send, or Stop while the Agent works and the draft is blank.
+    /// Send, or Stop while the Agent works and the draft is blank. While the
+    /// Host is not ready, Chat's Send holds one attempt instead of going.
     @ViewBuilder
     private var primaryButton: some View {
         if offersSend {
             switch primaryControl {
             case .send:
+                // The waiting look belongs to a draft there is to hold; an
+                // empty one keeps the plain Send, disabled as it was.
+                let isWaiting =
+                    offersSendWhenConnected && !store.isConnectionAvailable
+                    && store.hasDeliverableDraft
                 AgentComposerSendButton(
-                    isEnabled: store.canSend,
-                    accessibilityHint: store.sendAccessibilityHint,
+                    isEnabled: store.canSend || isWaiting,
+                    accessibilityHint: isWaiting ? waitHint : store.sendAccessibilityHint,
+                    isWaiting: isWaiting,
+                    isReserved: isWaiting && store.sendReservation != nil,
                     airBuildStyle: airBuildStyle
                 ) {
-                    sendDraft()
+                    if isWaiting {
+                        toggleSendReservation()
+                    } else {
+                        sendDraft()
+                    }
                 }
             case .stop:
                 AgentComposerStopButton(
@@ -885,6 +922,54 @@ struct AgentComposerView: View {
                 }
             }
         }
+    }
+
+    /// Whether Send may hold one attempt while the Host connects: Chat's
+    /// Composer only, and only when it knows the Agent and its conversation.
+    private var offersSendWhenConnected: Bool {
+        airBuildStyle && agentTerminalID != nil
+    }
+
+    private var waitHint: String {
+        store.sendReservation == nil
+            ? String(localized: "Sends this draft once the Host connects")
+            : String(localized: "Tap again to cancel")
+    }
+
+    /// Chat's one held Send: the draft stays in the field and nothing is
+    /// queued for delivery; the connection sends it if it still matches.
+    private func toggleSendReservation() {
+        guard let agentTerminalID else { return }
+        store.toggleSendReservation(
+            terminalID: agentTerminalID, conversation: conversationGeneration)
+        sendReservationTimeout?.cancel()
+        guard let held = store.sendReservation else {
+            sendReservationTimeout = nil
+            return
+        }
+        sendReservationTimeout = Task {
+            try? await Task.sleep(for: .seconds(ComposerSendReservation.lifetime))
+            guard !Task.isCancelled, store.sendReservation == held else { return }
+            store.clearSendReservation()
+        }
+    }
+
+    private func cancelSendReservation() {
+        store.clearSendReservation()
+        sendReservationTimeout?.cancel()
+        sendReservationTimeout = nil
+    }
+
+    /// Sends a held draft once the Host is ready, if it still is the one the
+    /// user held; the send itself re-runs its checks against the fresh state.
+    private func sendReservedDraftIfReady() {
+        guard store.isConnectionAvailable, let agentTerminalID else { return }
+        let isValid =
+            store.validSendReservation(
+                terminalID: agentTerminalID, conversation: conversationGeneration) != nil
+        cancelSendReservation()
+        guard isValid else { return }
+        sendDraft()
     }
 
     private var stopHint: String {
@@ -1191,18 +1276,26 @@ private struct AgentComposerSkillSuggestions: View {
 struct AgentComposerSendButton: View {
     let isEnabled: Bool
     var accessibilityHint: String = String(localized: "Delivers the complete draft to the Agent")
+    /// Chat's Send while the Host is not ready: a clock that holds the draft
+    /// for one attempt once the Host connects.
+    var isWaiting = false
+    /// Waiting, with an attempt already held: a second tap lets it go.
+    var isReserved = false
     var airBuildStyle = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "arrow.up")
+            Image(systemName: isWaiting ? "clock" : "arrow.up")
                 .font(.system(size: 15, weight: .bold))
                 .frame(width: 18, height: 18)
         }
         .buttonStyle(AgentComposerSendButtonStyle(airBuildStyle: airBuildStyle))
         .disabled(!isEnabled)
-        .accessibilityLabel("Send")
+        .accessibilityLabel(
+            isReserved
+                ? Text("Cancel Send When Connected")
+                : isWaiting ? Text("Send When Connected") : Text("Send"))
         .accessibilityHint(accessibilityHint)
     }
 }

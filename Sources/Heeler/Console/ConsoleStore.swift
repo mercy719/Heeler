@@ -1947,6 +1947,16 @@ final class ConsoleStore {
             && !hostsAwaitingFreshSnapshot.contains(hostID)
     }
 
+    /// Whether the Host is working on its connection: connecting, retrying,
+    /// or connected with its inventory still to land.
+    func isHostConnecting(_ hostID: Host.ID) -> Bool {
+        switch hostStatuses[hostID] {
+        case nil, .connecting, .reconnecting: true
+        case .connected: hostsAwaitingSnapshot.contains(hostID)
+        case .failed, .suspended, .ended: false
+        }
+    }
+
     /// Replaces a detail's title while its Host is not ready for input.
     func connectionRecoveryTitle(for hostID: Host.ID) -> String? {
         if hostsCheckingConnection.contains(hostID) { return String(localized: "Connection slow…") }
@@ -2015,7 +2025,14 @@ final class ConsoleStore {
             let saved = cachedChats.agents(on: projection.host).filter { !live.contains($0.id) }
             guard !saved.isEmpty else { return [] }
             let hostReadiness = readiness(of: projection.host)
-            return saved.map { ($0, hostReadiness) }
+            // A Host that stopped trying has a last status that says nothing
+            // about now: no dot, no tile badge, no place in the working order.
+            let status: AgentStatus? = isHostConnecting(projection.host.id) ? nil : .unknown
+            return saved.map { entry in
+                var entry = entry
+                if let status { entry.agent.status = status }
+                return (entry, hostReadiness)
+            }
         }
     }
 

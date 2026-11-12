@@ -1131,6 +1131,8 @@ struct AgentChatSurfaceView: View {
             keyboardIsLeaving: keyboardIsLeaving,
             interrupt: stopInterrupt,
             airBuildStyle: true,
+            agentTerminalID: agent.agent.terminalID,
+            conversationGeneration: chat?.conversationGeneration ?? 0,
             sendAgentKey: { name in
                 Task { _ = await agentKeys.deliver([name]) }
             })
