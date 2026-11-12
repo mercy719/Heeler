@@ -124,6 +124,9 @@ struct AirBuildProjectGrid: View {
                 grid(AirBuildProjectLayout.ordered(projects).map { .project($0) })
             }
         }
+        // A new N × N builds the pages afresh: the paged view kept the old
+        // pages' cells and laid the new size over them.
+        .id(homeGrid)
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
