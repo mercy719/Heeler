@@ -184,7 +184,7 @@ private struct AirBuildProjectTile: View {
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
-                    .frame(maxWidth: size + 10)
+                    .padding(.horizontal, 2)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())

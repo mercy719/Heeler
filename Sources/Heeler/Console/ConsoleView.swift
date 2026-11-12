@@ -1929,7 +1929,8 @@ struct ConsoleView: View {
                     showsCards: listPresentation.mode == .byWorkspace))
             .modifier(ConsoleSidebarListTint())
             .modifier(AirBuildScrollEdgeEffectStyle(isEnabled: listPresentation.mode == .arc))
-            .searchDrawerStartsTucked(isDisabled: listPresentation.mode == .arc)
+            // Folded, the title leads the page and search waits under a pull, as on the home screen.
+            .searchDrawerStartsTucked(isDisabled: listPresentation.mode == .arc && !foldedHome)
         }
     }
 
@@ -2004,12 +2005,9 @@ struct ConsoleView: View {
         } else {
             if foldedHome {
                 // The bar's title is gone with its buttons; the brand leads the page, as AirBuild's does.
-                HStack(spacing: 8) {
-                    AirBuildHeelerLogo().frame(width: 30, height: 30)
-                    Text(verbatim: "Heeler").font(.system(size: 26, weight: .bold))
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
+                Text(verbatim: "Heeler")
+                    .font(.system(size: 26, weight: .bold))
+                    .accessibilityAddTraits(.isHeader)
                 .listRowInsets(EdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
