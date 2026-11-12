@@ -110,7 +110,12 @@ struct RemoteDesktopKeyboard: UIViewRepresentable {
         ) -> Bool {
             // Backspace in an empty field changes no text, so `editingChanged`
             // never hears it.
-            if string.isEmpty, typed.isEmpty { onBackspaceOnEmpty() }
+            // Deleting pinyin still being composed is the keyboard's own business.
+            if string.isEmpty, typed.isEmpty, textField.markedTextRange == nil,
+                textField.text?.isEmpty ?? true
+            {
+                onBackspaceOnEmpty()
+            }
             return true
         }
     }

@@ -161,6 +161,16 @@ check "残留：上一轮的两个进程已被收掉" 'reap $STALE1 && reap $STA
 check "残留：本轮只有一个 web-server" '[ "$(pgrep -f "$ML/web-server" | wc -l | tr -d " ")" = 1 ] || pgrep -fl "$ML/web-server" >&2'
 close_stdin; wait_gone $SESS_PID 10
 
+# ---- 6b. 交接：新会话起来后，旧会话迟到的收尾不动新会话的进程（画质切换、快速重连）----
+open_session handoff_a
+exec 8>&9; A_PID=$SESS_PID
+open_session handoff_b
+exec 8>&-
+check "交接：旧会话收到 EOF 后退出" 'wait_gone $A_PID 10'
+check "交接：新会话和它的 web-server 还在" 'kill -0 $SESS_PID 2>/dev/null && running "$ML/web-server"'
+close_stdin
+check "交接：新会话自己收尾仍清干净" 'wait_gone $SESS_PID 10 && no_stub_left'
+
 # ---- 7. 口令不进 stdout / stderr，也不开 xtrace ----
 check "口令：所有 stdout/stderr 里都没有明文" '! grep -q "stub-secret-password" "$T"/*.out "$T"/*.err'
 check "口令：脚本里没有 xtrace 语句" '! grep -qE "^[[:space:]]*set[[:space:]]+-[a-zA-Z]*x" "$SCRIPT"'
