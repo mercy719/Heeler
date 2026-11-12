@@ -1126,6 +1126,7 @@ struct AgentChatSurfaceView: View {
             commandMenu: commands,
             openAgentTerminal: { showAgentTerminal() },
             inputReplacement: blockedCard,
+            attachmentThumbnails: chat?.thumbnails,
             focusRequest: chat?.blocked.composerFocusRequest ?? 0,
             collapsesWithoutKeyboard: true,
             keyboardIsLeaving: keyboardIsLeaving,

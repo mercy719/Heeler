@@ -30,8 +30,9 @@ struct ComposerSendReservation: Equatable, Sendable {
 protocol ComposerDraftOperations: AnyObject {
     func replaceDraft(with text: String)
     func insertIntoDraft(_ text: String)
-    /// Inserts a staged Host path as a word of its own (ADR 0006).
-    func insertPathIntoDraft(_ path: String)
+    /// Holds a staged Host path beside the draft (ADR 0006): Send puts it
+    /// after the text, so an upload never edits text being typed.
+    func attachPath(_ path: String)
 }
 
 /// Owns Agent detail's local draft and delivery state. Draft edits do not
@@ -99,9 +100,24 @@ final class AgentComposerStore: ComposerDraftOperations {
             if draft != oldValue {
                 notice = nil
                 // The held Send belongs to the text the user held.
-                if sendReservation?.draft != draft { clearSendReservation() }
+                if sendReservation?.draft != outgoingDraft { clearSendReservation() }
             }
         }
+    }
+    /// Staged Host paths shown under the draft, in the order they finished.
+    private(set) var attachedPaths: [String] = [] {
+        didSet {
+            guard attachedPaths != oldValue else { return }
+            notice = nil
+            if sendReservation?.draft != outgoingDraft { clearSendReservation() }
+        }
+    }
+
+    /// What Send delivers: the draft, then each attached path as a word of its own.
+    var outgoingDraft: String {
+        guard !attachedPaths.isEmpty else { return draft }
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ((text.isEmpty ? [] : [text]) + attachedPaths).joined(separator: " ")
     }
     /// Recovery keeps the draft editable; Chat holds one Send When Connected
     /// reservation on screen, and never queues a draft for delivery.
@@ -216,7 +232,7 @@ final class AgentComposerStore: ComposerDraftOperations {
     /// ready: everything `canSend` asks but the connection.
     var hasDeliverableDraft: Bool {
         !hasPendingDroppedImages && !voice.blocksSend
-            && draft.contains(where: { !$0.isWhitespace })
+            && (draft.contains(where: { !$0.isWhitespace }) || !attachedPaths.isEmpty)
     }
 
     var hasPendingDroppedImages: Bool {
@@ -255,16 +271,13 @@ final class AgentComposerStore: ComposerDraftOperations {
             length: 0)
     }
 
-    /// At the caret, with a space before it unless the text there already ends
-    /// in whitespace, and one after it, so the path never runs into a word.
-    func insertPathIntoDraft(_ path: String) {
-        let range = Self.clamped(draftSelection, to: draft)
-        insertIntoDraft(Self.pathInsertion(path, after: (draft as NSString).substring(to: range.location)))
+    func attachPath(_ path: String) {
+        guard !attachedPaths.contains(path) else { return }
+        attachedPaths.append(path)
     }
 
-    private static func pathInsertion(_ path: String, after text: String) -> String {
-        guard let last = text.last, !last.isWhitespace else { return "\(path) " }
-        return " \(path) "
+    func removeAttachedPath(_ path: String) {
+        attachedPaths.removeAll { $0 == path }
     }
 
     func setDraftSelection(_ range: NSRange) {
@@ -422,15 +435,17 @@ final class AgentComposerStore: ComposerDraftOperations {
 
     private func sendDraft(policy: ComposerDeliveryPolicy) async -> SendResult {
         guard canSend, !containsPendingPlaceholderInDraft else { return .ignored }
-        if let refusal = policy.validate(draft) { return .refused(refusal) }
+        let text = outgoingDraft
+        if let refusal = policy.validate(text) { return .refused(refusal) }
         let message = Message(
-            id: UUID(), text: draft, route: policy.route,
+            id: UUID(), text: text, route: policy.route,
             agentWasWorkingAtSend: agentStatus == .working,
             statusRevisionAtSend: statusRevision,
             observedWorkingAfterSend: false,
             tracksAgentProgress: true,
             state: .sending)
         draft = ""
+        attachedPaths = []
         draftSelection = NSRange(location: 0, length: 0)
         stop.holdAfterSend()
         messages.append(message)
@@ -503,7 +518,7 @@ final class AgentComposerStore: ComposerDraftOperations {
         guard hasDeliverableDraft else { return }
         sendReservation = ComposerSendReservation(
             conversationGeneration: conversation, terminalID: terminalID,
-            draft: draft, madeAt: now)
+            draft: outgoingDraft, madeAt: now)
     }
 
     /// The reservation this store would send now: the same conversation, the
@@ -514,7 +529,7 @@ final class AgentComposerStore: ComposerDraftOperations {
     ) -> ComposerSendReservation? {
         guard let sendReservation,
             sendReservation.isStillValid(
-                generation: conversation, terminalID: terminalID, draft: draft, now: now)
+                generation: conversation, terminalID: terminalID, draft: outgoingDraft, now: now)
         else { return nil }
         return sendReservation
     }
@@ -818,13 +833,19 @@ final class AgentComposerStore: ComposerDraftOperations {
         guard let index = indexOfDroppedImage(id: id) else { return }
         let placeholder = pendingDroppedImages[index].placeholder
         pendingDroppedImages.remove(at: index)
+        // A drop was placed in the text by hand, so its path takes that place.
         let slot = (draft as NSString).range(of: placeholder)
         guard slot.location != NSNotFound else {
-            insertPathIntoDraft(path)
+            attachPath(path)
             return
         }
         let insertion = Self.pathInsertion(path, after: (draft as NSString).substring(to: slot.location))
         applyTokenReplacement(placeholder, firstReplacement: insertion)
+    }
+
+    private static func pathInsertion(_ path: String, after text: String) -> String {
+        guard let last = text.last, !last.isWhitespace else { return "\(path) " }
+        return " \(path) "
     }
 
     private func abandonDroppedImage(id: UInt64) {

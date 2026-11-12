@@ -768,39 +768,34 @@ struct AgentComposerStoreTests {
         #expect(await transport.agentPromptParams.isEmpty)
     }
 
-    /// Windows step 15 (2026-11-03): after `keep 15` the draft read
-    /// `keep 15C:\…\file.bin `, the path run into the word before it.
-    @Test func aStagedPathAfterAWordGetsASpaceBeforeIt() {
-        let path = #"C:\Users\user\AppData\Local\herdr-core\hwa1103-main\files\t4\file.bin"#
+    /// A picked image used to land at the caret and break an IME
+    /// composition in flight (2026-11-12); now the draft is left alone.
+    @Test func aStagedPathWaitsBesideTheDraftAndSendPutsItAfterTheText() {
         let store = Self.draftOnlyStore()
-        store.replaceDraft(with: "keep 15")
+        store.replaceDraft(with: "keep 15 ")
+        store.setDraftSelection(NSRange(location: 2, length: 0))
 
-        store.insertPathIntoDraft(path)
+        store.attachPath(#"C:\Users\u\files\t4\file.bin"#)
+        store.attachPath("/tmp/heeler.x/image.jpg")
+        store.attachPath("/tmp/heeler.x/image.jpg")
 
-        #expect(store.draft == "keep 15 \(path) ")
-        #expect(store.draftSelection == NSRange(location: (store.draft as NSString).length, length: 0))
+        #expect(store.draft == "keep 15 ")
+        #expect(store.draftSelection == NSRange(location: 2, length: 0))
+        #expect(store.attachedPaths == [#"C:\Users\u\files\t4\file.bin"#, "/tmp/heeler.x/image.jpg"])
+        #expect(store.outgoingDraft == #"keep 15 C:\Users\u\files\t4\file.bin /tmp/heeler.x/image.jpg"#)
     }
 
-    @Test(arguments: ["", "ends in a space ", "ends in a newline\n"])
-    func aStagedPathAfterWhitespaceOrNothingGetsNoSecondSpace(draft: String) {
+    @Test func anAttachmentAloneIsDeliverableAndRemovingItIsNot() {
         let store = Self.draftOnlyStore()
-        store.replaceDraft(with: draft)
+        #expect(!store.hasDeliverableDraft)
 
-        store.insertPathIntoDraft("/tmp/heeler.x/image.jpg")
+        store.attachPath("/tmp/a.jpg")
+        #expect(store.hasDeliverableDraft)
+        #expect(store.outgoingDraft == "/tmp/a.jpg")
 
-        #expect(store.draft == draft + "/tmp/heeler.x/image.jpg ")
-    }
-
-    /// The caret decides, not the draft's end.
-    @Test(arguments: [("abcd", "ab /tmp/a.jpg cd"), ("ab cd", "ab /tmp/a.jpg cd")])
-    func aStagedPathAtTheCaretLooksAtTheTextBeforeIt(draft: String, expected: String) {
-        let store = Self.draftOnlyStore()
-        store.replaceDraft(with: draft)
-        store.setDraftSelection(NSRange(location: (draft as NSString).length - 2, length: 0))
-
-        store.insertPathIntoDraft("/tmp/a.jpg")
-
-        #expect(store.draft == expected)
+        store.removeAttachedPath("/tmp/a.jpg")
+        #expect(!store.hasDeliverableDraft)
+        #expect(store.outgoingDraft == "")
     }
 
     @Test func imageDropStagesThroughComposerStagingBegin() async throws {
@@ -1051,7 +1046,7 @@ struct AgentComposerStoreTests {
         #expect(fixture.store.messages.isEmpty)
     }
 
-    @Test func emojiReplacementFallsBackToCaretWhenPlaceholderIsGone() async throws {
+    @Test func emojiReplacementFallsBackToAttachmentsWhenPlaceholderIsGone() async throws {
         let gate = ScriptedTransportCallGate()
         let fixture = try Self.makeDropStagingFixture(stageGate: gate)
         defer { fixture.cleanup() }
@@ -1077,14 +1072,14 @@ struct AgentComposerStoreTests {
 
         await gate.open()
         try await waitUntil(
-            "a deleted placeholder should fall back to the caret",
+            "a deleted placeholder should fall back to the attachments",
             timeout: .seconds(5)
         ) {
-            fixture.store.draft == "😁 /tmp/heeler-drop.jpg "
+            fixture.store.attachedPaths == ["/tmp/heeler-drop.jpg"]
         }
 
-        #expect(fixture.store.draft == "😁 /tmp/heeler-drop.jpg ")
-        #expect(fixture.store.draftSelection == NSRange(location: 24, length: 0))
+        #expect(fixture.store.draft == "😁")
+        #expect(fixture.store.draftSelection == NSRange(location: 2, length: 0))
         #expect(fixture.store.messages.isEmpty)
     }
 
@@ -1623,11 +1618,11 @@ struct AgentComposerStoreTests {
             "the picker path and queued drop should both land",
             timeout: .seconds(5)
         ) {
-            fixture.store.draft.contains("/tmp/heeler-picker.jpg")
+            fixture.store.attachedPaths.contains("/tmp/heeler-picker.jpg")
                 && fixture.store.draft.contains("/tmp/heeler-drop-b.jpg")
         }
 
-        #expect(fixture.store.draft.contains("/tmp/heeler-picker.jpg"))
+        #expect(fixture.store.attachedPaths == ["/tmp/heeler-picker.jpg"])
         #expect(fixture.store.draft.contains("/tmp/heeler-drop-b.jpg"))
         #expect(!fixture.store.hasPendingDroppedImages)
         #expect(

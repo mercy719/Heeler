@@ -16351,34 +16351,34 @@
         }
       }
     },
-    "File path inserted and copied." : {
+    "File attached; path copied." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファイルのパスを挿入してコピーしました。"
+            "value" : "ファイルを添付し、パスをコピーしました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已插入并拷贝文件路径。"
+            "value" : "已附上文件，路径已拷贝。"
           }
         }
       }
     },
-    "File path inserted, but couldn't be copied." : {
+    "File attached." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ファイルのパスを挿入しましたが、コピーできませんでした。"
+            "value" : "ファイルを添付しました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已插入文件路径，但无法拷贝。"
+            "value" : "已附上文件。"
           }
         }
       }
@@ -20437,34 +20437,34 @@
         }
       }
     },
-    "Image path inserted and copied." : {
+    "Image attached; path copied." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "画像のパスを挿入してコピーしました。"
+            "value" : "画像を添付し、パスをコピーしました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已插入并拷贝图片路径。"
+            "value" : "已附上图片，路径已拷贝。"
           }
         }
       }
     },
-    "Image path inserted, but couldn't be copied." : {
+    "Image attached." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "画像のパスを挿入しましたが、コピーできませんでした。"
+            "value" : "画像を添付しました。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已插入图片路径，但无法拷贝。"
+            "value" : "已附上图片。"
           }
         }
       }

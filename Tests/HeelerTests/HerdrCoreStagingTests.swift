@@ -129,10 +129,10 @@ struct HerdrCoreStagingTests {
         ])
         #expect(staged.last?.contents == contents)
         #expect(
-            session.composer.draft
-                == "/tmp/heeler-stage/stage-0/image.jpg /tmp/heeler-stage/stage-1/meeting_notes.txt ")
+            session.composer.attachedPaths
+                == ["/tmp/heeler-stage/stage-0/image.jpg", "/tmp/heeler-stage/stage-1/meeting_notes.txt"])
 
-        // The path waits in the draft; delivering it is Send's job.
+        // The path waits beside the draft; delivering it is Send's job.
         #expect(Set(await fixture.scripted.methods).isSubset(of: Self.consoleReads))
         #expect(await fixture.scripted.attaches.isEmpty)
         await fixture.finish()
@@ -282,7 +282,7 @@ struct HerdrCoreStagingTests {
         let staged = await fixture.scripted.stagedFiles
         #expect(staged.map(\.path) == ["/tmp/heeler-stage/stage-0/notes.txt"])
         #expect(staged.first?.contents == contents)
-        #expect(session.composer.draft == "/tmp/heeler-stage/stage-0/notes.txt ")
+        #expect(session.composer.attachedPaths == ["/tmp/heeler-stage/stage-0/notes.txt"])
         await fixture.finish()
     }
 }

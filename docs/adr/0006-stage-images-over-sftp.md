@@ -26,3 +26,11 @@ The Composer's Add menu accepts one image from Photos or one document from Files
 - Upload and terminal rendering may continue concurrently. Composer insertion does not write to the PTY.
 - Clipboard content is local-only, expires after 24 hours, and replaces the previously copied path.
 - Completed remote attachments follow ADR 0005 and are never cleaned up by the mobile client.
+
+## Amendment (2026-11-12): picked attachments wait beside the draft
+
+A picked image or file no longer edits the draft text. Its path joins the
+Composer's attached paths, shown as tiles above the input, and Send puts them
+after the text as words of their own. An upload that finished mid-typing used
+to land at the caret and break an input-method composition in flight. A drop
+still keeps the place it was dropped in the text.

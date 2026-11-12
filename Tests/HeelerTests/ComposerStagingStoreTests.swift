@@ -30,8 +30,8 @@ struct ComposerStagingStoreTests {
             fixture.store.presentation
                 == ComposerStagingStore.Presentation(
                     icon: "checkmark.circle",
-                    title: "\(medium.displayName) path inserted and copied.",
-                    accessibilityLabel: "\(medium.displayName) path inserted and copied.",
+                    title: "\(medium.displayName) attached; path copied.",
+                    accessibilityLabel: "\(medium.displayName) attached; path copied.",
                     commands: [.dismiss]))
     }
 
@@ -979,7 +979,7 @@ private final class RecordingStagingComposer: ComposerDraftOperations {
     }
 
     /// The draft starts empty here, so a path needs no space before it.
-    func insertPathIntoDraft(_ path: String) {
+    func attachPath(_ path: String) {
         insertIntoDraft("\(path) ")
     }
 }

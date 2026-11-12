@@ -306,6 +306,8 @@ struct AgentComposerView: View {
     var openAgentTerminal: (() -> Void)? = nil
     /// Shown in the input's place, above the switcher: Chat's Blocked card.
     var inputReplacement: AnyView? = nil
+    /// Chat's picture reader, so attached images show as pictures.
+    var attachmentThumbnails: ChatImageThumbnails? = nil
     /// Bumped to put the caret in the input.
     var focusRequest = 0
     /// Chat folds the input to one line while the keyboard is down; see
@@ -526,6 +528,11 @@ struct AgentComposerView: View {
     private var inputArea: some View {
         VStack(alignment: .leading, spacing: 8) {
             suggestions
+            if !store.attachedPaths.isEmpty {
+                ComposerAttachmentRow(
+                    paths: store.attachedPaths, thumbnails: attachmentThumbnails,
+                    remove: { store.removeAttachedPath($0) })
+            }
             editorRow
             if isCollapsed, store.hasPendingDroppedImages {
                 pendingDropHint
@@ -626,10 +633,10 @@ struct AgentComposerView: View {
             .accessibilityElement(children: .contain)
             .modifier(ComposerVoiceCover(isCovered: coversEditorRow))
             if isCollapsed || airBuildStyle {
-                if !airBuildStyle || (store.draft.isEmpty && primaryControl != .stop) || isVoiceBarShown {
+                if !airBuildStyle || (store.outgoingDraft.isEmpty && primaryControl != .stop) || isVoiceBarShown {
                     voiceButton
                 }
-                if !airBuildStyle || !store.draft.isEmpty || primaryControl == .stop {
+                if !airBuildStyle || !store.outgoingDraft.isEmpty || primaryControl == .stop {
                     primaryButton
                         .modifier(ComposerVoiceCover(isCovered: isVoiceBarShown))
                 }
@@ -978,7 +985,7 @@ struct AgentComposerView: View {
 
     private var primaryControl: AgentComposerPrimaryControl {
         AgentComposerPrimaryControl(
-            status: status, draft: store.draft,
+            status: status, draft: store.outgoingDraft,
             canStop: store.isConnectionAvailable && interrupt != nil && !store.stop.isHeldAfterSend)
     }
 

@@ -113,10 +113,10 @@ final class ComposerStagingStore {
 
         fileprivate func inserted(copied: Bool) -> String {
             switch (self, copied) {
-            case (.image, true): String(localized: "Image path inserted and copied.")
-            case (.image, false): String(localized: "Image path inserted, but couldn't be copied.")
-            case (.file, true): String(localized: "File path inserted and copied.")
-            case (.file, false): String(localized: "File path inserted, but couldn't be copied.")
+            case (.image, true): String(localized: "Image attached; path copied.")
+            case (.image, false): String(localized: "Image attached.")
+            case (.file, true): String(localized: "File attached; path copied.")
+            case (.file, false): String(localized: "File attached.")
             }
         }
 
@@ -504,7 +504,7 @@ final class ComposerStagingStore {
             copied = true
         } catch {}
         if insertsPathIntoComposer {
-            composer.insertPathIntoDraft(staged.path)
+            composer.attachPath(staged.path)
         }
         state = .completed(
             Outcome(medium: staged.medium, path: staged.path, copied: copied))

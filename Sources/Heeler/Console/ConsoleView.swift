@@ -965,6 +965,7 @@ struct ConsoleView: View {
                                 startAgentRequest = StartAgentRequest(
                                     origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
                             } : nil,
+                        onOpenUsage: console.isUsageEnabled ? { showUsage() } : nil,
                         actions: AirBuildGlobalActions(openHosts: { showHosts() }, openSettings: { showSettings() }))
                     .background { VerticalToolbarProbe(usesVerticalToolbar: $sidebarHasVerticalBar) }
                     .readsVerticalToolbar()
@@ -2071,6 +2072,7 @@ struct ConsoleView: View {
                         NavigationLink(value: ConsoleSelection.terminal(shell.id)) {
                             ArcShellRow(
                                 terminal: shell,
+                                number: ArcShellRow.number(of: shell, among: project.shells),
                                 isSelected: selectedItem.wrappedValue == .terminal(shell.id))
                                 .modifier(ConsoleRowSelectionContent())
                         }

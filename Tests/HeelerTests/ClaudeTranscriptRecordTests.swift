@@ -1164,6 +1164,24 @@ struct ArcProjectTests {
         #expect(AirBuildVerticalBarItem.settings.systemImage == "gearshape")
     }
 
+    @Test("Shells named only for their program read as numbered Terminals; named ones keep their name")
+    func arcShellNumbers() {
+        let host = Host.fixture(name: "alpha")
+        func shell(_ pane: String, title: String) -> ConsoleTerminal {
+            ConsoleTerminal(
+                hostID: host.id, hostName: host.displayName, hostUsername: host.username,
+                pane: PaneInfo(
+                    agentStatus: .idle, focused: false, paneID: pane, revision: 1,
+                    tabID: "w1:t1", terminalID: "terminal-\(pane)",
+                    workspaceID: "w1", cwd: "/p", terminalTitleStripped: title),
+                workspaceLabel: nil, tabLabel: nil, workspaceOrder: 0, tabPosition: 1,
+                snapshotOrder: 0, snapshotAgentKind: nil)
+        }
+        let shells = [shell("a", title: "zsh"), shell("b", title: "npm run dev"), shell("c", title: "Bash")]
+        #expect(shells.map { ArcShellRow.number(of: $0, among: shells) } == [1, nil, 2])
+        #expect(ArcShellRow.number(of: shells[0], among: [shells[0], shells[1]]) == nil)
+    }
+
     @Test("A project lists its plain shells under its Agents, in tab order")
     func arcProjectShells() {
         let host = Host.fixture(name: "alpha")

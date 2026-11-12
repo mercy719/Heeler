@@ -144,9 +144,9 @@ struct HerdrCoreWindowsStagingTests {
         #expect(puts.first?.contents == contents)
         #expect(await putCount(fixture) == 1)
         #expect(Self.completedPath(session) == Self.filesFolder + "keep_15___.txt")
-        #expect(session.composer.draft == Self.filesFolder + "keep_15___.txt ")
+        #expect(session.composer.attachedPaths == [Self.filesFolder + "keep_15___.txt"])
 
-        // No SFTP, and the path waits in the draft for Send.
+        // No SFTP, and the path waits beside the draft for Send.
         #expect(await fixture.scripted.stagedFiles.isEmpty)
         await fixture.finish()
     }
@@ -161,7 +161,7 @@ struct HerdrCoreWindowsStagingTests {
         let puts = await fixture.scripted.puts
         #expect(puts.map(\.name) == ["image.jpg"])
         #expect(puts.first?.contents.isEmpty == false)
-        #expect(session.composer.draft == Self.filesFolder + "image.jpg ")
+        #expect(session.composer.attachedPaths == [Self.filesFolder + "image.jpg"])
         await fixture.finish()
     }
 
@@ -374,7 +374,7 @@ struct HerdrCoreWindowsStagingTests {
         try await Self.until("the second copy") { Self.completedPath(session) != nil }
 
         #expect(await fixture.scripted.puts.count == 2)
-        #expect(session.composer.draft == Self.filesFolder + "notes-2.txt ")
+        #expect(session.composer.attachedPaths == [Self.filesFolder + "notes-2.txt"])
         await fixture.finish()
     }
 

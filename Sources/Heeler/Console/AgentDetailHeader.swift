@@ -554,6 +554,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
 @available(iOS 27.1, *)
 private struct AirBuildHomeBarControls: ToolbarContent {
     let onNewAgent: (() -> Void)?
+    let onOpenUsage: (() -> Void)?
     let actions: AirBuildGlobalActions
 
     var body: some ToolbarContent {
@@ -569,6 +570,13 @@ private struct AirBuildHomeBarControls: ToolbarContent {
             .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
+        if let onOpenUsage {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Usage", systemImage: "gauge", action: onOpenUsage)
+                    .tint(nil)
+            }
+            .axisBehavior(.verticalPreferred)
+        }
         ToolbarSpacer(.flexible, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Menu {
@@ -771,12 +779,12 @@ extension View {
 
     /// The home screen's side-bar controls (`AirBuildHomeBarControls`).
     func airBuildHomeBarControls(
-        isVisible: Bool, onNewAgent: (() -> Void)?, actions: AirBuildGlobalActions
+        isVisible: Bool, onNewAgent: (() -> Void)?, onOpenUsage: (() -> Void)?, actions: AirBuildGlobalActions
     ) -> some View {
         toolbar {
             #if compiler(>=6.4)
             if #available(iOS 27.1, *), isVisible {
-                AirBuildHomeBarControls(onNewAgent: onNewAgent, actions: actions)
+                AirBuildHomeBarControls(onNewAgent: onNewAgent, onOpenUsage: onOpenUsage, actions: actions)
             }
             #endif
         }

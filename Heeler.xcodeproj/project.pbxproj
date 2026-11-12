@@ -564,6 +564,7 @@
 		8639BE997E0C8356AA43573B /* HomeCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A278A1017B291546679391DE /* HomeCommandTests.swift */; };
 		8668C3C60FB9539A7DD1A4EC /* Base64URL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32413805C1AA874DBEE37547 /* Base64URL.swift */; };
 		86EA13918F2EE2103B2DEFB3 /* AgentLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A9489C21BDCFA7616782BF /* AgentLiveActivityWidget.swift */; };
+		87324960D04AF9E3A647D31E /* ComposerAttachmentRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C125E78DE3A3469C5122A44 /* ComposerAttachmentRow.swift */; };
 		8747DBB939640595FA41F820 /* OBOrbitRings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AB59FA6E3C54D9C677C31AC /* OBOrbitRings.swift */; };
 		875053C38A03704E29431ED4 /* FakeCoreSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7286C0E9A8E33F442F0160E5 /* FakeCoreSocket.swift */; };
 		87D572B8B3B322A002F81335 /* HostNotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6193A6A2CF583FB1A4F070D /* HostNotificationSettingsView.swift */; };
@@ -1437,6 +1438,7 @@
 		4AD8BFCE96D2B7336EA8CB3B /* OverlayNetworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayNetworkStore.swift; sourceTree = "<group>"; };
 		4B263F98CDBBACD4EA5CB07F /* AgentUsageCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageCharts.swift; sourceTree = "<group>"; };
 		4C07BE449E30F431C247AF01 /* TerminalFullKeyboardLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalFullKeyboardLayoutTests.swift; sourceTree = "<group>"; };
+		4C125E78DE3A3469C5122A44 /* ComposerAttachmentRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposerAttachmentRow.swift; sourceTree = "<group>"; };
 		4C6B18C2C848652A89A8DEB0 /* LaunchPresetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchPresetViews.swift; sourceTree = "<group>"; };
 		4C6D00C5E1D095E6FD02BD1F /* HerdrCoreEventCursorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HerdrCoreEventCursorTests.swift; sourceTree = "<group>"; };
 		4C8B9FEF2650D7531C179D84 /* ChangesReferenceScrollMeasurementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangesReferenceScrollMeasurementTests.swift; sourceTree = "<group>"; };
@@ -3617,6 +3619,7 @@
 			isa = PBXGroup;
 			children = (
 				BB47B059A9FC5B8A63C834F2 /* AttachmentStaging.swift */,
+				4C125E78DE3A3469C5122A44 /* ComposerAttachmentRow.swift */,
 				95E3DFAF306DA35CB2C079E2 /* ComposerStagingStatusBar.swift */,
 				8D23517AF3A39615725A0ADC /* ComposerStagingStore.swift */,
 			);
@@ -4184,6 +4187,7 @@
 				F92BAFFBD6C37526C9CC2FC1 /* CodexToolSummary.swift in Sources */,
 				7B3DE2945FDDFFE030150E18 /* CodexTranscriptLocator.swift in Sources */,
 				A25D752D1FF77B0A6F4DAA15 /* CommandBlock.swift in Sources */,
+				87324960D04AF9E3A647D31E /* ComposerAttachmentRow.swift in Sources */,
 				DB2D4ECC14CBA551236420C2 /* ComposerDeliveryPolicy.swift in Sources */,
 				49924070055C376D1C0E2A8E /* ComposerDrop.swift in Sources */,
 				DAC71CBDA8D8B092ED157288 /* ComposerStagingStatusBar.swift in Sources */,

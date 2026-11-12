@@ -481,11 +481,33 @@ struct ArcAgentLine: Equatable, Sendable {
 /// Agent shows its plush, the pane's name, and what its title says now.
 struct ArcShellRow: View {
     let terminal: ConsoleTerminal
+    /// Set when the project has more than one shell, so bare ones stay apart.
+    var number: Int?
     var isSelected = false
     @Environment(\.isSidebarColumn) private var isSidebarColumn
 
+    /// A shell's own name ("zsh") says nothing a person picked, so it reads as Terminal.
+    nonisolated static let shellNames: Set<String> = ["zsh", "bash", "sh", "fish", "nu", "pwsh", "powershell", "cmd", "dash", "ksh", "tcsh"]
+
+    nonisolated static func isBare(_ terminal: ConsoleTerminal) -> Bool {
+        shellNames.contains(terminal.displayTitle.lowercased())
+    }
+
+    /// Counts only the bare shells, and only when there is more than one.
+    nonisolated static func number(of shell: ConsoleTerminal, among shells: [ConsoleTerminal]) -> Int? {
+        let bare = shells.filter(isBare)
+        guard bare.count > 1, let index = bare.firstIndex(where: { $0.id == shell.id }) else { return nil }
+        return index + 1
+    }
+
+    private var name: String {
+        guard Self.isBare(terminal) else { return terminal.displayTitle }
+        return number.map { String(localized: "Terminal \($0)") } ?? String(localized: "Terminal")
+    }
+
     private var subtitle: String? {
-        guard let title = terminal.title, title != terminal.displayTitle else { return nil }
+        guard let title = terminal.title, title != terminal.displayTitle,
+              !Self.shellNames.contains(title.lowercased()) else { return nil }
         return title
     }
 
@@ -499,7 +521,7 @@ struct ArcShellRow: View {
                 .frame(width: isSidebarColumn ? 46 : 50)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
-                Text(verbatim: terminal.displayTitle)
+                Text(verbatim: name)
                     .font(.system(size: 13.5, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -523,7 +545,7 @@ struct ArcShellRow: View {
         .padding(.horizontal, 6)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: [String(localized: "Terminal"), terminal.displayTitle, subtitle].compactMap { $0 }.joined(separator: ", ")))
+        .accessibilityLabel(Text(verbatim: [Self.isBare(terminal) ? nil : String(localized: "Terminal"), name, subtitle].compactMap { $0 }.joined(separator: ", ")))
     }
 }
 
