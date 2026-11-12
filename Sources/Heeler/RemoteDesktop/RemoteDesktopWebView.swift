@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import WebKit
 
@@ -120,6 +121,9 @@ struct RemoteDesktopWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var onStats: @MainActor ([String: Any]) -> Void
         var onFirstFrame: @MainActor () -> Void
+        #if DEBUG
+            private static let log = Logger(subsystem: "dev.bybee.heeler", category: "RemoteDesktop")
+        #endif
         /// The one origin this view may load; the first navigation names it.
         private var allowedOrigin: String?
 
@@ -146,6 +150,11 @@ struct RemoteDesktopWebView: UIViewRepresentable {
             _ controller: WKUserContentController, didReceive message: WKScriptMessage
         ) {
             guard let body = message.body as? [String: Any] else { return }
+            #if DEBUG
+                // Numbers only: frame counts and round trip, never page content.
+                Self.log.debug(
+                    "page \(body["firstFrame"] != nil ? "firstFrame" : "stats", privacy: .public) fps=\(String(describing: body["fps"]), privacy: .public) frames=\(String(describing: body["frames"]), privacy: .public) rtt=\(String(describing: body["rttMs"]), privacy: .public)")
+            #endif
             if body["firstFrame"] as? Bool == true {
                 onFirstFrame()
             } else {

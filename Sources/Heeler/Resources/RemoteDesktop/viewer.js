@@ -39,6 +39,8 @@
     const codec = config.codec.replace(/^avc3\./i, "avc1.").replace(/^hev1\./i, "hvc1.");
     return codec === config.codec ? config : Object.assign({}, config, { codec });
   };
+  // Moonlight decodes in a Worker when it can, out of reach of the patch below; without one it decodes here.
+  try { delete window.Worker; } catch {}
   const NativeDecoder = window.VideoDecoder;
   if (typeof NativeDecoder === "function") {
     // A function rather than a subclass: it hands back the native decoder.
@@ -49,14 +51,22 @@
         options.output = (frame) => {
           frames += 1; secondFrames += 1;
           // The first picture is what ends "connecting" in the app.
-          if (!firstFrameSent) { firstFrameSent = true; post({ firstFrame: true }); }
+          if (!firstFrameSent) {
+            firstFrameSent = true;
+            post({ firstFrame: true });
+            setTimeout(() => window.__heelerRD && window.__heelerRD.stats(true), 0);
+          }
           output(frame);
         };
       }
       return new NativeDecoder(options);
     };
     Patched.prototype = NativeDecoder.prototype;
-    Patched.isConfigSupported = (config) => NativeDecoder.isConfigSupported(rewriteCodec(config));
+    // H.264 only: offered HEVC, Sunshine picks 10-bit HEVC, which the Mac's encoder never starts (no IDR).
+    Patched.isConfigSupported = (config) =>
+      config && typeof config.codec === "string" && !/^avc/i.test(config.codec)
+        ? Promise.resolve({ supported: false, config })
+        : NativeDecoder.isConfigSupported(rewriteCodec(config));
     const configure = NativeDecoder.prototype.configure;
     NativeDecoder.prototype.configure = function (config) { return configure.call(this, rewriteCodec(config)); };
     window.VideoDecoder = Patched;
@@ -162,14 +172,14 @@
       const app = window.app;
       const stream = app && app.getStream && app.getStream();
       const stats = stream && stream.getStats && stream.getStats();
-      if (!stats || !stats.setEnabled) return false;
-      stats.setEnabled(Boolean(on));
+      if (stats && stats.setEnabled) stats.setEnabled(Boolean(on));
       if (!on) return true;
-      // The page's own origin is the computer, so the sample goes to the app.
+      // The page's own origin is the computer, so the sample goes to the app. Frames count without the page's
+      // stats; the round trip needs them.
       statsTimer = setInterval(() => {
         let rttMs = null;
         try {
-          const transport = stats.getCurrentStats().transport || {};
+          const transport = (stats && stats.getCurrentStats().transport) || {};
           if (typeof transport.relayToClientRttMs === "number") rttMs = Math.round(transport.relayToClientRttMs);
         } catch {}
         post({ fps: secondFrames, rttMs, frames });
