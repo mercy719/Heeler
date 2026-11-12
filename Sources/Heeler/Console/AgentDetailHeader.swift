@@ -352,6 +352,8 @@ struct AgentDetailHeaderTrailingControls: View {
 /// the horizontal custom capsule applies its own frame and plain style.
 private struct AgentDetailSurfaceButton: View {
     let control: AgentDetailSurfaceSwitch
+    /// In a native bar, which draws its symbols a size up from the capsule's.
+    var inBar = false
 
     var body: some View {
         let target = control.other
@@ -361,7 +363,7 @@ private struct AgentDetailSurfaceButton: View {
             Label {
                 Text(target.showTitle)
             } icon: {
-                AgentDetailSurfaceGlyph(glyph: target.showGlyph)
+                AgentDetailSurfaceGlyph(glyph: target.showGlyph, inBar: inBar)
             }
             .labelStyle(.iconOnly)
         }
@@ -373,6 +375,7 @@ private struct AgentDetailSurfaceButton: View {
 /// the native vertical toolbar item.
 private struct AgentDetailSurfaceGlyph: View {
     let glyph: AgentGlyph
+    var inBar = false
 
     @ViewBuilder
     var body: some View {
@@ -383,7 +386,7 @@ private struct AgentDetailSurfaceGlyph: View {
         case .codeBubble:
             // Flattened because a native toolbar extracts a Label's symbol
             // representation and would discard an overlay on an SF Symbol.
-            Image(uiImage: CodeBubbleGlyph.image(pointSize: 17))
+            Image(uiImage: CodeBubbleGlyph.image(pointSize: 17, scale: inBar ? .large : .medium))
         }
     }
 }
@@ -455,7 +458,7 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
         }
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
-                AgentDetailSurfaceButton(control: surfaceSwitch)
+                AgentDetailSurfaceButton(control: surfaceSwitch, inBar: true)
             }
             // The code bubble is a small custom symbol which supports the
             // vertical representation even though SwiftUI cannot infer it.
@@ -482,7 +485,7 @@ private struct AirBuildFoldedBarControls<More: View>: ToolbarContent {
         .visibilityPriority(.high)
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
-                AgentDetailSurfaceButton(control: surfaceSwitch)
+                AgentDetailSurfaceButton(control: surfaceSwitch, inBar: true)
                     .tint(nil)
             }
             .axisBehavior(.verticalPreferred)
@@ -514,7 +517,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
         .visibilityPriority(.high)
         if let surfaceSwitch {
             ToolbarItem(placement: .primaryAction) {
-                AgentDetailSurfaceButton(control: surfaceSwitch)
+                AgentDetailSurfaceButton(control: surfaceSwitch, inBar: true)
                     .tint(nil)
             }
             .axisBehavior(.verticalPreferred)

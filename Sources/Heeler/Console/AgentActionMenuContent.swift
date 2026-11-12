@@ -306,12 +306,14 @@ struct CodeBubbleMarks: Shape {
 /// image.
 @MainActor
 enum CodeBubbleGlyph {
-    private static var cache: [CGFloat: UIImage] = [:]
+    private static var cache: [String: UIImage] = [:]
 
-    static func image(pointSize: CGFloat) -> UIImage {
-        if let image = cache[pointSize] { return image }
+    /// `.large` matches what a native bar draws its own symbols at.
+    static func image(pointSize: CGFloat, scale: UIImage.SymbolScale = .medium) -> UIImage {
+        let key = "\(pointSize)-\(scale.rawValue)"
+        if let image = cache[key] { return image }
         let configuration = UIImage.SymbolConfiguration(
-            pointSize: pointSize, weight: .regular, scale: .medium)
+            pointSize: pointSize, weight: .regular, scale: scale)
         guard
             let bubble = UIImage(systemName: "bubble", withConfiguration: configuration)?
                 .withTintColor(.black, renderingMode: .alwaysOriginal)
@@ -324,7 +326,7 @@ enum CodeBubbleGlyph {
                 .fill()
         }
         let image = drawn.withRenderingMode(.alwaysTemplate)
-        cache[pointSize] = image
+        cache[key] = image
         return image
     }
 }
