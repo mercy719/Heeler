@@ -14,6 +14,8 @@ trap 'kill $SESS_PID 2>/dev/null; rm -rf "$T"' EXIT
 ok() { printf 'ok   %s\n' "$*"; }
 bad() { printf 'FAIL %s\n' "$*"; FAILED=$((FAILED+1)); }
 check() { if eval "$2"; then ok "$1"; else bad "$1"; fi }
+# 测试自身也用系统自带的 plutil，别依赖 jq（CI 与用户 Mac 未必装）
+jget() { plutil -extract "$1" raw -o - "$2" 2>/dev/null; }
 
 # ---- 替身 ----
 cat > "$T/bin/launchctl" <<'EOF'
@@ -111,8 +113,12 @@ reap() {   # 自己起的子进程被杀后会留僵尸，kill -0 / pgrep 仍认
 # ---- 1. 就绪：一行 JSON、字段、主显示器尺寸、先清残留再点亮再 bootstrap、web-server 在跑 ----
 open_session ready
 check "就绪：stdout 只有一行" '[ "$(grep -c . "$T/ready.out")" = 1 ]'
-check "就绪：JSON 字段齐全（含 locked）" 'jq -e "select(.ready == true and .port == 52100 and .hostId == 42 and .appId == 7 and .locked == true)" "$T/ready.out" >/dev/null'
-check "就绪：宽高取主显示器 1440x900" 'jq -e "select(.width == 1440 and .height == 900)" "$T/ready.out" >/dev/null'
+check "就绪：JSON 字段齐全（含 locked）" \
+  '[ "$(jget ready "$T/ready.out")" = true ] && [ "$(jget port "$T/ready.out")" = 52100 ] && \
+   [ "$(jget hostId "$T/ready.out")" = 42 ] && [ "$(jget appId "$T/ready.out")" = 7 ] && \
+   [ "$(jget locked "$T/ready.out")" = true ]'
+check "就绪：宽高取主显示器 1440x900" \
+  '[ "$(jget width "$T/ready.out")" = 1440 ] && [ "$(jget height "$T/ready.out")" = 900 ]'
 check "就绪：先 bootout 清残留、再 caffeinate、再 bootstrap" \
   'grep -q "^bootout gui/" "$STUB_LOG" && grep -q "^caffeinate -u" "$STUB_LOG" && \
    [ "$(grep -n "^bootout" "$STUB_LOG" | head -1 | cut -d: -f1)" -lt "$(grep -n "^bootstrap" "$STUB_LOG" | head -1 | cut -d: -f1)" ]'
@@ -165,14 +171,16 @@ check "口令：口令走 curl 的 -K 文件，不进 argv" '! grep -q "stub-sec
 STUB_SETUP='{"accessibility":"blocked","displays":"allowed","guiSession":"allowed","screenRecording":"blocked"}' \
   /bin/bash "$SCRIPT" start < /dev/null > "$T/perm.out" 2>&1
 check "needsPermission：单行 JSON 且 error=needsPermission" \
-  '[ "$(grep -c . "$T/perm.out")" = 1 ] && jq -e "select(.ready == false and .error == \"needsPermission\")" "$T/perm.out" >/dev/null'
+  '[ "$(grep -c . "$T/perm.out")" = 1 ] && [ "$(jget ready "$T/perm.out")" = false ] && \
+   [ "$(jget error "$T/perm.out")" = needsPermission ]'
 check "needsPermission：清理过、没留下进程" 'grep -q "^bootout" "$T/stub.log" && no_stub_left'
 
 # ---- 9. 未安装：notInstalled ----
 : > "$T/ni.out"
 HOME="$T/home2" /bin/bash "$SCRIPT" start < /dev/null > "$T/ni.out" 2>&1
 check "notInstalled：单行 JSON 且 error=notInstalled" \
-  '[ "$(grep -c . "$T/ni.out")" = 1 ] && jq -e "select(.ready == false and .error == \"notInstalled\")" "$T/ni.out" >/dev/null'
+  '[ "$(grep -c . "$T/ni.out")" = 1 ] && [ "$(jget ready "$T/ni.out")" = false ] && \
+   [ "$(jget error "$T/ni.out")" = notInstalled ]'
 
 echo
 if [ $FAILED -eq 0 ]; then echo "全部通过"; else echo "$FAILED 项失败"; fi

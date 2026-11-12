@@ -46,11 +46,12 @@ fail() { out "{\"ready\":false,\"error\":\"$1\",\"detail\":\"$2\"}"; exit 1; }
 clear_leftovers() {
   pkill -f "$ML/web-server" 2>/dev/null
   launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1
+  # 上一轮的 Sunshine 是 launchd 起的，bootout 之后还要几百毫秒才退；不等它退会抢 51989。
   i=0
-  while [ $i -lt 50 ] && { pgrep -f "$ML/web-server" >/dev/null || pgrep -f "$SUN" >/dev/null; }; do
-    sleep 0.1; i=$((i+1))
-  done
+  while [ $i -lt 50 ] && pgrep -f "$SUN" >/dev/null 2>&1; do sleep 0.1; i=$((i+1)); done
   pkill -f "$SUN" 2>/dev/null
+  i=0
+  while [ $i -lt 50 ] && pgrep -f "$ML/web-server" >/dev/null 2>&1; do sleep 0.1; i=$((i+1)); done
 }
 
 main_display() {   # 主显示器的逻辑分辨率（Sunshine 抓屏用的坐标）
@@ -85,6 +86,8 @@ start() {
   launchctl print "gui/$(id -u)" >/dev/null 2>&1 || fail noGuiSession "no Aqua session for this user"
   # Sunshine 在显示器睡着时起不来：先点亮（不需要密码，也不会解锁）。
   caffeinate -u -t 5 >/dev/null 2>&1 &
+  # 会话期间屏幕不许睡：Sunshine 每次开流都要先从屏幕拿一帧，屏幕睡着就一直卡住（实测 11-13）。脚本退出它跟着退。
+  caffeinate -d -w $$ >/dev/null 2>&1 &
   launchctl bootstrap "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || fail sunshineFailed "launchctl bootstrap failed"
 
   i=0
