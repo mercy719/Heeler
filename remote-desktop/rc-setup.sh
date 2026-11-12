@@ -24,7 +24,7 @@ WORK="${TMPDIR:-/tmp}/heeler-rc-setup.$$"
 ARCHIVE="" FORCE=0 WPID="" SUN_STARTED=0 SETUP=""
 
 out() { printf '%s\n' "$1"; }
-get() { jq -r "$1 // empty" 2>/dev/null; }          # 从 stdin 的 JSON 取键
+get() { plutil -extract "$1" raw -o - - 2>/dev/null; }   # 从 stdin 的 JSON 取键（plutil 是系统自带）
 # 口令从独立的 -K 文件读：curl 的 -K - 会把 stdin 整份吞成配置，和 --data-binary @- 打架。
 sunc() { curl -sk --max-time "${1:-5}" -K "$WORK/curlrc" "${@:2}"; }
 rand() { openssl rand -hex 12; }
@@ -132,6 +132,9 @@ make_creds() {   # Sunshine 自带 --creds 生成哈希凭据；Moonlight 没口
 
 bring_up() {   # 桌面上起 Sunshine（显示器睡着时会挂住，先点亮），再起 web-server
   launchctl bootout "gui/$(id -u)/$LABEL" >/dev/null 2>&1
+  # 上一轮刚 bootstrap 过时，bootout 之后进程还要几百毫秒才退；不等它退，新的一轮会和它抢端口。
+  i=0
+  while [ $i -lt 50 ] && pgrep -f "$SUN" >/dev/null 2>&1; do sleep 0.1; i=$((i+1)); done
   launchctl print "gui/$(id -u)" >/dev/null 2>&1 || die noGuiSession "no Aqua session for this user"
   caffeinate -u -t 5 >/dev/null 2>&1 &
   launchctl bootstrap "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || die sunshineFailed "launchctl bootstrap failed"
@@ -143,7 +146,7 @@ bring_up() {   # 桌面上起 Sunshine（显示器睡着时会挂住，先点亮
     i=$((i+1)); sleep 0.5
   done
   [ -n "$SETUP" ] || die sunshineFailed "Sunshine setup endpoint did not answer in 20s"
-  [ "$(printf '%s' "$SETUP" | get .guiSession)" = allowed ] || die noGuiSession "Sunshine has no GUI session"
+  [ "$(printf '%s' "$SETUP" | get guiSession)" = allowed ] || die noGuiSession "Sunshine has no GUI session"
   # 静态页按相对路径 "static" 找：必须在 moonlight 目录里启动，但 argv 仍用绝对路径给 pkill 认。
   ( cd "$ML" && exec nohup "$ML/web-server" --config-path "$ML/config.json" </dev/null >>"$ML/server.out.log" 2>&1 ) &
   WPID=$!
@@ -161,31 +164,38 @@ pair() {   # 建管理员 → 设为默认用户（免登录）→ 加主机 →
   printf '{"name":"heeler","password":"%s"}' "$(cat "$MLPW")" | \
     curl -sf --max-time 10 -c "$WORK/ck" -X POST "$W/api/login" -H 'Content-Type: application/json' --data-binary @- >/dev/null \
     || die webServerFailed "moonlight web login failed"
-  uid=$(curl -sf --max-time 5 -b "$WORK/ck" "$W/api/user" | get .id)
+  uid=$(curl -sf --max-time 5 -b "$WORK/ck" "$W/api/user" | get id)
   printf '{"id":%s}' "$uid" | curl -sf --max-time 5 -b "$WORK/ck" -X PUT "$W/api/user/default" \
     -H 'Content-Type: application/json' --data-binary @- >/dev/null \
     || die webServerFailed "cannot set the default user"
   hj=$(curl -sf --max-time 5 "$W/api/hosts") || die webServerFailed "cannot list hosts"
-  hid=$(printf '%s' "$hj" | get .hosts[0].host_id)
+  hid=$(printf '%s' "$hj" | get hosts.0.host_id)
   if [ -z "$hid" ]; then
     hid=$(printf '{"address":"127.0.0.1","http_port":%s}' "$SPORT" | \
-      curl -sf --max-time 5 -b "$WORK/ck" -X POST "$W/api/host" -H 'Content-Type: application/json' --data-binary @- | get .host.host_id)
+      curl -sf --max-time 5 -b "$WORK/ck" -X POST "$W/api/host" -H 'Content-Type: application/json' --data-binary @- | get host.host_id)
   fi
   [ -n "$hid" ] || die pairFailed "cannot create the moonlight host"
 
-  if [ "$(printf '%s' "$hj" | get .hosts[0].paired)" != Paired ]; then
+  if [ "$(printf '%s' "$hj" | get hosts.0.paired)" != Paired ]; then
     nd="$WORK/pair.ndjson"; : > "$nd"
     printf '{"host_id":%s}' "$hid" | curl -sN --max-time 40 -b "$WORK/ck" -X POST "$W/api/pair" \
       -H 'Content-Type: application/json' --data-binary @- > "$nd" 2>/dev/null &
     pair_pid=$!
     pin="" i=0
     while [ $i -lt 40 ]; do
-      pin=$(head -1 "$nd" | get .Pin)
+      pin=$(head -1 "$nd" | get Pin)
       [ -n "$pin" ] && break
       i=$((i+1)); sleep 0.5
     done
     [ -n "$pin" ] || { kill "$pair_pid" 2>/dev/null; die pairFailed "no PIN from moonlight web"; }
-    pid_=$(sunc 5 "https://127.0.0.1:$HPORT/api/pin" | jq -r --arg n "$DEV" '.pairings[]? | select(.name == $n) | .id' | tail -1)
+    sunc 5 "https://127.0.0.1:$HPORT/api/pin" > "$WORK/pending.json"
+    pid_="" i=0
+    while :; do
+      nm=$(get "pairings.$i.name" < "$WORK/pending.json")
+      [ -z "$nm" ] && break
+      [ "$nm" = "$DEV" ] && pid_=$(get "pairings.$i.id" < "$WORK/pending.json")
+      i=$((i+1))
+    done
     [ -n "$pid_" ] || { kill "$pair_pid" 2>/dev/null; die pairFailed "no pending pairing named $DEV in Sunshine"; }
     printf '{"pairing_id":"%s","pin":"%s","name":"Heeler Remote Desktop"}' "$pid_" "$pin" | \
       sunc 10 -X POST -H 'Content-Type: application/json' --data-binary @- "https://127.0.0.1:$HPORT/api/pin" \
@@ -194,7 +204,7 @@ pair() {   # 建管理员 → 设为默认用户（免登录）→ 加主机 →
     sed -n 2p "$nd" | grep -q Paired || die pairFailed "moonlight web did not report Paired"
   fi
 
-  aid=$(curl -sf --max-time 5 "$W/api/apps?host_id=$hid" | get .apps[0].app_id)
+  aid=$(curl -sf --max-time 5 "$W/api/apps?host_id=$hid" | get apps.0.app_id)
   [ -n "$aid" ] || die pairFailed "no Desktop app on the moonlight host"
   printf '{"hostId":%s,"appId":%s}\n' "$hid" "$aid" > "$PAIR_STATE"; chmod 600 "$PAIR_STATE"
 }
@@ -206,8 +216,8 @@ do_install() {
   bring_up
   pair
   perm=false
-  if [ "$(printf '%s' "$SETUP" | get .screenRecording)" != allowed ] || \
-     [ "$(printf '%s' "$SETUP" | get .accessibility)" != allowed ]; then perm=true; fi
+  if [ "$(printf '%s' "$SETUP" | get screenRecording)" != allowed ] || \
+     [ "$(printf '%s' "$SETUP" | get accessibility)" != allowed ]; then perm=true; fi
   release
   out "{\"installed\":true,\"needsPermission\":$perm}"
 }
@@ -219,8 +229,8 @@ do_status() {
   fi
   perm=false; needs_permission && perm=true
   paired=false
-  hid=$(jq -r '.hostId // empty' "$PAIR_STATE" 2>/dev/null)
-  if [ -n "$hid" ] && [ -n "$(jq -r ".hosts.\"$hid\".pair_info.client_certificate // empty" "$ML/data.json" 2>/dev/null)" ]; then
+  hid=$(plutil -extract hostId raw -o - "$PAIR_STATE" 2>/dev/null)
+  if [ -n "$hid" ] && [ -n "$(plutil -extract "hosts.$hid.pair_info.client_certificate" raw -o - "$ML/data.json" 2>/dev/null)" ]; then
     paired=true
   fi
   out "{\"installed\":true,\"needsPermission\":$perm,\"paired\":$paired}"
