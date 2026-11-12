@@ -2672,7 +2672,10 @@ extension ConsoleStore {
         }
     }
 
-    private static func consoleSettings(
+    /// Transport settings for a Host from the catalog's credentials, with TOFU
+    /// restricted to already-trusted fingerprints. Remote Desktop reuses it, so
+    /// both links trust a Host the same way.
+    static func consoleSettings(
         for host: Host, knownHosts: any KnownHostsStore, credentials: HostCredentialsProvider,
         overlays: OverlayNetworkRuntime
     ) throws -> SSHTransportSettings {

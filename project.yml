@@ -78,6 +78,16 @@ targets:
       - path: plugin/helper
         type: folder
         buildPhase: resources
+      # Remote Desktop: the Host scripts `RemoteDesktopScripts.bundled()` reads
+      # by name at the bundle root, and the viewer page script the WebView
+      # injects at documentStart. Individual files, not a folder reference:
+      # each is looked up by name and extension.
+      - path: remote-desktop/rc-setup.sh
+        buildPhase: resources
+      - path: remote-desktop/rc-session.sh
+        buildPhase: resources
+      - path: Sources/Heeler/Resources/RemoteDesktop/viewer.js
+        buildPhase: resources
     info:
       path: Sources/Heeler/Info.plist
       properties:
@@ -111,6 +121,10 @@ targets:
           - CFBundleURLName: dev.bybee.heeler
             CFBundleURLSchemes:
               - heeler
+        # Remote Desktop loads the page from this device's own loopback
+        # listener; the exception covers 127.0.0.1 and nothing routable.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: Sources/Heeler/Heeler.entitlements
       properties:
