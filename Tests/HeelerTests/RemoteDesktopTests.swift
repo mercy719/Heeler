@@ -344,6 +344,21 @@ struct RemoteDesktopTests {
         #expect(missing.isClosed)
     }
 
+    @Test func stopWhileStartingLeavesNothingRunning() async throws {
+        let ends = Mutex<[RemoteDesktopEnd]>([])
+        let connection = ScriptedConnection()
+        connection.setHoldStatus(true)
+        let session = makeSession(connection) { end in ends.withLock { $0.append(end) } }
+        let starting = Task { try await session.start() }
+        try await waitUntil { connection.calls.count >= 3 }
+        await session.stop()
+        connection.setHoldStatus(false)
+        await #expect(throws: (any Error).self) { _ = try await starting.value }
+        #expect(connection.isClosed)
+        #expect(!connection.calls.contains { $0.command.hasSuffix("rc-session.sh start") })
+        #expect(ends.withLock { $0 } == [.stopped])
+    }
+
     @Test func sessionEndsWhenExecHitsEOF() async throws {
         let ends = Mutex<[RemoteDesktopEnd]>([])
         let connection = ScriptedConnection()
@@ -419,6 +434,7 @@ private final class ScriptedConnection: RemoteDesktopConnection, Sendable {
         var installAnswer = Data(
             #"{"installed":true,"needsPermission":false,"paired":true}"#.utf8)
         var closed = false
+        var holdStatus = false
     }
 
     static let readyLine = Data(
@@ -438,10 +454,14 @@ private final class ScriptedConnection: RemoteDesktopConnection, Sendable {
 
     func setStatus(_ answer: Data) { state.withLock { $0.status = answer } }
     func setInstallAnswer(_ answer: Data) { state.withLock { $0.installAnswer = answer } }
+    func setHoldStatus(_ hold: Bool) { state.withLock { $0.holdStatus = hold } }
 
     func execute(
         _ command: String, input: Data, timeout: Duration
     ) async throws -> (status: Int32, stdout: Data) {
+        if command.hasSuffix("rc-setup.sh status") {
+            while state.withLock({ $0.holdStatus }) { try await Task.sleep(for: .milliseconds(5)) }
+        }
         let answer = state.withLock { state -> Data in
             state.calls.append(Call(command: command, input: input))
             if command.hasSuffix("rc-setup.sh status") { return state.status }

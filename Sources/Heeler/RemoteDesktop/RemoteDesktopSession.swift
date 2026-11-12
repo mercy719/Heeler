@@ -123,10 +123,22 @@ actor RemoteDesktopSession {
 
     private func run() async throws -> RemoteDesktopReady {
         let connection = try await connector.connectRemoteDesktop(settings: settings)
+        // `stop()` can run at any await below (the user closes while it connects);
+        // what arrives after it is closed here instead of kept alive by heartbeats.
+        guard !ended else {
+            await connection.close()
+            throw CancellationError()
+        }
         self.connection = connection
         try await writeScripts(over: connection)
+        try checkStopped()
         try await installIfNeeded(over: connection)
+        try checkStopped()
         let (exec, ready) = try await startHostSession(over: connection)
+        guard !ended else {
+            await exec.close()
+            throw CancellationError()
+        }
         sessionExec = exec
         monitorTask = Task { [weak self] in
             await self?.watchLink(exec)
@@ -142,11 +154,19 @@ actor RemoteDesktopSession {
             return try await connection.openTCP(port: ready.port)
         }
         let localPort = try await forwarder.start()
+        guard !ended else {
+            await forwarder.stop()
+            throw CancellationError()
+        }
         self.forwarder = forwarder
         let started = RemoteDesktopReady(
             port: localPort, hostID: ready.hostID, appID: ready.appID,
             width: ready.width, height: ready.height, locked: ready.locked)
         return started
+    }
+
+    private func checkStopped() throws {
+        if ended { throw CancellationError() }
     }
 
     // MARK: Host scripts
