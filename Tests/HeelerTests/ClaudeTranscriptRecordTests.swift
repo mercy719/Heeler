@@ -1076,9 +1076,6 @@ struct ArcProjectTests {
         #expect(pages.map(\.count) == [4, 2])
         #expect(pages[0].map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "\(host.id.uuidString)/w1"])
         #expect(pages[1].last == .all(5))
-        #expect(AirBuildProjectLayout.columns(for: 300) == 3)
-        #expect(AirBuildProjectLayout.columns(for: 466) == 4)
-        #expect(AirBuildProjectLayout.columns(for: 380) == 3)
     }
 
     @Test("The home grid's tiles shrink to fit 4 × 4 and 5 × 5, never past 3 × 3's")
@@ -1088,6 +1085,9 @@ struct ArcProjectTests {
         let five = AirBuildProjectLayout.tileSize(columns: 5, width: 350)
         #expect(four < 84 && five < four && five >= 36)
         #expect(AirBuildProjectLayout.tileSize(columns: 5, width: 0) == 84)
+        // Beside the detail the tile caps lower.
+        #expect(AirBuildProjectLayout.tileSize(columns: 3, width: 350, largest: 62) == 62)
+        #expect(AirBuildProjectLayout.tileSize(columns: 5, width: 320, largest: 62) < 62)
     }
 
     @Test("AirBuild pages projects and adds All only past one page")

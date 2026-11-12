@@ -20,21 +20,16 @@ enum AirBuildProjectLayout {
         }
     }
 
-    /// Big tiles, three across a phone like AirBuild's, never five small ones.
-    static func columns(for width: CGFloat) -> Int {
-        max(1, Int(width / 100))
-    }
-
-    /// The folded home's grid, N × N, as Settings sets it.
+    /// The project grid, N × N, as Settings sets it, on the folded home and beside the detail.
     static let homeGridKey = "arc.home-grid"
     static let homeGridChoices = [3, 4, 5]
 
     /// The largest tile `columns` fit across `width`, its label and the gaps
-    /// included, never bigger than the 3 × 3 tile.
-    static func tileSize(columns: Int, width: CGFloat) -> CGFloat {
-        guard width > 0, columns > 0 else { return 84 }
+    /// included, never bigger than `largest`.
+    static func tileSize(columns: Int, width: CGFloat, largest: CGFloat = 84) -> CGFloat {
+        guard width > 0, columns > 0 else { return largest }
         let cell = (width - CGFloat(columns - 1) * 8) / CGFloat(columns)
-        return min(84, max(36, cell - 14))
+        return min(largest, max(36, cell - 14))
     }
 
     static func badge(for project: ArcProjectGroup.Project) -> Badge? {
@@ -91,12 +86,12 @@ struct AirBuildProjectGrid: View {
     @Environment(\.isSidebarColumn) private var isSidebarColumn
     @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
 
-    /// The folded home's own N × N; beside the detail, as many as fit in two
-    /// rows, where the conversations below need the room.
-    private var columns: Int { isSidebarColumn ? AirBuildProjectLayout.columns(for: width) : homeGrid }
-    private var rows: Int { isSidebarColumn ? 2 : homeGrid }
+    /// Settings' N × N everywhere; beside the detail the tiles stay smaller,
+    /// so the conversations below keep some room.
+    private var columns: Int { homeGrid }
+    private var rows: Int { homeGrid }
     private var tileSize: CGFloat {
-        isSidebarColumn ? 62 : AirBuildProjectLayout.tileSize(columns: homeGrid, width: width)
+        AirBuildProjectLayout.tileSize(columns: homeGrid, width: width, largest: isSidebarColumn ? 62 : 84)
     }
     private var rowHeight: CGFloat { tileSize + 30 }
     private static let pageTopInset: CGFloat = 8
