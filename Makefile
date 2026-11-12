@@ -142,6 +142,7 @@ test-tools: check-agent-docs check-test-membership ## Test agent tooling without
 	python3 scripts/test-herdr-core-environment-check.py
 	python3 scripts/test-host-helper-manifest.py
 	python3 scripts/test-host-helper-scripts.py
+	bash remote-desktop/test-rc-session.sh
 	sh scripts/test-source-revision.sh
 	bash scripts/test-publish-plugin.sh
 	$(MAKE) test-ci-evidence
