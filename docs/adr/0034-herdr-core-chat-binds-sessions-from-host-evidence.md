@@ -34,6 +34,10 @@ never show or send into a conversation it has guessed.
   message, about 6 s after the file appeared holding the finished turn; each
   stayed Can't Tell until Check Again. An Oh My Pi whose title model returns no
   title never opens its file (seen once), and stays Can't Tell.
+- A check that got no answer (a timeout or a dropped link) never ran, so while
+  Chat shows it is asked again every `sessionRecheck` (5 s) until one answers.
+  An idle Agent sends no event, and its saved Chat otherwise stayed on screen,
+  hours behind, until Retry (2026-11-12, over a relayed link).
 - A check that moves Chat to another conversation of an exact binding, with no
   Send waiting on it, holds the next Send once, as a Send whose own check moves
   Chat does, unless the draft changed since: the draft may have been written for

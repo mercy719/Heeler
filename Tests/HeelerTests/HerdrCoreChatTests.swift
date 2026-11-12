@@ -137,7 +137,7 @@ struct HerdrCoreChatTests {
 
         init(
             host: Host, record: JSONValue = HerdrCoreChatTests.record(), coreID: String = "c1",
-            heldStatus: HeldFileStatus? = nil
+            heldStatus: HeldFileStatus? = nil, chatTiming: AgentChatStore.Timing = AgentChatStore.Timing()
         ) {
             self.host = host
             transport = ScriptedCoreTransport(
@@ -152,7 +152,8 @@ struct HerdrCoreChatTests {
                         connect: { throw TransportError.sshUnreachable(detail: "not a Herdr TUI Host") },
                         keepalive: nil)
                 },
-                makeCoreSession: { _ in HerdrCoreHostSession(connect: { transport }, keepalive: nil) })
+                makeCoreSession: { _ in HerdrCoreHostSession(connect: { transport }, keepalive: nil) },
+                chatTiming: chatTiming)
         }
 
         /// Connected to a Linux Host whose platform is known, as a detail asks.
@@ -958,6 +959,33 @@ struct HerdrCoreChatTests {
             chat.conversation.readFailure == nil
                 && chat.conversation.phase == .unavailable(.awaitingFirstMessage(.claude))
         }
+        chat.end()
+        rig.store.setHosts([])
+    }
+
+    /// A check that got no answer is asked again while Chat shows, with no event
+    /// and no Retry: an idle Agent sends none, and its saved Chat would stay.
+    @Test func aFailedCheckIsAskedAgainWhileChatShows() async throws {
+        let rig = Rig(
+            host: host,
+            chatTiming: AgentChatStore.Timing(
+                activeInterval: .milliseconds(5), idleInterval: .milliseconds(5), sessionRecheck: 0.05))
+        try await rig.start()
+        await rig.files.write(Self.registryEntry(), at: "\(Self.home)/.claude/sessions/\(Self.pid).json")
+        await rig.transport.processTable.setFailure(.timedOut)
+        let chat = try rig.chat()
+        chat.show()
+        try await rig.waitUntil("the failure") { chat.conversation.readFailure != nil }
+
+        await rig.transport.processTable.setFailure(nil)
+        try await rig.waitUntil("the binding") {
+            chat.conversation.readFailure == nil
+                && chat.conversation.phase == .unavailable(.awaitingFirstMessage(.claude))
+        }
+        let checks = await rig.checks
+        // Bound: nothing asks again by itself.
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await rig.checks == checks)
         chat.end()
         rig.store.setHosts([])
     }

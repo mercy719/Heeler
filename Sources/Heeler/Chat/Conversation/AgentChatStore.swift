@@ -1110,7 +1110,12 @@ final class AgentChatStore {
     // MARK: Session
 
     private var sessionRecheckIsDue: Bool {
-        guard source.sessionEvidence == nil else { return false }
+        guard source.sessionEvidence == nil else {
+            // A core check that got no answer never ran, and an idle Agent sends no
+            // event to ask again: the saved Chat would show until the user taps Retry.
+            guard isVisible, agentRefreshFailure != nil, let lastAgentRefresh else { return false }
+            return now().timeIntervalSince(lastAgentRefresh) >= timing.sessionRecheck
+        }
         let interval: TimeInterval
         if engine == nil || isUnavailable || agentRefreshFailure != nil
             || consecutiveAgentRefreshLinkFailures > 0

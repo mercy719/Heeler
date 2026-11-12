@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// An image row's picture, under its title. Its height never changes, so
-/// a picture arriving, failing or waiting never moves the rows around it;
-/// only its width follows the picture. A tap opens the zoomable sheet.
+/// An image row's picture, under its title. A frame waiting, failing or
+/// offline holds the full height; a picture takes its own size within it,
+/// so a wide screenshot leaves no empty band below. A tap opens the
+/// zoomable sheet.
 struct ChatImageThumbnail: View {
     static let height: CGFloat = 180
     /// On a wide screen it stays a thumbnail.
@@ -19,9 +20,7 @@ struct ChatImageThumbnail: View {
     var isTrailing = false
 
     var body: some View {
-        content
-            .frame(maxWidth: Self.maximumWidth, alignment: isTrailing ? .trailing : .leading)
-            .frame(height: Self.height, alignment: isTrailing ? .topTrailing : .topLeading)
+        sized
             .frame(maxWidth: .infinity, alignment: isTrailing ? .trailing : .leading)
             .onAppear { thumbnails?.appear(path) }
             .onDisappear { thumbnails?.disappear(path) }
@@ -29,6 +28,17 @@ struct ChatImageThumbnail: View {
                 thumbnails?.disappear(old)
                 thumbnails?.appear(new)
             }
+    }
+
+    @ViewBuilder
+    private var sized: some View {
+        if case .loaded = thumbnails?.phase(of: path) {
+            FittedBox(limit: CGSize(width: Self.maximumWidth, height: Self.height)) { content }
+        } else {
+            content
+                .frame(maxWidth: Self.maximumWidth, alignment: isTrailing ? .trailing : .leading)
+                .frame(height: Self.height, alignment: isTrailing ? .topTrailing : .topLeading)
+        }
     }
 
     private var name: String {
@@ -125,5 +135,21 @@ struct ChatImageThumbnail: View {
         .multilineTextAlignment(.center)
         .lineLimit(3)
         .minimumScaleFactor(0.7)
+    }
+}
+
+/// Offers its content the thumbnail's box and takes the size the content
+/// fits into it, rather than the whole box.
+private struct FittedBox: Layout {
+    let limit: CGSize
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let box = ProposedViewSize(
+            width: min(proposal.width ?? limit.width, limit.width), height: limit.height)
+        return subviews.first?.sizeThatFits(box) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
     }
 }
