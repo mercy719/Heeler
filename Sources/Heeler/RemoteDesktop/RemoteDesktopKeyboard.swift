@@ -6,12 +6,20 @@ import UIKit
 /// phone's keyboard can replace a whole word, so a change is not always one
 /// character (OpenBot's `typedChange`, `model/remote-keys.ts`).
 enum RemoteDesktopTyped {
+    /// Only what a US keyboard types reaches a Mac (Sunshine types no other
+    /// text there), so only those characters count: deleting an emoji or a
+    /// Chinese character on the phone sends no Backspace for it.
     static func change(before: String, after: String) -> (backspaces: Int, text: String) {
-        let old = Array(before)
-        let next = Array(after)
+        let old = Array(before.filter(isTypable))
+        let next = Array(after.filter(isTypable))
         var common = 0
         while common < old.count, common < next.count, old[common] == next[common] { common += 1 }
         return (old.count - common, next[common...].map(String.init).joined())
+    }
+
+    static func isTypable(_ character: Character) -> Bool {
+        guard let ascii = character.asciiValue else { return false }
+        return (0x20...0x7E).contains(ascii) || character == "\n" || character == "\t"
     }
 }
 
@@ -79,6 +87,8 @@ struct RemoteDesktopKeyboard: UIViewRepresentable {
         }
 
         @objc func editingChanged(_ field: UITextField) {
+            // Pinyin still being composed is not text yet; the committed word is.
+            guard field.markedTextRange == nil else { return }
             let text = field.text ?? ""
             onChange(typed, text)
             typed = text
@@ -86,6 +96,12 @@ struct RemoteDesktopKeyboard: UIViewRepresentable {
                 field.text = ""
                 typed = ""
             }
+        }
+
+        /// Return is Enter on the computer; the field itself stays one line.
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            onChange(typed, typed + "\n")
+            return false
         }
 
         func textField(
