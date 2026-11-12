@@ -174,8 +174,8 @@ private struct ChatBubble<Content: View>: View {
         HStack(spacing: 0) {
             Spacer(minLength: sizeClass == .compact ? 32 : 48)
             content
-                .padding(.horizontal, 13)
-                .padding(.vertical, 9)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
                 .foregroundStyle(.white)
                 // Links on the accent fill: tint on tint would vanish.
                 .tint(.white)
