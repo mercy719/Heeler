@@ -157,7 +157,8 @@ final class ConsoleStore {
     @ObservationIgnored private(set) var chatWarmAgents: [ConsoleAgent.ID]
     @ObservationIgnored private let chatWarmDefaults: UserDefaults
     /// One warm loop per Host, so a slow read delays only its own Host.
-    @ObservationIgnored private var chatWarmTasks: [Host.ID: (id: UUID, task: Task<Void, Never>)] = [:]
+    @ObservationIgnored private var chatWarmTasks:
+        [Host.ID: (id: UUID, generation: UInt64, task: Task<Void, Never>)] = [:]
     private static let chatWarmDefaultsKey = "chat-warm-agents"
     static let chatWarmLimit = 8
     @ObservationIgnored private var isActive = false
@@ -2405,7 +2406,9 @@ final class ConsoleStore {
     /// said since instead of waiting for an open Chat's reads.
     private func reconcileChatWarm() {
         for hostID in Array(chatWarmTasks.keys) {
-            guard let projection = projections[hostID], !warmChats(on: projection).isEmpty else {
+            guard let projection = projections[hostID], !warmChats(on: projection).isEmpty,
+                projection.transportGeneration == chatWarmTasks[hostID]?.generation
+            else {
                 chatWarmTasks.removeValue(forKey: hostID)?.task.cancel()
                 continue
             }
@@ -2434,7 +2437,7 @@ final class ConsoleStore {
                 self.chatWarmTasks[hostID] = nil
                 self.reconcileChatWarm()
             }
-            chatWarmTasks[hostID] = (token, task)
+            chatWarmTasks[hostID] = (token, generation, task)
         }
     }
 
