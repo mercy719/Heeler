@@ -412,6 +412,15 @@ actor HeelerSSHTransport: Transport {
     /// A Jump Host is authenticated on its own route, since nothing past it
     /// is reachable otherwise.
     static func connect(settings: SSHTransportSettings) async throws -> HeelerSSHTransport {
+        let (connection, routeID) = try await connectAuthenticated(settings: settings)
+        return HeelerSSHTransport(connection: connection, settings: settings, routeID: routeID)
+    }
+
+    /// The reach/race and authenticate half of `connect`, for the callers that
+    /// drive the connection themselves rather than through a Transport.
+    static func connectAuthenticated(
+        settings: SSHTransportSettings
+    ) async throws -> (SSHConnection, UUID?) {
         let gate = HostKeyVerificationGate()
         let connection: SSHConnection
         let routeID: UUID?
@@ -433,7 +442,7 @@ actor HeelerSSHTransport: Transport {
             try? await connection.close(timeout: .seconds(2))
             throw mapConnect(error)
         }
-        return HeelerSSHTransport(connection: connection, settings: settings, routeID: routeID)
+        return (connection, routeID)
     }
 
     /// The winning route's index in `settings.routes` and its connection.

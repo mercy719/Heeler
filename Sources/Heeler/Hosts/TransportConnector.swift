@@ -15,9 +15,21 @@ protocol TransportConnector: Sendable {
     func connectForDetection(
         settings: SSHTransportSettings
     ) async throws -> any ServerKindDetectionConnection
+
+    /// Its own SSH connection for Remote Desktop, never a running Transport's:
+    /// a stalled screen stream must not cost the Console its link.
+    func connectRemoteDesktop(
+        settings: SSHTransportSettings
+    ) async throws -> any RemoteDesktopConnection
 }
 
 extension TransportConnector {
+    func connectRemoteDesktop(
+        settings: SSHTransportSettings
+    ) async throws -> any RemoteDesktopConnection {
+        throw TransportError.hostFeatureUnavailable(feature: String(localized: "Remote Desktop"))
+    }
+
     func connectForDetection(
         settings: SSHTransportSettings
     ) async throws -> any ServerKindDetectionConnection {
@@ -56,6 +68,13 @@ struct SSHTransportConnector: TransportConnector {
         HerdrCoreSSHTransport(
             connection: try await HeelerSSHTransport.connect(settings: settings),
             session: settings.coreSessionName)
+    }
+
+    func connectRemoteDesktop(
+        settings: SSHTransportSettings
+    ) async throws -> any RemoteDesktopConnection {
+        let (connection, _) = try await HeelerSSHTransport.connectAuthenticated(settings: settings)
+        return SSHRemoteDesktopConnection(connection: connection)
     }
 }
 
