@@ -263,6 +263,30 @@
       "source": "https://github.com/NorbertBodziony/bloub (npm @norbert_bodziony/bloub 0.6.4; the felt pictures in Resources/OpenBotPlush are its assets)",
       "spdx": "MIT",
       "notice": "bloub-MIT.txt"
+    },
+    {
+      "id": "OpenBot",
+      "displayName": "OpenBot",
+      "version": "0.7",
+      "source": "https://openbot.run (PolyForm Noncommercial 1.0.0; Resources/RemoteDesktop/viewer.js is ported from apps/mobile/src/features/remote-desktop/model/viewer-page-script.ts, and the keyboard bar follows screens/remote-desktop-screen.tsx)",
+      "spdx": "PolyForm-Noncommercial-1.0.0",
+      "notice": "OpenBot-PolyForm-Noncommercial-1.0.0.txt"
+    },
+    {
+      "id": "moonlight-web-stream",
+      "displayName": "moonlight-web-stream",
+      "version": "3.0.1",
+      "source": "https://github.com/MrCreativ3001/moonlight-web-stream (GPL-3.0-or-later; the web viewer the computer runs, so this app neither ships nor links it)",
+      "spdx": "GPL-3.0-or-later",
+      "notice": "moonlight-web-stream-GPL-3.0.txt"
+    },
+    {
+      "id": "Sunshine",
+      "displayName": "Sunshine",
+      "version": "as bundled with OpenBot",
+      "source": "https://github.com/LizardByte/Sunshine (GPL-3.0-or-later; the screen streamer the computer runs, so this app neither ships nor links it)",
+      "spdx": "GPL-3.0-or-later",
+      "notice": "Sunshine-GPL-3.0.txt"
     }
   ]
 }

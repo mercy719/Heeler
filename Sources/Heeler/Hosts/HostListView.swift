@@ -256,6 +256,8 @@ struct HostListView: View {
     /// (#359).
     @State private var pendingOnboardingHostID: Host.ID?
     @State private var path: [HostDetailDestination]
+    /// The Host whose Remote Desktop is open full screen, if any.
+    @State private var remoteDesktopHost: Host?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -459,6 +461,11 @@ struct HostListView: View {
             .sheet(item: $editingHost) { host in
                 HostFormView(store: store, editing: host)
             }
+            // The row's menu and leading swipe both land here, so the two
+            // entries open the same screen.
+            .fullScreenCover(item: $remoteDesktopHost) { host in
+                RemoteDesktopView(store: RemoteDesktopStore(host: host))
+            }
             // A copy is a new Host: like Add, it lands in onboarding, the only
             // place a first connection to a new endpoint can be trusted.
             .sheet(
@@ -594,8 +601,19 @@ struct HostListView: View {
                 .tint(.red)
             }
         }
+        // A leading swipe, not a button at the row's end: the list never gains
+        // a control that appears only sometimes.
+        .swipeActions(edge: .leading) {
+            if !isRemoving {
+                Button { openRemoteDesktop(host) } label: {
+                    Label("Remote Desktop", systemImage: "display")
+                }
+                .tint(.blue)
+            }
+        }
         .contextMenu {
             Group {
+                Button("Remote Desktop", systemImage: "display") { openRemoteDesktop(host) }
                 Button("Edit", systemImage: "pencil") { editingHost = host }
                 Button("Duplicate", systemImage: "plus.square.on.square") { duplicate(host) }
                 Button("Remove Host", systemImage: "trash", role: .destructive) {
@@ -604,6 +622,12 @@ struct HostListView: View {
             }
             .disabled(isRemoving)
         }
+    }
+
+    /// Remote Desktop opens full screen over the list, one link at a time.
+    /// Both entries lead here, so the two cannot drift apart.
+    private func openRemoteDesktop(_ host: Host) {
+        remoteDesktopHost = host
     }
 
     private func duplicate(_ host: Host) {

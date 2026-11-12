@@ -26,6 +26,11 @@ struct HeelerApp: App {
                 if DemoScreenshotMode.isEnabled {
                     DemoScreenshotRootView()
                         .tint(AppAccentColor.color(for: accentColor))
+                } else if let debugURL = RemoteDesktopDebugURL.launchURL {
+                    // A Simulator run opens Remote Desktop on the URL it was
+                    // launched with, skipping SSH.
+                    RemoteDesktopView(store: .debug(url: debugURL))
+                        .tint(AppAccentColor.color(for: accentColor))
                 } else {
                     productionContent(route: $route)
                 }

@@ -7854,6 +7854,30 @@
         }
       }
     },
+    "Blocked pill" : {
+      "comment" : "Badge on a Blocked Agent's row",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Waiting"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなた待ち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你"
+          }
+        }
+      }
+    },
     "Blocked · Live Activity" : {
       "comment" : "What notifies on a Host: an Agent status, then the Live Activity",
       "localizations" : {
@@ -8375,6 +8399,22 @@
         }
       }
     },
+    "Can ship" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出荷できる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可上线"
+          }
+        }
+      }
+    },
     "Can't Connect" : {
       "localizations" : {
         "ja" : {
@@ -8550,6 +8590,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已取消"
+          }
+        }
+      }
+    },
+    "Cannot ship yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ出荷できない"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还不能上线"
           }
         }
       }
@@ -11290,6 +11346,22 @@
         }
       }
     },
+    "Connecting to the Mac" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac に接続しています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在连接 Mac"
+          }
+        }
+      }
+    },
     "Connecting…" : {
       "localizations" : {
         "ja" : {
@@ -13421,6 +13493,22 @@
         }
       }
     },
+    "Data Saver · 15 fps · 1 Mbps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "データ節約 · 15 fps · 1 Mbps"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "省流 · 15 fps · 1 Mbps"
+          }
+        }
+      }
+    },
     "Dawn in Light Mode, the classic in Dark Mode" : {
       "localizations" : {
         "ja" : {
@@ -14068,6 +14156,22 @@
         }
       }
     },
+    "Direct Touch" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接タッチ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直接点"
+          }
+        }
+      }
+    },
     "Direct uses this device's own network connection." : {
       "localizations" : {
         "ja" : {
@@ -14177,6 +14281,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目录：主机的主目录"
+          }
+        }
+      }
+    },
+    "Disconnect" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切断"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开"
           }
         }
       }
@@ -16254,6 +16374,38 @@
         }
       }
     },
+    "File attached." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを添付しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附上文件。"
+          }
+        }
+      }
+    },
+    "File attached; path copied." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを添付し、パスをコピーしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附上文件，路径已拷贝。"
+          }
+        }
+      }
+    },
     "File diff skipped for this git command." : {
       "localizations" : {
         "ja" : {
@@ -16347,38 +16499,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未找到文件"
-          }
-        }
-      }
-    },
-    "File attached; path copied." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルを添付し、パスをコピーしました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已附上文件，路径已拷贝。"
-          }
-        }
-      }
-    },
-    "File attached." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルを添付しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已附上文件。"
           }
         }
       }
@@ -16654,6 +16774,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "首次连接到 %@:%@。\n\n密钥指纹：\n%@\n\n信任前请核对其是否与主机的密钥一致。"
+          }
+        }
+      }
+    },
+    "Fit to Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面に合わせる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适应屏幕"
           }
         }
       }
@@ -17214,6 +17350,22 @@
         }
       }
     },
+    "Give Sunshine Screen Recording and Accessibility in the Mac's Privacy settings." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のプライバシー設定で Sunshine に「画面収録」と「アクセシビリティ」を許可してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Mac 的隐私设置里给 Sunshine 打开「屏幕录制」和「辅助功能」。"
+          }
+        }
+      }
+    },
     "Global" : {
       "localizations" : {
         "ja" : {
@@ -17246,6 +17398,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前往项目"
+          }
+        }
+      }
+    },
+    "Grant Screen Recording and Accessibility to Heeler Remote Desktop on the Host." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のプライバシー設定で Sunshine に「画面収録」と「アクセシビリティ」を許可してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Mac 的隐私设置里给 Sunshine 打开「屏幕录制」和「辅助功能」。"
           }
         }
       }
@@ -18616,22 +18784,6 @@
         }
       }
     },
-    "The Host didn't answer which conversation %@ shows, so Heeler sent nothing. Usually the connection dropped; send again once it's back." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ がどの会話を表示しているかホストから応答がなかったため、Heeler は何も送信しませんでした。多くは接続の切断です。接続が戻ったら、もう一度送信してください。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主机没有回应 %@ 正在显示哪个对话，所以 Heeler 什么都没发。多半是连接断了，连上后再发一次。"
-          }
-        }
-      }
-    },
     "Heeler couldn't find OpenCode's database at %@. Chat reads OpenCode's default database." : {
       "localizations" : {
         "ja" : {
@@ -19598,6 +19750,22 @@
         }
       }
     },
+    "Hide Keyboard" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーボードを閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收起键盘"
+          }
+        }
+      }
+    },
     "Hide Keys" : {
       "comment" : "Hides the keyboard keys panel",
       "localizations" : {
@@ -19859,6 +20027,22 @@
         }
       }
     },
+    "Home Grid" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホームのグリッド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主页网格"
+          }
+        }
+      }
+    },
     "Home key" : {
       "comment" : "VoiceOver label of the Home key",
       "extractionState" : "extracted_with_value",
@@ -20089,22 +20273,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已移除主机"
-          }
-        }
-      }
-    },
-    "Home Grid" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ホームのグリッド"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主页网格"
           }
         }
       }
@@ -20419,6 +20587,38 @@
         }
       }
     },
+    "Image attached." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像を添付しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附上图片。"
+          }
+        }
+      }
+    },
+    "Image attached; path copied." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像を添付し、パスをコピーしました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附上图片，路径已拷贝。"
+          }
+        }
+      }
+    },
     "Image generation" : {
       "localizations" : {
         "ja" : {
@@ -20449,38 +20649,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图片未发送"
-          }
-        }
-      }
-    },
-    "Image attached; path copied." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画像を添付し、パスをコピーしました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已附上图片，路径已拷贝。"
-          }
-        }
-      }
-    },
-    "Image attached." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "画像を添付しました。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已附上图片。"
           }
         }
       }
@@ -23742,6 +23910,38 @@
         }
       }
     },
+    "Needs checking" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要確認"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要确认"
+          }
+        }
+      }
+    },
+    "Needs permission" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "権限が必要"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需授权"
+          }
+        }
+      }
+    },
     "Needs sign-in" : {
       "localizations" : {
         "ja" : {
@@ -24172,6 +24372,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "后一天"
+          }
+        }
+      }
+    },
+    "Next Step" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "次のステップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
           }
         }
       }
@@ -24694,6 +24910,22 @@
         }
       }
     },
+    "No board for this project" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプロジェクトにはまだボードがありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个项目还没有看板"
+          }
+        }
+      }
+    },
     "No changes in this file." : {
       "localizations" : {
         "ja" : {
@@ -24931,6 +25163,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文件末尾没有换行符"
+          }
+        }
+      }
+    },
+    "No one is logged in on the Host's desktop." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のデスクトップに誰もログインしていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 上没有人登录桌面。"
           }
         }
       }
@@ -26904,6 +27152,22 @@
         }
       }
     },
+    "Open the progress panel once in herdr arc on your computer." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンピュータの herdr arc で進捗パネルを一度開いてください"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在电脑上的 herdr arc 里打开一次进度面板"
+          }
+        }
+      }
+    },
     "Open the questions first." : {
       "localizations" : {
         "ja" : {
@@ -28625,6 +28889,22 @@
         }
       }
     },
+    "Paste from iPhone" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone のクリップボードを貼り付け"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴手机剪贴板"
+          }
+        }
+      }
+    },
     "Pastes the clipboard into the Agent" : {
       "localizations" : {
         "ja" : {
@@ -29612,6 +29892,30 @@
         }
       }
     },
+    "Progress scope" : {
+      "comment" : "VoiceOver label of the Progress page's scope picker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Progress scope"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進捗の範囲"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度范围"
+          }
+        }
+      }
+    },
     "Project" : {
       "localizations" : {
         "ja" : {
@@ -29730,6 +30034,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Python"
+          }
+        }
+      }
+    },
+    "Quality" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画質"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画质"
           }
         }
       }
@@ -30809,6 +31129,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新加载 systemd"
+          }
+        }
+      }
+    },
+    "Remote Desktop" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートデスクトップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程桌面"
+          }
+        }
+      }
+    },
+    "Remote Desktop Options" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートデスクトップのオプション"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程桌面选项"
+          }
+        }
+      }
+    },
+    "Remote Desktop failed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートデスクトップに失敗しました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程桌面失败。"
+          }
+        }
+      }
+    },
+    "Remote Desktop is not installed on the Host." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac に OpenBot.app がインストールされていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 上没安装 OpenBot.app。"
+          }
+        }
+      }
+    },
+    "Remote Desktop is not installed on this Mac." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac にリモートデスクトップがインストールされていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 Mac 上没安装远程桌面。"
           }
         }
       }
@@ -33971,6 +34371,22 @@
         }
       }
     },
+    "Sharp · 60 fps · 8 Mbps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シャープ · 60 fps · 8 Mbps"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清晰 · 60 fps · 8 Mbps"
+          }
+        }
+      }
+    },
     "Shell command" : {
       "localizations" : {
         "ja" : {
@@ -34047,6 +34463,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shift 修饰键"
+          }
+        }
+      }
+    },
+    "Shipping" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出荷"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上线"
           }
         }
       }
@@ -34273,6 +34705,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示预估 API 费用"
+          }
+        }
+      }
+    },
+    "Show Keyboard" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーボードを表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开键盘"
           }
         }
       }
@@ -35442,6 +35890,22 @@
         }
       }
     },
+    "Standard · 30 fps · 3 Mbps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標準 · 30 fps · 3 Mbps"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标准 · 30 fps · 3 Mbps"
+          }
+        }
+      }
+    },
     "Star on GitHub" : {
       "localizations" : {
         "ja" : {
@@ -35712,6 +36176,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在启动 %@…"
+          }
+        }
+      }
+    },
+    "Starting Remote Desktop" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートデスクトップを起動しています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在启动远程桌面"
           }
         }
       }
@@ -39135,6 +39615,22 @@
         }
       }
     },
+    "The Host didn't answer which conversation %@ shows, so Heeler sent nothing. Usually the connection dropped; send again once it's back." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ がどの会話を表示しているかホストから応答がなかったため、Heeler は何も送信しませんでした。多くは接続の切断です。接続が戻ったら、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主机没有回应 %@ 正在显示哪个对话，所以 Heeler 什么都没发。多半是连接断了，连上后再发一次。"
+          }
+        }
+      }
+    },
     "The Host does not accept RSA-SHA2-512" : {
       "localizations" : {
         "ja" : {
@@ -39572,6 +40068,38 @@
         }
       }
     },
+    "The Host's Remote Desktop is not paired yet." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のリモートデスクトップがまだペアリングされていません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 的远程桌面还没配对。"
+          }
+        }
+      }
+    },
+    "The Host's Remote Desktop page did not start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac のリモートデスクトップページが起動しませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 的远程桌面页面没有启动。"
+          }
+        }
+      }
+    },
     "The Host's SQLite %@ can't read OpenCode's database: Chat needs SQLite 3.25 or newer with JSON support, through sqlite3 or Python 3.6 or newer." : {
       "localizations" : {
         "ja" : {
@@ -39680,6 +40208,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主机的响应在列出任何文件前已被截断。"
+          }
+        }
+      }
+    },
+    "The Host's screen streamer did not start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac の画面ストリーマーが起動しませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 的屏幕串流没有启动。"
           }
         }
       }
@@ -39968,6 +40512,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "锁定屏幕会显示状态汇总数量和更新时间。Agent、主机和任务详情保持加密。"
+          }
+        }
+      }
+    },
+    "The Mac stopped answering." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac が応答しなくなりました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 不再响应。"
           }
         }
       }
@@ -40718,6 +41278,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "连接主机失败。"
+          }
+        }
+      }
+    },
+    "The connection to the Mac was lost." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac との接続が切れました。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与 Mac 的连接断了。"
           }
         }
       }
@@ -44105,6 +44681,22 @@
         }
       }
     },
+    "This Project" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプロジェクト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个项目"
+          }
+        }
+      }
+    },
     "This Terminal belongs to a core that is gone" : {
       "localizations" : {
         "ja" : {
@@ -45732,6 +46324,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总计"
+          }
+        }
+      }
+    },
+    "Touch Mode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タッチ操作"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触控方式"
+          }
+        }
+      }
+    },
+    "Trackpad" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "トラックパッド"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "触控板"
           }
         }
       }
@@ -48151,58 +48775,18 @@
         }
       }
     },
-    "Waiting section Done" : {
-      "comment" : "Section of finished Agents on the Waiting page",
-      "extractionState" : "extracted_with_value",
+    "Waiting for the picture" : {
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Done"
-          }
-        },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "完了"
+            "value" : "映像を待っています"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "做完了"
-          }
-        }
-      }
-    },
-    "No board for this project" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このプロジェクトにはまだボードがありません"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这个项目还没有看板"
-          }
-        }
-      }
-    },
-    "Open the progress panel once in herdr arc on your computer." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンピュータの herdr arc で進捗パネルを一度開いてください"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在电脑上的 herdr arc 里打开一次进度面板"
+            "value" : "等待画面"
           }
         }
       }
@@ -48240,122 +48824,26 @@
         }
       }
     },
-    "Waiting: %@" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "あなた待ち：%@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等你：%@"
-          }
-        }
-      }
-    },
-    "Next Step" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "次のステップ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下一步"
-          }
-        }
-      }
-    },
-    "Shipping" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "出荷"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上线"
-          }
-        }
-      }
-    },
-    "Can ship" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "出荷できる"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可上线"
-          }
-        }
-      }
-    },
-    "Cannot ship yet" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "まだ出荷できない"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还不能上线"
-          }
-        }
-      }
-    },
-    "Needs checking" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要確認"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要确认"
-          }
-        }
-      }
-    },
-    "Blocked pill" : {
-      "comment" : "Badge on a Blocked Agent's row",
+    "Waiting section Done" : {
+      "comment" : "Section of finished Agents on the Waiting page",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Waiting"
+            "value" : "Done"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "あなた待ち"
+            "value" : "完了"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "等你"
+            "value" : "做完了"
           }
         }
       }
@@ -48380,46 +48868,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等你"
-          }
-        }
-      }
-    },
-    "This Project" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このプロジェクト"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这个项目"
-          }
-        }
-      }
-    },
-    "Progress scope" : {
-      "comment" : "VoiceOver label of the Progress page's scope picker",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Progress scope"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "進捗の範囲"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "进度范围"
           }
         }
       }
@@ -48453,6 +48901,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待重试"
+          }
+        }
+      }
+    },
+    "Waiting: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなた待ち：%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等你：%@"
           }
         }
       }
