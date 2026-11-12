@@ -1225,6 +1225,65 @@ actor SessionDriver {
         }
     }
 
+    /// Opens one long-lived direct-tcpip channel to `host:port`, which the
+    /// server resolves. It registers in the same table and reuses the same
+    /// read, write and close paths as `openStreamLocal`, so a session can carry
+    /// several at once beside exec and direct-streamlocal channels.
+    ///
+    /// Deliberately not gated on, and not setting, `forwarding`: that flag is
+    /// the Jump Host's mutual exclusion for its own pump, and this stream is an
+    /// ordinary session channel. A refusal or an unreachable target closes only
+    /// this channel; only an uncertain open (timeout or cancellation) costs the
+    /// session, the same verdict `openDirectTCPIP` takes.
+    func openDirectTCPIPStream(
+        host: String,
+        port: UInt16,
+        timeout: Duration
+    ) async throws -> SSHStreamLocalChannel {
+        try await withDiagnosticPhase("direct-tcpip stream open to \(host):\(port)") {
+            await acquireOperation()
+            defer { releaseOperation() }
+
+            guard valid, !forwarding, authenticated, session != nil else {
+                throw SSHError.connectionInvalidated
+            }
+            guard !host.isEmpty, !host.utf8.contains(0), port > 0 else {
+                throw SSHError.channelFailed
+            }
+            let deadline = ContinuousClock.now.advanced(by: timeout)
+            var channel: OpaquePointer?
+
+            do {
+                let opened = try await openDirectTCPIPChannel(
+                    endpoint: SSHEndpoint(host: host, port: port),
+                    deadline: deadline)
+                channel = opened
+                nextStreamLocalChannelID &+= 1
+                let id = nextStreamLocalChannelID
+                streamLocalChannels[id] = StreamLocalChannelState(channel: opened)
+                return SSHStreamLocalChannel(id: id, driver: self)
+            } catch {
+                let normalized = normalize(error)
+                if let channel {
+                    do {
+                        try await cleanChannel(
+                            channel,
+                            session: try requireSession(),
+                            deadline: ContinuousClock.now.advanced(by: .seconds(2)),
+                            cancellable: false)
+                    } catch {
+                        invalidateResources()
+                    }
+                } else if !(error is ChannelOpenAdmissionError),
+                    normalized == .timedOut || normalized == .cancelled
+                {
+                    invalidateResources()
+                }
+                throw normalized
+            }
+        }
+    }
+
     func writeStreamLocal(
         id: UInt64,
         data: Data,

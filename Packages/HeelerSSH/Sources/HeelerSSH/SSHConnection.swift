@@ -381,6 +381,23 @@ public final class SSHConnection: Sendable {
             timeout: timeout)
     }
 
+    /// Opens one long-lived direct-tcpip channel to `host:port` as the server
+    /// resolves it, for a loopback service on the Host. The returned handle
+    /// owns only that channel and shares every read, write and close path with
+    /// `openStreamLocal`, so several can run beside exec and stream-local
+    /// channels on this connection. A refusal or unreachable target closes only
+    /// this channel; closing it leaves the connection reusable.
+    public func openDirectTCPIPStream(
+        host: String,
+        port: UInt16,
+        timeout: Duration
+    ) async throws -> SSHStreamLocalChannel {
+        try await driver.openDirectTCPIPStream(
+            host: host,
+            port: port,
+            timeout: timeout)
+    }
+
     /// Opens the package's deliberately small SFTP surface on one SSH session
     /// channel. Closing the returned client leaves this connection reusable.
     public func openSFTP(timeout: Duration) async throws -> SSHSFTPClient {

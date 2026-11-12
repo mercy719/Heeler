@@ -3399,7 +3399,7 @@ private enum WeakNetworkProxyFixtureError: Error {
     case unreachable
 }
 
-private struct SessionDriverTestEnvironment: Sendable {
+struct SessionDriverTestEnvironment: Sendable {
     let endpoint: SSHEndpoint
     let postQuantumEndpoint: SSHEndpoint
     let curve25519Endpoint: SSHEndpoint
