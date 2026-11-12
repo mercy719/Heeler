@@ -1787,7 +1787,7 @@ final class AgentChatStore {
     /// Why a send that couldn't be checked sent nothing: the Agent's record
     /// couldn't be read, or there is no Chat to check with.
     static func uncheckedSessionReason(_ program: ChatProgram) -> String {
-        String(localized: "Heeler couldn't check which conversation \(program.chatName) shows, so it sent nothing. Try again.")
+        String(localized: "The Host didn't answer which conversation \(program.chatName) shows, so Heeler sent nothing. Usually the connection dropped; send again once it's back.")
     }
 
     // MARK: Snapshots

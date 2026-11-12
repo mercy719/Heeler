@@ -520,19 +520,6 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
             .visibilityPriority(.high)
         }
         ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Button("Switch Computer", systemImage: "desktopcomputer", action: actions.openHosts)
-            } label: {
-                AirBuildAccountMark(size: 28)
-            }
-            .menuStyle(.button)
-            .menuIndicator(.hidden)
-            .accessibilityLabel("Account")
-        }
-        // A custom label leaves SwiftUI unsure it fits the side bar; without this the
-        // system put the avatar in the top bar, over Chat's More (Duo, 2026-11-11).
-        .axisBehavior(.verticalPreferred)
-        ToolbarItem(placement: .primaryAction) {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
                 action: actions.openSettings)
@@ -554,7 +541,6 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
 @available(iOS 27.1, *)
 private struct AirBuildHomeBarControls: ToolbarContent {
     let onNewAgent: (() -> Void)?
-    let onOpenUsage: (() -> Void)?
     let actions: AirBuildGlobalActions
 
     var body: some ToolbarContent {
@@ -570,25 +556,7 @@ private struct AirBuildHomeBarControls: ToolbarContent {
             .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
-        if let onOpenUsage {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Usage", systemImage: "gauge", action: onOpenUsage)
-                    .tint(nil)
-            }
-            .axisBehavior(.verticalPreferred)
-        }
         ToolbarSpacer(.flexible, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Button("Switch Computer", systemImage: "desktopcomputer", action: actions.openHosts)
-            } label: {
-                AirBuildAccountMark(size: 28)
-            }
-            .menuStyle(.button)
-            .menuIndicator(.hidden)
-            .accessibilityLabel("Account")
-        }
-        .axisBehavior(.verticalPreferred)
         ToolbarItem(placement: .primaryAction) {
             Button(
                 "Settings", systemImage: AirBuildVerticalBarItem.settings.systemImage,
@@ -779,12 +747,12 @@ extension View {
 
     /// The home screen's side-bar controls (`AirBuildHomeBarControls`).
     func airBuildHomeBarControls(
-        isVisible: Bool, onNewAgent: (() -> Void)?, onOpenUsage: (() -> Void)?, actions: AirBuildGlobalActions
+        isVisible: Bool, onNewAgent: (() -> Void)?, actions: AirBuildGlobalActions
     ) -> some View {
         toolbar {
             #if compiler(>=6.4)
             if #available(iOS 27.1, *), isVisible {
-                AirBuildHomeBarControls(onNewAgent: onNewAgent, onOpenUsage: onOpenUsage, actions: actions)
+                AirBuildHomeBarControls(onNewAgent: onNewAgent, actions: actions)
             }
             #endif
         }

@@ -18616,18 +18616,18 @@
         }
       }
     },
-    "Heeler couldn't check which conversation %@ shows, so it sent nothing. Try again." : {
+    "The Host didn't answer which conversation %@ shows, so Heeler sent nothing. Usually the connection dropped; send again once it's back." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Heeler は %@ がどの会話を表示しているか確認できなかったため、何も送信しませんでした。再試行してください。"
+            "value" : "%@ がどの会話を表示しているかホストから応答がなかったため、Heeler は何も送信しませんでした。多くは接続の切断です。接続が戻ったら、もう一度送信してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Heeler 无法确认 %@ 当前显示的是哪个对话，因此未发送任何内容。请重试。"
+            "value" : "主机没有回应 %@ 正在显示哪个对话，所以 Heeler 什么都没发。多半是连接断了，连上后再发一次。"
           }
         }
       }

@@ -101,9 +101,6 @@ struct SettingsView: View {
     /// Rows in the About section, in display order. The body iterates this
     /// list; the Acknowledgements entry is a navigation destination, not a
     /// static label, and its id is `acknowledgementsRouteID`.
-    static let usageFooter =
-        String(localized: "Turn off to hide the Usage tab and stop reading usage from your Hosts. Usage widgets clear their figures.")
-
     static var aboutRows: [AboutRow] {
         var rows: [AboutRow] = [.version, .setupGuide]
         if documentationURL != nil {
@@ -209,18 +206,6 @@ struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings.voiceInput")
                     }
-                }
-
-                Section {
-                    Toggle(isOn: Binding(
-                        get: { console.isUsageEnabled },
-                        set: { console.setUsageEnabled($0) }
-                    )) {
-                        Label(ConsoleTab.usage.title, systemImage: "chart.bar.xaxis")
-                    }
-                    .accessibilityIdentifier("settings.usage")
-                } footer: {
-                    Text(Self.usageFooter)
                 }
 
                 if let overlayNetworks {

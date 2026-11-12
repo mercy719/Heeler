@@ -965,7 +965,6 @@ struct ConsoleView: View {
                                 startAgentRequest = StartAgentRequest(
                                     origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
                             } : nil,
-                        onOpenUsage: console.isUsageEnabled ? { showUsage() } : nil,
                         actions: AirBuildGlobalActions(openHosts: { showHosts() }, openSettings: { showSettings() }))
                     .background { VerticalToolbarProbe(usesVerticalToolbar: $sidebarHasVerticalBar) }
                     .readsVerticalToolbar()
@@ -1415,13 +1414,9 @@ struct ConsoleView: View {
                     }
                     Spacer(minLength: 0)
                     AirBuildGlassCapsule {
-                        Button(action: showSettings) {
-                            AirBuildAccountMark()
-                                .frame(width: 40, height: 40)
-                                .contentShape(Circle())
+                        AirBuildIconButton(systemImage: "gearshape", label: ConsoleTab.settings.title) {
+                            showSettings()
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(ConsoleTab.settings.title)
                     }
                 }
                 .padding(.horizontal, 12)

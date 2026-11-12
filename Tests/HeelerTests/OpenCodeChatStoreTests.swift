@@ -234,7 +234,7 @@ struct OpenCodeChatStoreTests {
     /// Without herdr's record, or without a Chat to ask (the view's case),
     /// nothing says which conversation the message would go into.
     @Test func aSendIsRefusedWhenTheRecordCannotBeRead() async throws {
-        let refusal = "Heeler couldn't check which conversation OpenCode shows, so it sent nothing. Try again."
+        let refusal = "The Host didn't answer which conversation OpenCode shows, so Heeler sent nothing. Usually the connection dropped; send again once it's back."
         let fixture = try Fixture()
         await fixture.store.step()
         await fixture.server.fail(with: .channelFailed(detail: "closed"))

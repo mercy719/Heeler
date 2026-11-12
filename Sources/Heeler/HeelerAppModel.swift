@@ -73,6 +73,11 @@ final class HeelerAppModel {
         self.sceneDirectory = sceneDirectory
         self.hostStore = hostStore
         self.console = console
+        // Usage is removed from this build: herdr core keeps no figures, and the
+        // Host Helper that reads them is not on the user's Hosts (2026-11-12).
+        // Turning it off once here also clears any widget figures and stops the reads.
+        // A test host shares `.standard` defaults with the Usage tests, so it is left alone.
+        if NSClassFromString("XCTestCase") == nil { console.setUsageEnabled(false) }
         self.overlayNetworks = overlayNetworks
         self.activity = activity
         terminalThemes = TerminalThemeSettings()

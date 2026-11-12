@@ -382,23 +382,6 @@ struct AirBuildSessionAvatar: View {
     }
 }
 
-struct AirBuildAccountMark: View {
-    var size: CGFloat = 28
-
-    var body: some View {
-        Text("A")
-            .font(.system(size: size * 0.46, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(
-                LinearGradient(
-                    colors: [.orange, Color(red: 0.48, green: 0.17, blue: 0.1)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: Circle())
-            .accessibilityLabel("Account")
-    }
-}
-
 struct AirBuildHeelerLogo: View {
     var body: some View {
         if let icon = UIImage(named: "AppIcon60x60") ?? UIImage(named: "AppIcon") {
