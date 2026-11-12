@@ -107,6 +107,8 @@ enum AirBuildChatMenuPolicy {
 /// session action in one system menu, and no control over the conversation.
 struct AirBuildChatHeader: View {
     static let height: CGFloat = 68
+    /// `.inline`'s band: the terminal page, where every row of output counts.
+    static let inlineHeight: CGFloat = 32
 
     enum Mode {
         /// Back, the project and More on the top line.
@@ -115,6 +117,8 @@ struct AirBuildChatHeader: View {
         case titleOnly
         /// Only More, for the system's side bar, with the dialogs its items raise.
         case barMore
+        /// The project on one small line, for the terminal page.
+        case inline
     }
 
     let project: ArcProjectGroup.Project
@@ -145,8 +149,12 @@ struct AirBuildChatHeader: View {
 
     /// Tapping the project goes to it, as Go to › Show Project does.
     private var projectLabel: some View {
+        projectButton(projectLabelContent)
+    }
+
+    private func projectButton(_ content: some View) -> some View {
         Button(action: onShowProject) {
-            projectLabelContent
+            content
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -177,7 +185,27 @@ struct AirBuildChatHeader: View {
         case .barMore: withDialogs(moreMenuInBar)
         case .titleOnly: topLine
         case .full: withDialogs(topLine)
+        case .inline: inlineLine
         }
+    }
+
+    /// The same icon, lamp and name as the title, side by side and small.
+    private var inlineLine: some View {
+        projectButton(
+            HStack(spacing: 6) {
+                AirBuildProjectIcon(project: project, size: 20)
+                if showsLamp { AirBuildStatusLampView(lamp: lamp) }
+                Text(verbatim: project.label)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.leading, 4)
+            .padding(.trailing, 10)
+            .padding(.vertical, 3)
+            .background(Color(uiColor: .systemGray4).opacity(0.92), in: Capsule())
+            .contentShape(Capsule()))
+        .frame(maxWidth: .infinity)
+        .frame(height: Self.inlineHeight)
     }
 
     private var topLine: some View {

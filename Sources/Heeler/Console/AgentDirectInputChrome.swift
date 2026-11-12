@@ -71,19 +71,34 @@ struct AgentDirectInputChrome: View {
 
                 // Immediately above the Agent list/switcher strip. Keyboard
                 // show/hide stays on the switcher row — not duplicated here.
-                shortcutRow
-
-                TerminalAgentSwitcherRow(
-                    switcher: interactions.switcher,
-                    isKeyboardUp: presentation.isKeyboardUp,
-                    toggleKeyboard: interactions.toggleKeyboard,
-                    isToolsKeyboardPresented: presentation.isToolsKeyboardPresented,
-                    switchKeyboard: interactions.switchKeyboard,
-                    modeControl: modeControl,
-                    showsAgents: !presentation.airBuildStyle)
+                if presentation.airBuildStyle {
+                    // No Agent strip to sit beside, so its trailing toggles
+                    // join the shortcut row and the terminal keeps that row.
+                    HStack(spacing: 0) {
+                        shortcutRow
+                        switcherRow
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(height: InputChromeLayout.shortcutRowHeight)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                    }
+                } else {
+                    shortcutRow
+                    switcherRow
+                }
             }
             .padding(.vertical, 8)
         }
+    }
+
+    private var switcherRow: some View {
+        TerminalAgentSwitcherRow(
+            switcher: interactions.switcher,
+            isKeyboardUp: presentation.isKeyboardUp,
+            toggleKeyboard: interactions.toggleKeyboard,
+            isToolsKeyboardPresented: presentation.isToolsKeyboardPresented,
+            switchKeyboard: interactions.switchKeyboard,
+            modeControl: modeControl,
+            showsAgents: !presentation.airBuildStyle)
     }
 
     private var modeControl: TerminalAgentSwitcherModeControl {

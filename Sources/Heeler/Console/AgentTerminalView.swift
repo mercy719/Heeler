@@ -1174,7 +1174,7 @@ struct AgentTerminalView: View {
                     onShowProject: { backToConsole() },
                     actions: composerActions(anchorsClose: true),
                     onTogglePanel: {},
-                    mode: .titleOnly)
+                    mode: .inline)
                 .padding(.horizontal, 12)
                 .padding(.top, terminalTopInset)
             } else {
@@ -1264,7 +1264,7 @@ struct AgentTerminalView: View {
     }
 
     private var arcHeaderHeight: CGFloat {
-        arcHeaderProject == nil ? 0 : AirBuildChatHeader.height
+        arcHeaderProject == nil ? 0 : AirBuildChatHeader.inlineHeight
     }
 
     private var terminalTopInset: CGFloat {
