@@ -1,3 +1,4 @@
+// PATCH 0001-no-advertise: `--no-advertise` (Heeler's remote desktop; see vendor/sill-patches).
 import Foundation
 import AppKit
 import CoreGraphics
@@ -20,6 +21,16 @@ let preselect = CommandLine.arguments.dropFirst().first { !$0.hasPrefix("--") }
 // `SillHost --synthetic`: the Desktop source streams a moving test pattern instead of the screen,
 // so the encoder, its software fallback and the network can be checked without Screen Recording.
 let synthetic = CommandLine.arguments.contains("--synthetic")
+
+// `SillHost --no-advertise`: stay off Bonjour and off the network: the listener is a test host's
+// (DoorPolicy.isTestHost), so SILL_TEST_LOOPBACK=1 keeps it on 127.0.0.1 alone, no device finds it,
+// and nobody on the local network can watch or type. Heeler's remote desktop reaches it through its
+// own SSH tunnel, so the SSH login is the pairing. PATCH 0001-no-advertise.
+let noAdvertise = CommandLine.arguments.contains("--no-advertise")
+if noAdvertise && !ProcessInfo.processInfo.environment.keys.contains("SILL_TEST_LOOPBACK") {
+    print("--no-advertise needs SILL_TEST_LOOPBACK=1: without it the listener would still take this network's clients.")
+    exit(2)
+}
 
 // `SillHost --virtual-display`: a picked window is moved onto its own HiDPI virtual display and
 // that display is captured, so the window keeps repainting whatever covers its old spot on the
@@ -148,7 +159,7 @@ func startHost() {
         do {
             let remote = config.remoteAccess || pairingFlag ? makeRemoteAccess() : nil
             let c = try StreamCoordinator(config: config, synthetic: synthetic, appKitLoop: virtualDisplay, remote: remote,
-                                          homePairing: pairingFlag, testHooks: true)
+                                          homePairing: pairingFlag, testHooks: true, noAdvertise: noAdvertise)
             coordinator = c
             await c.start(preselect: preselect)
             if remote != nil, internetFlag {
@@ -157,7 +168,8 @@ func startHost() {
             remote?.openPairing(requestedBy: nil)
             if synthetic { print("Synthetic mode: pick Desktop on the device (or from a test client) to stream a test pattern.") }
             if virtualDisplay { print("Virtual display mode: a picked window streams from its own HiDPI display; Ctrl-C puts it back.") }
-            print("\(c.windowCount) windows on screen. Advertising _sill._tcp on the local network.")
+            print(noAdvertise ? "\(c.windowCount) windows on screen. Not advertised: listening on 127.0.0.1 only, for an SSH tunnel."
+                              : "\(c.windowCount) windows on screen. Advertising _sill._tcp on the local network.")
             if c.active == .none { print("Nothing is streaming yet: pick a window from the iOS app. Ctrl-C to stop.") }
             if audioFlag {
                 print(synthetic ? "Audio on for this run (beta): devices that play sound get a test tone with the test pattern."

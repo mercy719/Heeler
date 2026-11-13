@@ -64,6 +64,8 @@ package final class StreamCoordinator {
     let capture = WindowCapture()
     /// `--synthetic`: the Desktop source streams a test pattern instead of the screen.
     let synthetic: Bool
+    /// `--no-advertise` (patch 0001): the listener is a test host's, off Bonjour, loopback only.
+    let noAdvertise: Bool
     let syntheticCapture = SyntheticCapture()
     /// A locked Mac's placeholder (LockPolicy): a black still, no ScreenCaptureKit.
     let stillCapture = StillCapture()
@@ -396,11 +398,13 @@ package final class StreamCoordinator {
     /// that advertises, those hooks are ignored with one line each. `hostVersion`: Sill.app's
     /// version for the window lists, when it has one that parses.
     package init(config: HostConfig, synthetic: Bool = false, appKitLoop: Bool, remote: RemoteAccess? = nil,
-                 homePairing: Bool = false, testHooks: Bool = true, hostVersion: String? = nil) throws {
+                 homePairing: Bool = false, testHooks: Bool = true, hostVersion: String? = nil,
+                 noAdvertise: Bool = false) throws {
         var config = config.validated()
         if !appKitLoop { config.virtualDisplay = false }
         self.config = config
         self.synthetic = synthetic
+        self.noAdvertise = noAdvertise
         self.appKitLoop = appKitLoop
         self.hostVersion = hostVersion
         let env = ProcessInfo.processInfo.environment
@@ -437,8 +441,10 @@ package final class StreamCoordinator {
                 home = .closed("Sill couldn’t use its key \(remote.keyPlace) (\(remote.identityProblem ?? "no identity"))")
             }
         }
-        // The test pattern is for test clients, not devices.
-        server = try StreamServer(advertise: !synthetic, home: home, testHooks: testHooks)
+        // The test pattern is for test clients, not devices. PATCH 0001-no-advertise: --no-advertise
+        // makes the listener a test host's without a test pattern, so SILL_TEST_LOOPBACK=1 binds it
+        // to 127.0.0.1 and nothing is advertised (Heeler's SSH tunnel reaches it).
+        server = try StreamServer(advertise: !synthetic && !noAdvertise, home: home, testHooks: testHooks)
         server.macName = macName                           // the update goodbye names this Mac (DeviceGate)
         TestHooks.reportIgnored(testHost: server.isTestHost)
         // A host that does not advertise, `--synthetic` in the CLI and in the app alike (as
@@ -3701,6 +3707,10 @@ package final class StreamCoordinator {
     /// plain door (no key), for an unpaired key at a door that lets any device in, on a host without
     /// an identity (no list), and for a route not known.
     private func sessionPaired(_ id: ObjectIdentifier) -> Bool {
+        // PATCH 0002-loopback-paired: a --no-advertise host listens on 127.0.0.1 alone, so the only
+        // way in is a process on this Mac or an SSH forward, and the SSH login is the pairing (the
+        // plain door carries no key at all). Its sessions type at a locked Mac like a paired one's.
+        if noAdvertise, routes[id]?.origin == .loopback { return true }
         let trusted = status.snapshot.remote?.paired.compactMap { Base64URL.decode($0.id) } ?? []
         return DeviceSettings.paired(key: routes[id]?.fingerprint, trusted: trusted)
     }
