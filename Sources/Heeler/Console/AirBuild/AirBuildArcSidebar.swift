@@ -40,16 +40,10 @@ enum AirBuildProjectLayout {
         return project.statuses.contains(.done) ? .done : nil
     }
 
+    /// Projects with Agents first, then the rest, each in herdr's order. A
+    /// status change only relights a badge, so tiles keep their places.
     static func ordered(_ projects: [ArcProjectGroup.Project]) -> [ArcProjectGroup.Project] {
-        projects.enumerated().sorted { lhs, rhs in
-            let leftBlocked = lhs.element.statuses.count { $0 == .blocked }
-            let rightBlocked = rhs.element.statuses.count { $0 == .blocked }
-            if leftBlocked != rightBlocked { return leftBlocked > rightBlocked }
-            let leftWorking = lhs.element.statuses.contains(.working)
-            let rightWorking = rhs.element.statuses.contains(.working)
-            if leftWorking != rightWorking { return leftWorking }
-            return lhs.offset < rhs.offset
-        }.map(\.element)
+        projects.filter { !$0.agents.isEmpty } + projects.filter(\.agents.isEmpty)
     }
 
     /// Home-screen pages of `columns` × `rows` tiles. More projects than one

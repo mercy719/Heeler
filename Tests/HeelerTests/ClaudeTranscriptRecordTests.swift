@@ -1055,11 +1055,10 @@ struct ArcProjectTests {
         #expect(ArcProjectMenu.subtitle(blocked: 0, working: 0) == nil)
     }
 
-    @Test("AirBuild orders Blocked counts, then Working, and keeps at most two rows")
+    @Test("AirBuild puts projects with Agents first in herdr order, whatever their status")
     func airBuildOrderingAndTruncation() {
         let host = Host.fixture(name: "alpha")
         let agents = [
-            Self.agent("a1", on: host, workspace: "w1", status: .idle),
             Self.agent("b1", on: host, workspace: "w2", status: .working),
             Self.agent("c1", on: host, workspace: "w3", status: .blocked),
             Self.agent("d1", on: host, workspace: "w4", status: .blocked),
@@ -1074,7 +1073,8 @@ struct ArcProjectTests {
 
         let pages = AirBuildProjectLayout.pages(projects, columns: 2, rows: 2)
         #expect(pages.map(\.count) == [4, 2])
-        #expect(pages[0].map(\.id) == ["\(host.id.uuidString)/w4", "\(host.id.uuidString)/w3", "\(host.id.uuidString)/w2", "\(host.id.uuidString)/w1"])
+        #expect(pages[0].map(\.id) == ["w2", "w3", "w4", "w5"].map { "\(host.id.uuidString)/\($0)" })
+        #expect(pages[1].first == .project(projects[0]))
         #expect(pages[1].last == .all(5))
     }
 
