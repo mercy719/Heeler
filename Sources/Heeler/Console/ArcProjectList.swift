@@ -374,23 +374,6 @@ struct ArcProjectSwitcher: View {
     }
 }
 
-/// A project with no Agents yet: says so, and offers to start one.
-struct ArcProjectEmptyRow: View {
-    let onNewAgent: () -> Void
-
-    var body: some View {
-        HStack {
-            Text("No Agents")
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            Button("New Agent", systemImage: "plus", action: onNewAgent)
-                .labelStyle(.titleAndIcon)
-                .font(.subheadline)
-                .buttonStyle(.borderless)
-        }
-    }
-}
-
 /// The closing section's header: how many conversations in the other
 /// projects wait on the user, the count in red.
 struct ArcWaitingHeader: View {

@@ -75,6 +75,8 @@ struct ConsoleView: View {
     @State private var isShowingHostsSheet = false
     @State private var isShowingSettingsSheet = false
     @State private var isShowingAllArcProjects = false
+    /// The computer the bar's Remote Desktop opened, over everything.
+    @State private var remoteDesktopHost: Host?
     /// The project tile whose long press asked to rename its Workspace.
     @State private var arcRenamingProject: ArcProjectGroup.Project?
     @State private var arcNewTerminalFailure: String?
@@ -257,6 +259,7 @@ struct ConsoleView: View {
                 do { try await Task.sleep(for: ArcBoardStore.nowInterval) } catch { return }
             }
         }
+        .fullScreenCover(item: $remoteDesktopHost) { RemoteDesktopView(store: RemoteDesktopStore(host: $0)) }
         // The detail's actions can present these even while the sidebar is hidden.
         .sheet(item: $titleRename) { store in
             AgentTitleRenameSheet(store: store)
@@ -794,6 +797,15 @@ struct ConsoleView: View {
 
     private func showSettings() { selectedTab.wrappedValue = .settings }
 
+    /// The bar's computer button opens the current project's computer; with
+    /// no project picked it lists the Hosts, as before.
+    private var airBuildGlobalActions: AirBuildGlobalActions {
+        AirBuildGlobalActions(
+            openHosts: { showHosts() }, openSettings: { showSettings() },
+            openRemoteDesktop: arcSelectedProjectID.flatMap { console.host(for: $0.hostID) }
+                .map { host in { remoteDesktopHost = host } })
+    }
+
     /// The list tab on screen, or under Waiting or Progress. A tab saved
     /// before Hosts, Settings and Usage left the bar lands on Projects.
     private var shownListTab: ConsoleTab {
@@ -997,7 +1009,7 @@ struct ConsoleView: View {
                                 startAgentRequest = StartAgentRequest(
                                     origin: arcSelectedProject.flatMap { arcNewAgentOrigin(for: $0) })
                             } : nil,
-                        actions: AirBuildGlobalActions(openHosts: { showHosts() }, openSettings: { showSettings() }))
+                        actions: airBuildGlobalActions)
                     .background { VerticalToolbarProbe(usesVerticalToolbar: $sidebarHasVerticalBar) }
                     .readsVerticalToolbar()
                     // AirBuild's project grid replaces the list title.
@@ -1039,9 +1051,7 @@ struct ConsoleView: View {
                             .environment(
                                 \.airBuildGlobalActions,
                                 usesAirBuildArcChrome(for: tab)
-                                    ? AirBuildGlobalActions(
-                                        openHosts: { showHosts() }, openSettings: { showSettings() })
-                                    : nil)
+                                    ? airBuildGlobalActions : nil)
                             .environment(
                                 \.showsDetailBackButton, !presentation.usesRegularColumns)
                             .toolbar {
@@ -2067,7 +2077,6 @@ struct ConsoleView: View {
                 .listRowSeparator(.hidden)
                 .selectionDisabled()
             agentHostIssueRows
-            arcSelectedProjectRows
         }
     }
 
@@ -2086,45 +2095,6 @@ struct ConsoleView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .selectionDisabled()
-        }
-    }
-
-    /// The selected project's conversations, without a card around them.
-    @ViewBuilder
-    private var arcSelectedProjectRows: some View {
-        if let project = arcSelectedProject {
-            if project.agents.isEmpty && project.shells.isEmpty {
-                ArcProjectEmptyRow {
-                    startAgentRequest = StartAgentRequest(origin: arcNewAgentOrigin(for: project))
-                }
-                .listRowBackground(Color.clear)
-            } else {
-                // Agents first, then the project's plain shells, as herdr lists them.
-                ForEach(project.agents) { @Sendable agent in
-                    MainActorContent {
-                        arcAgentRow(agent)
-                            .listRowBackground(Color.clear)
-                    }
-                }
-                ForEach(project.shells) { @Sendable shell in
-                    MainActorContent {
-                        NavigationLink(value: ConsoleSelection.terminal(shell.id)) {
-                            ArcShellRow(
-                                terminal: shell,
-                                number: ArcShellRow.number(of: shell, among: project.shells),
-                                isSelected: selectedItem.wrappedValue == .terminal(shell.id))
-                                .modifier(ConsoleRowSelectionContent())
-                        }
-                        .modifier(
-                            ConsoleRowSelectionBackground(
-                                isSelected: selectedItem.wrappedValue == .terminal(shell.id)))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets())
-                        .navigationLinkIndicatorVisibility(.hidden)
-                    }
-                }
-            }
         }
     }
 

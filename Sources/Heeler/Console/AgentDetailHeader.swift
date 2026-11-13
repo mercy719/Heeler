@@ -423,6 +423,29 @@ enum AirBuildVerticalBarItem: String, CaseIterable, Sendable {
 struct AirBuildGlobalActions {
     let openHosts: () -> Void
     let openSettings: () -> Void
+    /// The current project's computer, one tap away; nil with no project picked.
+    var openRemoteDesktop: (() -> Void)? = nil
+}
+
+/// The bar's computer: a tap opens the current project's computer, a long
+/// press lists the Hosts; with no project picked, a tap lists them.
+@MainActor
+struct AirBuildComputerButton: View {
+    let actions: AirBuildGlobalActions
+
+    var body: some View {
+        if let openRemoteDesktop = actions.openRemoteDesktop {
+            Menu {
+                Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+            } label: {
+                Label("Remote Desktop", systemImage: "display")
+            } primaryAction: {
+                openRemoteDesktop()
+            }
+        } else {
+            Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+        }
+    }
 }
 
 #if compiler(>=6.4)
@@ -519,7 +542,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
         }
         // Hosts above Settings, as on the home screen's bar.
         ToolbarItem(placement: .primaryAction) {
-            Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+            AirBuildComputerButton(actions: actions)
                 .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
@@ -562,7 +585,7 @@ private struct AirBuildHomeBarControls: ToolbarContent {
         ToolbarSpacer(.flexible, placement: .primaryAction)
         // The computers and their latency, one tap from home.
         ToolbarItem(placement: .primaryAction) {
-            Button("Hosts", systemImage: "desktopcomputer", action: actions.openHosts)
+            AirBuildComputerButton(actions: actions)
                 .tint(nil)
         }
         .axisBehavior(.verticalPreferred)
