@@ -2057,9 +2057,12 @@ struct ConsoleView: View {
                     .font(.system(size: 15, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                Button("Show All") { isShowingAllArcProjects = true }
-                    .font(.system(size: 15, weight: .medium))
-                    .buttonStyle(.borderless)
+                // A sidebar lists every project already.
+                if !usesSidebarNavigation {
+                    Button("Show All") { isShowingAllArcProjects = true }
+                        .font(.system(size: 15, weight: .medium))
+                        .buttonStyle(.borderless)
+                }
             }
             .accessibilityElement(children: .contain)
             .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 0, trailing: 18))
@@ -2069,6 +2072,9 @@ struct ConsoleView: View {
             AirBuildProjectGrid(
                 projects: arcProjectGroups.flatMap(\.projects),
                 selected: arcSelectedProjectID,
+                // A sidebar is a full screen tall: every project down it, scrolling past
+                // what fits, rather than pages over an empty lower half.
+                limitsToTwoRows: !usesSidebarNavigation,
                 onSelect: { arcSelect($0) },
                 onShowAll: { isShowingAllArcProjects = true },
                 actions: { arcProjectActions($0) },

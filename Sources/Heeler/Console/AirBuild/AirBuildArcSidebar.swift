@@ -394,6 +394,8 @@ private struct AirBuildProjectTile: View {
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .lineLimit(1)
+                    // Shrinks a little before it cuts: "FreeRag" whole beats "FreeR…".
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, 2)
             }
             .frame(maxWidth: .infinity)
