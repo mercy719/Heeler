@@ -1683,15 +1683,15 @@ struct HerdrCoreTerminalStoreTests {
 
     // MARK: What a core Agent's detail offers
 
-    /// The header's More, which starts folded, and the Composer's, whose Add has a
+    /// The header's More and the Composer's, whose Add has a
     /// button of its own.
     private static let coreAgentMenus: Set<[String]> = [
-        ["Terminals", "Changes", "Expand"],
+        ["Terminals", "Changes"],
         ["Back to Console", "Show Chat", "Open Terminal", "Changes", "New Agent", "Skills", "Snippets", "Close Agent"],
     ]
     /// Direct Input has no Add of its own: its More carries Add's three items.
     private static let coreDirectInputMenus: Set<[String]> = [
-        ["Terminals", "Changes", "Expand"],
+        ["Terminals", "Changes"],
         [
             "Back to Console", "Add Image", "Paste Image", "Add File", "Show Chat", "Open Terminal", "Changes",
             "New Agent", "Skills", "Snippets", "Close Agent",
@@ -2532,7 +2532,7 @@ struct HerdrCoreTerminalStoreTests {
         try await Self.until("the terminal's menu") { screen.offers("More") }
 
         let menus = try await HostedMenu.items(labeled: "More", in: screen.window)
-        #expect(menus == [["Terminals", "Expand"], ["Back to Console", "Close Terminal"]], "\(menus)")
+        #expect(menus == [["Terminals"], ["Back to Console", "Close Terminal"]], "\(menus)")
 
         try await HostedMenu.select("Terminals", labeled: "More", in: screen.window)
         try await Self.until("the drawer") { screen.offers("Hide Workspace terminals") }

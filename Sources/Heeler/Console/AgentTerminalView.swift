@@ -1241,7 +1241,6 @@ struct AgentTerminalView: View {
         .detailHeaderBarControls(
             headerControlPlacement,
             palette: themePalette,
-            isExpanded: $isBackHeaderExpanded,
             actions: backHeaderActions,
             surfaceSwitch: chatSurfaceSwitch,
             onBack: showsBackButton && usesVerticalToolbar ? { dismiss() } : nil,

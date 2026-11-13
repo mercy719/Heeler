@@ -147,7 +147,7 @@ struct AgentDetailHeader: View {
             }
         case .floating:
             AgentDetailHeaderTrailingControls(
-                palette: palette, isExpanded: $isExpanded, actions: actions,
+                palette: palette, actions: actions,
                 surfaceSwitch: surfaceSwitch)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
                 trailingWidth = $0
@@ -280,14 +280,13 @@ enum AgentDetailHeaderControlPlacement: Equatable {
 /// spacing.
 struct AgentDetailHeaderBarControls: ToolbarContent {
     let palette: TerminalThemePalette
-    @Binding var isExpanded: Bool
     var actions: [AgentDetailHeaderAction] = []
     var surfaceSwitch: AgentDetailSurfaceSwitch?
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             AgentDetailHeaderTrailingControls(
-                palette: palette, isExpanded: $isExpanded, actions: actions,
+                palette: palette, actions: actions,
                 surfaceSwitch: surfaceSwitch)
         }
         .toolbarItemBackground(.hidden)
@@ -298,7 +297,6 @@ struct AgentDetailHeaderBarControls: ToolbarContent {
 /// the More menu sharing a capsule, or the menu alone on a circle.
 struct AgentDetailHeaderTrailingControls: View {
     let palette: TerminalThemePalette
-    @Binding var isExpanded: Bool
     let actions: [AgentDetailHeaderAction]
     let surfaceSwitch: AgentDetailSurfaceSwitch?
 
@@ -327,11 +325,10 @@ struct AgentDetailHeaderTrailingControls: View {
         }
     }
 
-    /// Stays at the far end in both states: the screen's actions, then the
-    /// item that folds or unfolds the header.
+    /// Stays at the far end in both states: the screen's actions.
     private func moreMenu(width: CGFloat) -> some View {
         Menu {
-            AgentDetailHeaderMenuItems(actions: actions, isExpanded: $isExpanded)
+            AgentDetailHeaderMenuItems(actions: actions)
         } label: {
             Image(systemName: "ellipsis")
                 .font(Self.glyphFont)
@@ -339,6 +336,8 @@ struct AgentDetailHeaderTrailingControls: View {
                 .frame(width: width, height: AgentDetailHeader.controlSize)
                 .contentShape(.rect)
         }
+        // Kept for the capsule's width, though a screen may have nothing to put in it.
+        .disabled(actions.isEmpty)
         // Plain, or a bar pads the menu as one of its own buttons.
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -391,29 +390,14 @@ private struct AgentDetailSurfaceGlyph: View {
     }
 }
 
-/// The More menu's items: the screen's actions, then the item that folds
-/// or unfolds the header.
+/// The More menu's items: the screen's actions.
 private struct AgentDetailHeaderMenuItems: View {
     let actions: [AgentDetailHeaderAction]
-    @Binding var isExpanded: Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ForEach(actions) { @Sendable action in
             MainActorContent {
                 Button(action.title, systemImage: action.systemImage, action: action.perform)
-            }
-        }
-        Button(
-            isExpanded ? "Collapse" : "Expand",
-            // A window's top bar, which is what this shows and hides: put
-            // away while it is out, filled in while it is folded.
-            systemImage: isExpanded
-                ? "menubar.arrow.up.rectangle" : "inset.filled.topthird.rectangle"
-        ) {
-            withAnimation(reduceMotion ? nil : .snappy) {
-                isExpanded.toggle()
             }
         }
     }
@@ -444,7 +428,6 @@ struct AirBuildGlobalActions {
 #if compiler(>=6.4)
 @available(iOS 27.1, *)
 private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
-    @Binding var isExpanded: Bool
     let actions: [AgentDetailHeaderAction]
     let surfaceSwitch: AgentDetailSurfaceSwitch?
     let onBack: (() -> Void)?
@@ -466,8 +449,10 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
             .axisBehavior(.verticalPreferred)
             .visibilityPriority(.high)
         }
-        ToolbarOverflowMenu {
-            AgentDetailHeaderMenuItems(actions: actions, isExpanded: $isExpanded)
+        if !actions.isEmpty {
+            ToolbarOverflowMenu {
+                AgentDetailHeaderMenuItems(actions: actions)
+            }
         }
     }
 }
@@ -513,7 +498,6 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
     let actions: AirBuildGlobalActions
     /// The terminal's own More; Chat passes its menu as `more` instead.
     var moreActions: [AgentDetailHeaderAction] = []
-    var isMoreExpanded: Binding<Bool> = .constant(false)
     var more: AnyView?
 
     var body: some ToolbarContent {
@@ -552,7 +536,7 @@ private struct AirBuildGlobalBarControls: ToolbarContent {
                 .axisBehavior(.verticalPreferred)
         } else if !moreActions.isEmpty {
             ToolbarOverflowMenu {
-                AgentDetailHeaderMenuItems(actions: moreActions, isExpanded: isMoreExpanded)
+                AgentDetailHeaderMenuItems(actions: moreActions)
             }
         }
     }
@@ -680,7 +664,6 @@ extension View {
     func detailHeaderBarControls(
         _ placement: AgentDetailHeaderControlPlacement,
         palette: TerminalThemePalette,
-        isExpanded: Binding<Bool>,
         actions: [AgentDetailHeaderAction],
         surfaceSwitch: AgentDetailSurfaceSwitch? = nil,
         onBack: (() -> Void)? = nil,
@@ -695,22 +678,21 @@ extension View {
                         surfaceSwitch: surfaceSwitch,
                         workspacePresented: airBuildWorkspace,
                         actions: airBuildActions,
-                        moreActions: actions,
-                        isMoreExpanded: isExpanded)
+                        moreActions: actions)
                 } else {
                     AgentDetailHeaderVerticalBarControls(
-                        isExpanded: isExpanded, actions: actions,
+                        actions: actions,
                         surfaceSwitch: surfaceSwitch, onBack: onBack)
                 }
             } else if placement == .horizontalToolbar {
                 AgentDetailHeaderBarControls(
-                    palette: palette, isExpanded: isExpanded, actions: actions,
+                    palette: palette, actions: actions,
                     surfaceSwitch: surfaceSwitch)
             }
             #else
             if placement == .horizontalToolbar {
                 AgentDetailHeaderBarControls(
-                    palette: palette, isExpanded: isExpanded, actions: actions,
+                    palette: palette, actions: actions,
                     surfaceSwitch: surfaceSwitch)
             }
             #endif

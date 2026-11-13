@@ -385,7 +385,6 @@ struct ShellTerminalView: View {
             .toolbar(.visible, for: .navigationBar)
             .detailHeaderBarControls(
                 headerControlPlacement, palette: themePalette,
-                isExpanded: $isBackHeaderExpanded,
                 actions: backHeaderActions,
                 onBack: showsBackButton && usesVerticalToolbar
                     ? {
