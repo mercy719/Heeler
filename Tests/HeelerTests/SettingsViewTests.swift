@@ -38,9 +38,6 @@ struct SettingsViewTests {
         let url = try #require(SettingsView.documentationURL)
         #expect(url.absoluteString == "https://docs.heeler.bybee.dev")
 
-        let rows = SettingsView.aboutRows
-        let setupGuide = try #require(rows.firstIndex(of: .setupGuide))
-        #expect(rows[setupGuide + 1] == .documentation)
         #expect(SettingsView.aboutDestination(for: .documentation) == nil)
     }
 
@@ -66,7 +63,6 @@ struct SettingsViewTests {
     }
 
     @Test func setupGuideRoutePushesTheGuideForReference() throws {
-        #expect(SettingsView.aboutRows.contains(.setupGuide))
         let destination = try #require(SettingsView.aboutDestination(for: .setupGuide))
         #expect(destination.rawValue == SettingsView.AboutRow.setupGuide.id)
         #expect(destination.destinationTypeName == String(reflecting: HostSetupGuideView.self))

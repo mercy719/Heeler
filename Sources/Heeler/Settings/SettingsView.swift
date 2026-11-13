@@ -76,6 +76,9 @@ struct SettingsView: View {
     let onHostAdded: (Host.ID) -> Void
     /// Opens a core Host's page in Hosts with its Host Helper sheet up.
     var openHostHelper: (@MainActor (Host.ID) -> Void)? = nil
+    /// Opens the Hosts list: the bar's computer opens Remote Desktop now, so
+    /// managing the computers lives here.
+    var openHosts: (@MainActor () -> Void)? = nil
     /// Closes Settings where it is presented as a sheet, as on iPad; nil
     /// where it is a tab.
     var onDone: (@MainActor () -> Void)? = nil
@@ -102,14 +105,9 @@ struct SettingsView: View {
     /// list; the Acknowledgements entry is a navigation destination, not a
     /// static label, and its id is `acknowledgementsRouteID`.
     static var aboutRows: [AboutRow] {
-        var rows: [AboutRow] = [.version, .setupGuide]
-        if documentationURL != nil {
-            rows.append(.documentation)
-        }
-        if repositoryURL != nil {
-            rows.append(.starOnGitHub)
-        }
-        rows.append(.acknowledgements)
+        // The guide, the docs and the GitHub star are the public app's; this
+        // build keeps the version and the licences it owes.
+        var rows: [AboutRow] = [.version, .acknowledgements]
         if NotificationPrivacyCopy.privacyPolicyURL != nil {
             rows.append(.privacyPolicy)
         }
@@ -158,12 +156,31 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    NavigationLink {
-                        Self.agentListDestination.destinationView(console: console, hosts: hosts)
-                    } label: {
-                        Label("Agent List Fields", systemImage: "list.bullet.rectangle")
+                    if let openHosts {
+                        Button(action: openHosts) {
+                            LabeledContent {
+                                Text(verbatim: "\(hosts.count)").monospacedDigit()
+                            } label: {
+                                Label("Hosts", systemImage: "desktopcomputer")
+                            }
+                        }
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("settings.hosts")
                     }
-                    .accessibilityIdentifier(Self.agentListDestination.rawValue)
+                    if let overlayNetworks {
+                        NavigationLink {
+                            Self.overlayNetworksDestination.destinationView(
+                                store: overlayNetworks, onHostAdded: onHostAdded)
+                        } label: {
+                            Label("Overlay Networks", systemImage: "point.3.connected.trianglepath.dotted")
+                        }
+                        .accessibilityIdentifier(Self.overlayNetworksDestination.rawValue)
+                    }
+                } header: {
+                    Text("Connections")
+                }
+
+                Section {
                     NavigationLink {
                         AgentsAndAccountsSettingsView(console: console, hosts: hosts)
                     } label: {
@@ -218,20 +235,6 @@ struct SettingsView: View {
                     }
                 }
 
-                if let overlayNetworks {
-                    Section {
-                        NavigationLink {
-                            Self.overlayNetworksDestination.destinationView(
-                                store: overlayNetworks, onHostAdded: onHostAdded)
-                        } label: {
-                            Label("Overlay Networks", systemImage: "point.3.connected.trianglepath.dotted")
-                        }
-                        .accessibilityIdentifier(Self.overlayNetworksDestination.rawValue)
-                    } header: {
-                        Text("Connections")
-                    }
-                }
-
                 ChatCacheSettingsSection(cache: console.chatCache)
 
                 Section {
@@ -240,10 +243,6 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("About")
-                } footer: {
-                    if Self.repositoryURL != nil {
-                        Text("Heeler is free and open source. If it helps you, a star on GitHub means a lot.")
-                    }
                 }
             }
             .readableColumnPage()

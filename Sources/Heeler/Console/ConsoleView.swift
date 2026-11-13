@@ -83,7 +83,7 @@ struct ConsoleView: View {
     /// A Host added in Settings, or one whose Host Helper Settings opens,
     /// waits for that sheet to close before the Hosts sheet can present
     /// onboarding and its trust alert.
-    @State private var pendingSettingsHost: (id: Host.ID, opensHostHelper: Bool)?
+    @State private var pendingSettingsHost: (id: Host.ID?, opensHostHelper: Bool)?
     @State private var isShowingListMenu = false
     /// Where the sidebar's title sits in the window, for its choices to
     /// point at.
@@ -570,11 +570,12 @@ struct ConsoleView: View {
             hosts: hosts.consoleHosts,
             onHostAdded: { openHostFromSettings($0) },
             openHostHelper: { openHostFromSettings($0, opensHostHelper: true) },
+            openHosts: { openHostFromSettings(nil) },
             onDone: onDone)
     }
 
     /// A Host page Settings asks for, once a Settings sheet is out of the way.
-    private func openHostFromSettings(_ id: Host.ID, opensHostHelper: Bool = false) {
+    private func openHostFromSettings(_ id: Host.ID?, opensHostHelper: Bool = false) {
         if isShowingSettingsSheet {
             pendingSettingsHost = (id, opensHostHelper)
             isShowingSettingsSheet = false
