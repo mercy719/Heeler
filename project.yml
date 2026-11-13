@@ -35,6 +35,10 @@ packages:
   GhosttyTerminal:
     url: https://github.com/Lakr233/libghostty-spm.git
     revision: "3404c8a2e6403d0a5e730eb08abdaa1c865a83e9"
+  # The vendored sill snapshot (Apache-2.0), linked for StreamProtocol only: the
+  # Mac host targets in it are never built for iOS. See vendor/sill/UPSTREAM.
+  Sill:
+    path: vendor/sill
 
 targets:
   Heeler:
@@ -144,7 +148,9 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Heeler
         MARKETING_VERSION: "0.1.18"
         CURRENT_PROJECT_VERSION: "43"
-        # Scan to Pair (#62) reads the Pairing Code QR from the computer screen.
+        # Scan to Pair (#62) reads the Pairing Code QR from the computer screen, and
+        # sill's settings panel offers its own scan-to-pair entry, which the system
+        # kills without a purpose string.
         INFOPLIST_KEY_NSCameraUsageDescription: "Heeler uses the camera to scan the Pairing Code shown on your computer, so you can add that machine without typing anything."
         # Voice Input (ADR 0036) records only after a tap on the Composer's
         # mic, and uploads to the speech service the user set up.
@@ -187,6 +193,38 @@ targets:
         product: GhosttyTheme
       - target: HeelerNotificationService
       - target: HeelerWidgets
+      - target: SillClient
+      # SillClient is a static library: its own package dependency does not
+      # reach the app's link line, so StreamProtocol is linked here too.
+      - package: Sill
+        product: StreamProtocol
+
+  # The sill iOS client, vendored verbatim (vendor/sill/iOSClient), plus Heeler's
+  # one entry file. A separate module because upstream is Swift 5 with minimal
+  # concurrency checking and the app is Swift 6 with complete (plan §3).
+  # SillApp.swift is the upstream app's @main and stays out; plists and the
+  # upstream Xcode project are not sources. Assets.xcassets stays out too:
+  # no upstream code names a bundled image or colour.
+  SillClient:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: vendor/sill/iOSClient
+        excludes:
+          - SillApp.swift
+          - Info.plist
+          - Info-Debug.plist
+          - PrivacyInfo.xcprivacy
+          - Sill.xcodeproj
+          - Assets.xcassets
+      - Sources/SillClientEntry
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+    dependencies:
+      - package: Sill
+        product: StreamProtocol
 
   # Decrypts Agent Notifications before display (ADR 0008, #71). A thin
   # shell: the logic lives in HeelerNotificationCore, tested from the app
