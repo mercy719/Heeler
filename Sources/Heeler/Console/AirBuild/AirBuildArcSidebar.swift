@@ -18,6 +18,10 @@ enum AirBuildProjectLayout {
             case .all: "all"
             }
         }
+
+        var projectID: ConsoleWorkspaceSection.ID? {
+            if case .project(let project) = self { project.id } else { nil }
+        }
     }
 
     /// The project grid, N × N, as Settings sets it, on the folded home and beside the detail.
@@ -75,12 +79,15 @@ struct AirBuildProjectGrid: View {
     let onSelect: (ConsoleWorkspaceSection.ID) -> Void
     var onShowAll: (() -> Void)?
     var actions: ((ArcProjectGroup.Project) -> AirBuildProjectActions)?
-    /// What a tapped tile opens beside itself (its Agents and terminals), given
+    /// What a tapped tile opens under its row (its Agents and terminals), given
     /// a way to close it; nil keeps a tap to selecting the project.
     var drawer: ((ArcProjectGroup.Project, @escaping @MainActor @Sendable () -> Void) -> AnyView)?
 
     @State private var width: CGFloat = 0
     @State private var drawerProjectID: ConsoleWorkspaceSection.ID?
+    /// The open drawer's height, which the paged view grows by.
+    @State private var drawerHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSidebarColumn) private var isSidebarColumn
     @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
 
@@ -114,7 +121,9 @@ struct AirBuildProjectGrid: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .always))
                     .indexViewStyle(.page(backgroundDisplayMode: .never))
-                    .frame(height: CGFloat(rows) * rowHeight + 30 + Self.pageTopInset)
+                    .frame(
+                        height: CGFloat(rows) * rowHeight + 30 + Self.pageTopInset
+                            + (drawerProjectID == nil ? 0 : drawerHeight + 10))
                 } else {
                     grid(pages.first ?? [])
                 }
@@ -129,56 +138,114 @@ struct AirBuildProjectGrid: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
+    /// Rows of tiles; an open drawer sits under its tile's row and pushes
+    /// the rows below it down, as a folder opens in place.
     private func grid(_ slots: [AirBuildProjectLayout.Slot]) -> some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns),
-            spacing: 10
-        ) {
-            ForEach(slots) { @Sendable slot in
+        let lines = stride(from: 0, to: slots.count, by: columns).map {
+            Array(slots[$0..<min($0 + columns, slots.count)])
+        }
+        return VStack(spacing: 10) {
+            ForEach(lines.indices, id: \.self) { @Sendable index in
                 MainActorContent {
-                    switch slot {
-                    case .project(let project):
-                        AirBuildProjectTile(
-                            project: project, isSelected: project.id == selected, size: tileSize,
-                            actions: actions?(project),
-                            drawer: drawer.map { make in make(project) { drawerProjectID = nil } },
-                            isDrawerOpen: Binding(
-                                get: { drawerProjectID == project.id },
-                                set: { if !$0, drawerProjectID == project.id { drawerProjectID = nil } })
-                        ) {
-                            onSelect(project.id)
-                            if drawer != nil { drawerProjectID = project.id }
+                    let line = lines[index]
+                    HStack(alignment: .top, spacing: 8) {
+                        ForEach(line) { @Sendable slot in
+                            MainActorContent { cell(slot) }
                         }
-                    case .all(let count):
-                        Button {
-                            onShowAll?()
-                        } label: {
-                            VStack(spacing: 6) {
-                                VStack(spacing: 0) {
-                                    Text("All")
-                                    Text(verbatim: "\(count)")
-                                }
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: tileSize, height: tileSize)
-                                .background(
-                                    Color(uiColor: .systemGray).opacity(0.2),
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                Text("All Projects")
-                                    .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
+                        ForEach(line.count..<columns, id: \.self) { @Sendable _ in
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("All Projects"))
-                        .accessibilityValue(Text(verbatim: "\(count)"))
+                    }
+                    if let drawer, let open = drawerProjectID, let column = line.firstIndex(where: { $0.projectID == open }),
+                        case .project(let project) = line[column]
+                    {
+                        drawerPanel(drawer(project) { drawerProjectID = nil }, column: column)
                     }
                 }
             }
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
+    }
+
+    private func drawerPanel(_ content: AnyView, column: Int) -> some View {
+        let fill = Color(uiColor: .secondarySystemBackground)
+        return VStack(spacing: 0) {
+            // The caret points at the tile that opened it.
+            HStack(spacing: 8) {
+                ForEach(0..<columns, id: \.self) { @Sendable index in
+                    MainActorContent {
+                        if index == column {
+                            AirBuildDrawerCaret().fill(fill).frame(width: 20, height: 9)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 9)
+                        }
+                    }
+                }
+            }
+            content
+                .background(fill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            withAnimation(motion) { drawerHeight = height }
+        }
+    }
+
+    private var motion: Animation? { reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.12) }
+
+    @ViewBuilder
+    private func cell(_ slot: AirBuildProjectLayout.Slot) -> some View {
+        switch slot {
+        case .project(let project):
+            AirBuildProjectTile(
+                project: project, isSelected: project.id == selected, size: tileSize,
+                actions: actions?(project)
+            ) {
+                onSelect(project.id)
+                guard drawer != nil else { return }
+                withAnimation(motion) {
+                    drawerProjectID = drawerProjectID == project.id ? nil : project.id
+                }
+            }
+        case .all(let count):
+            Button {
+                onShowAll?()
+            } label: {
+                VStack(spacing: 6) {
+                    VStack(spacing: 0) {
+                        Text("All")
+                        Text(verbatim: "\(count)")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: tileSize, height: tileSize)
+                    .background(
+                        Color(uiColor: .systemGray).opacity(0.2),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    Text("All Projects")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("All Projects"))
+            .accessibilityValue(Text(verbatim: "\(count)"))
+        }
+    }
+}
+
+private struct AirBuildDrawerCaret: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -187,8 +254,6 @@ private struct AirBuildProjectTile: View {
     let isSelected: Bool
     var size: CGFloat = 62
     var actions: AirBuildProjectActions?
-    var drawer: AnyView?
-    var isDrawerOpen: Binding<Bool> = .constant(false)
     /// The badge's ring cuts it from the tile against the page behind.
     private let background = Color(uiColor: .systemBackground)
     let action: () -> Void
@@ -210,10 +275,6 @@ private struct AirBuildProjectTile: View {
                             }
                         }
                     badge
-                }
-                // Opens from the icon, arrow on it, as a folder opens on the home screen.
-                .popover(isPresented: isDrawerOpen, arrowEdge: .bottom) {
-                    drawer.presentationCompactAdaptation(.popover)
                 }
                 Text(verbatim: project.label)
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))

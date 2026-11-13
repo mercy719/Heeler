@@ -2812,16 +2812,10 @@ struct ConsoleView: View {
             }
         }
         let count = project.agents.count + project.shells.count
+        // Five rows at most, so the tiles below stay in reach; more scroll.
         return VStack(spacing: 0) {
-            Text(verbatim: project.label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
-                .padding(.bottom, 6)
-            if count > 6 {
-                ScrollView { rows }.frame(height: 6 * 60)
+            if count > 5 {
+                ScrollView { rows }.frame(height: 5 * 60)
             } else {
                 rows
             }
@@ -2843,7 +2837,8 @@ struct ConsoleView: View {
                 .buttonStyle(.plain)
             }
         }
-        .frame(width: 320)
+        .padding(.top, 6)
+        .frame(maxWidth: .infinity)
     }
 
     private func openFromDrawer(_ close: () -> Void, _ action: @escaping @MainActor () -> Void) {
