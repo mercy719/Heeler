@@ -72,8 +72,9 @@ public struct SillStreamView: View {
         }
         .onChange(of: client.status) { _, line in
             guard !listed, !ended else { return }
-            // "Connecting to…" and "Waiting for…" are the dial going on; anything else is its end.
-            if line.hasPrefix("Connecting to") || line.hasPrefix("Waiting for") {
+            // "Connecting to…", "Waiting for…" and "Connected to…" (the socket is up, the window
+            // list not yet in) are the dial going on; anything else is its end.
+            if ["Connecting to", "Waiting for", "Connected to"].contains(where: line.hasPrefix) {
                 onState(.connecting)
             } else {
                 ended = true
