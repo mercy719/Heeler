@@ -75,8 +75,12 @@ struct AirBuildProjectGrid: View {
     let onSelect: (ConsoleWorkspaceSection.ID) -> Void
     var onShowAll: (() -> Void)?
     var actions: ((ArcProjectGroup.Project) -> AirBuildProjectActions)?
+    /// What a tapped tile opens beside itself (its Agents and terminals), given
+    /// a way to close it; nil keeps a tap to selecting the project.
+    var drawer: ((ArcProjectGroup.Project, @escaping @MainActor @Sendable () -> Void) -> AnyView)?
 
     @State private var width: CGFloat = 0
+    @State private var drawerProjectID: ConsoleWorkspaceSection.ID?
     @Environment(\.isSidebarColumn) private var isSidebarColumn
     @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
 
@@ -136,8 +140,15 @@ struct AirBuildProjectGrid: View {
                     case .project(let project):
                         AirBuildProjectTile(
                             project: project, isSelected: project.id == selected, size: tileSize,
-                            actions: actions?(project)
-                        ) { onSelect(project.id) }
+                            actions: actions?(project),
+                            drawer: drawer.map { make in make(project) { drawerProjectID = nil } },
+                            isDrawerOpen: Binding(
+                                get: { drawerProjectID == project.id },
+                                set: { if !$0, drawerProjectID == project.id { drawerProjectID = nil } })
+                        ) {
+                            onSelect(project.id)
+                            if drawer != nil { drawerProjectID = project.id }
+                        }
                     case .all(let count):
                         Button {
                             onShowAll?()
@@ -176,6 +187,8 @@ private struct AirBuildProjectTile: View {
     let isSelected: Bool
     var size: CGFloat = 62
     var actions: AirBuildProjectActions?
+    var drawer: AnyView?
+    var isDrawerOpen: Binding<Bool> = .constant(false)
     /// The badge's ring cuts it from the tile against the page behind.
     private let background = Color(uiColor: .systemBackground)
     let action: () -> Void
@@ -197,6 +210,10 @@ private struct AirBuildProjectTile: View {
                             }
                         }
                     badge
+                }
+                // Opens from the icon, arrow on it, as a folder opens on the home screen.
+                .popover(isPresented: isDrawerOpen, arrowEdge: .bottom) {
+                    drawer.presentationCompactAdaptation(.popover)
                 }
                 Text(verbatim: project.label)
                     .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))

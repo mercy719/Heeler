@@ -2060,7 +2060,8 @@ struct ConsoleView: View {
                 selected: arcSelectedProjectID,
                 onSelect: { arcSelect($0) },
                 onShowAll: { isShowingAllArcProjects = true },
-                actions: { arcProjectActions($0) })
+                actions: { arcProjectActions($0) },
+                drawer: { project, close in AnyView(arcProjectDrawer(project, close: close)) })
                 .listRowInsets(EdgeInsets(top: usesSidebarNavigation || foldedHome ? 8 : 44, leading: 0, bottom: 12, trailing: 0))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -2786,6 +2787,75 @@ struct ConsoleView: View {
     }
 
     /// A project tile's long press: what its page offers, without opening it first.
+    /// A project's Agents, then its terminals, opened from its home tile; the
+    /// New buttons below. Picking one closes the drawer and opens it.
+    private func arcProjectDrawer(
+        _ project: ArcProjectGroup.Project, close: @escaping @MainActor @Sendable () -> Void
+    ) -> some View {
+        let actions = arcProjectActions(project)
+        let rows = VStack(spacing: 0) {
+            ForEach(project.agents) { @Sendable agent in
+                MainActorContent {
+                    Button { openFromDrawer(close) { selectAgent(agent.id) } } label: {
+                        ArcAgentRow(agent: agent, title: arcAgentTitle(agent), now: arcAgentNow(agent))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            ForEach(project.shells) { @Sendable shell in
+                MainActorContent {
+                    Button { openFromDrawer(close) { selectTerminal(shell) } } label: {
+                        ArcShellRow(terminal: shell, number: ArcShellRow.number(of: shell, among: project.shells))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        let count = project.agents.count + project.shells.count
+        return VStack(spacing: 0) {
+            Text(verbatim: project.label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 6)
+            if count > 6 {
+                ScrollView { rows }.frame(height: 6 * 60)
+            } else {
+                rows
+            }
+            if actions.newAgent != nil || actions.newTerminal != nil {
+                Divider().padding(.top, 6)
+                HStack(spacing: 0) {
+                    if let newAgent = actions.newAgent {
+                        Button { openFromDrawer(close, newAgent) } label: {
+                            Label("New Agent", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                    }
+                    if let newTerminal = actions.newTerminal {
+                        Button { openFromDrawer(close, newTerminal) } label: {
+                            Label("New Terminal", systemImage: "apple.terminal").frame(maxWidth: .infinity, minHeight: 48)
+                        }
+                    }
+                }
+                .font(.system(size: 15, weight: .medium))
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(width: 320)
+    }
+
+    private func openFromDrawer(_ close: () -> Void, _ action: @escaping @MainActor () -> Void) {
+        close()
+        // shortcut: waits out the popover's dismissal, which drops a push made during it; use its
+        // dismissal callback if 0.35 s proves short on a slow phone.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            action()
+        }
+    }
+
     private func arcProjectActions(_ project: ArcProjectGroup.Project) -> AirBuildProjectActions {
         let hostID = project.id.hostID
         let capabilities = console.capabilities(for: hostID)
