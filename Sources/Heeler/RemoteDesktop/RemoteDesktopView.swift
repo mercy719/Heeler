@@ -1,21 +1,13 @@
+import SillClient
 import SwiftUI
-import UIKit
 
-/// Remote Desktop, full screen over black. The page draws the picture; this
-/// screen draws only what a page cannot: the way out, the link's state, the
-/// keys a phone keyboard has no room for, and the menu.
+/// Remote Desktop, full screen over black. The sill stream draws the screen,
+/// its window bar, its keyboard and its settings; this view draws only the way
+/// out and the link's own state until the Mac's window list arrives.
 struct RemoteDesktopView: View {
     @State private var store: RemoteDesktopStore
-    @State private var page = RemoteDesktopPage()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(RemoteDesktopSettings.qualityKey) private var quality = RemoteDesktopQuality.standard
-    @AppStorage(RemoteDesktopSettings.touchModeKey)
-    private var touchMode = RemoteDesktopTouchMode.trackpad
-    @State private var isKeyboardShown = false
-    @State private var modifiers: Set<RemoteDesktopModifier> = []
-    /// What the fixed controls cover, for the zoom follow's edges.
-    private let barHeight: CGFloat = 56
 
     init(store: RemoteDesktopStore) {
         _store = State(initialValue: store)
@@ -24,63 +16,36 @@ struct RemoteDesktopView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if let ready = store.ready, let url = store.pageURL {
-                RemoteDesktopWebView(
-                    url: url,
-                    quality: store.quality,
-                    ready: ready,
-                    touchMode: store.touchMode,
-                    covered: (barHeight, barHeight),
-                    page: page,
-                    onStats: { store.received(stats: $0) },
-                    onFirstFrame: { store.receivedFirstFrame() }
-                )
+            if let ready = store.ready {
+                // The plain door reads "connected" before the Mac has answered,
+                // so the screen's state follows the window list, not the socket.
+                SillStreamView(host: "127.0.0.1", port: ready.port) { state in
+                    switch state {
+                    case .connecting: break
+                    case .connected: store.sillListed()
+                    case .failed(let message): store.sillFailed(message)
+                    }
+                }
                 .ignoresSafeArea()
-                .id(url)
+                .id(ready.port)
             }
-            controls
-            if store.state != .connected { overlay }
-            RemoteDesktopKeyboard(
-                isShown: $isKeyboardShown,
-                isEnabled: store.state == .connected,
-                onChange: typed,
-                onBackspaceOnEmpty: { press(.backspace) }
-            )
-            .frame(width: 1, height: 1)
-            .opacity(0.01)
-            .allowsHitTesting(false)
+            if store.state != .connected {
+                controls
+                // Step 3 is sill's own dial, and it draws its own line; this
+                // layer speaks only for the steps before it and for failures.
+                if store.state != .connecting(step: 3) { overlay }
+            }
         }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
-        .onAppear {
-            store.quality = quality
-            store.touchMode = touchMode
-            store.start()
-        }
+        .onAppear { store.start() }
         .onDisappear { store.stop() }
         .onChange(of: scenePhase) { _, phase in
             // The phone cannot hold the stream in the background and nobody
             // sees it, so the Host session stops now.
             if phase == .background {
-                isKeyboardShown = false
                 store.pause()
             } else if phase == .active { store.resume() }
-        }
-        .onChange(of: quality) { _, value in
-            store.quality = value
-            // The stream's size and rate are fixed when it starts.
-            if store.state == .connected { reconnect() } else { isKeyboardShown = false }
-        }
-        .onChange(of: touchMode) { _, value in
-            store.touchMode = value
-            page.call("touchMode", value.pageValue)
-        }
-        .onChange(of: store.state) { _, value in
-            // A new page holds no keys, so none shows as held.
-            if value != .connected {
-                isKeyboardShown = false
-                modifiers.removeAll()
-            }
         }
     }
 
@@ -95,18 +60,6 @@ struct RemoteDesktopView: View {
             }
             .padding(.horizontal, 12).padding(.top, 12)
             Spacer(minLength: 0)
-            VStack(spacing: 12) {
-                glassButton("doc.on.clipboard", label: "Paste from iPhone") { paste() }
-                    .disabled(store.state != .connected || !UIPasteboard.general.hasStrings)
-                glassButton(
-                    isKeyboardShown ? "keyboard.chevron.compact.down" : "keyboard",
-                    label: isKeyboardShown ? "Hide Keyboard" : "Show Keyboard"
-                ) { isKeyboardShown.toggle() }
-                .disabled(store.state != .connected)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.horizontal, 12)
-            if isKeyboardShown { keyRow }
         }
         .padding(.bottom, 12)
     }
@@ -114,92 +67,12 @@ struct RemoteDesktopView: View {
     private var statusCapsule: some View {
         HStack(spacing: 6) {
             Circle().fill(store.state.statusColor).frame(width: 8, height: 8)
-            if let latency = store.latencyMS {
-                Text("\(latency) ms")
-                    .font(.system(size: 13, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-            }
-            Menu { menuContent } label: {
-                Image(systemName: "ellipsis").rdGlyph(15, weight: .semibold)
-                    .frame(width: 28, height: 28).contentShape(Circle())
-            }
-            .accessibilityLabel(Text("Remote Desktop Options"))
         }
-        .padding(.leading, 12).padding(.trailing, 4)
+        .padding(.horizontal, 12)
         .frame(height: 44)
         .glassBackground(in: Capsule())
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(store.state.statusLabel))
-    }
-
-    @ViewBuilder private var menuContent: some View {
-        Picker("Touch Mode", selection: $touchMode) {
-            Label("Trackpad", systemImage: "cursorarrow.motionlines")
-                .tag(RemoteDesktopTouchMode.trackpad)
-            Label("Direct Touch", systemImage: "hand.tap")
-                .tag(RemoteDesktopTouchMode.direct)
-        }
-        Button("Fit to Screen", systemImage: "arrow.down.right.and.arrow.up.left") {
-            page.call("fit")
-        }
-        Picker("Quality", selection: $quality) {
-            ForEach(RemoteDesktopQuality.allCases, id: \.self) { Text($0.menuTitle).tag($0) }
-        }
-        Button("Reconnect", systemImage: "arrow.clockwise") { reconnect() }
-        Divider()
-        Button("Disconnect", systemImage: "xmark.circle", role: .destructive) { close() }
-    }
-
-    private var keyRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                key("keyboard.chevron.compact.down", "Hide Keyboard") { isKeyboardShown = false }
-                key("escape", "Escape") { press(.escape) }
-                key("arrow.right.to.line", "Tab") { press(.tab) }
-                ForEach(RemoteDesktopModifier.allCases, id: \.self) { modifierKey($0) }
-                key("arrow.left", "Left Arrow") { press(.left) }
-                key("arrow.up", "Up Arrow") { press(.up) }
-                key("arrow.down", "Down Arrow") { press(.down) }
-                key("arrow.right", "Right Arrow") { press(.right) }
-                key("delete.left", "Delete") { press(.backspace) }
-            }
-            .padding(.horizontal, 12)
-        }
-        .frame(height: 44)
-        .glassBackground(in: Rectangle())
-        .padding(.top, 8)
-    }
-
-    private func key(
-        _ symbol: String, _ label: LocalizedStringKey, action: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol).rdGlyph(16)
-                .frame(width: 40, height: 36).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(label))
-    }
-
-    /// A modifier locks until the next key lets it go, and the key that names
-    /// it is its own SF Symbol (`control`, `option`, `command`, `shift`).
-    private func modifierKey(_ modifier: RemoteDesktopModifier) -> some View {
-        let isOn = modifiers.contains(modifier)
-        return Button {
-            if isOn { modifiers.remove(modifier) } else { modifiers.insert(modifier) }
-            page.call("modifier", modifier.pageCode, !isOn)
-        } label: {
-            Image(systemName: modifier.symbolName)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(isOn ? Color.accentColor : .white)
-                .frame(width: 40, height: 36)
-                .background(isOn ? Color.accentColor.opacity(0.25) : .clear, in: .rect(cornerRadius: 8))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text(modifier.symbolName))
-        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     // MARK: Overlay
@@ -247,38 +120,12 @@ struct RemoteDesktopView: View {
     // MARK: Actions
 
     private func close() {
-        isKeyboardShown = false
         store.stop()
         dismiss()
     }
 
     private func reconnect() {
-        isKeyboardShown = false
         store.reconnect()
-    }
-
-    private func press(_ key: RemoteDesktopKey) {
-        page.call("key", key.pageCode, key.keyValue)
-        releaseModifiers()
-    }
-
-    private func releaseModifiers() {
-        for modifier in modifiers { page.call("modifier", modifier.pageCode, false) }
-        modifiers.removeAll()
-    }
-
-    private func typed(before: String, after: String) {
-        let change = RemoteDesktopTyped.change(before: before, after: after)
-        for _ in 0..<change.backspaces { page.call("key", "Backspace", "Backspace") }
-        if !change.text.isEmpty { page.call("type", change.text) }
-        // A held modifier is for one shortcut, such as Cmd+C.
-        if change.backspaces > 0 || !change.text.isEmpty { releaseModifiers() }
-    }
-
-    private func paste() {
-        guard let text = UIPasteboard.general.string, !text.isEmpty else { return }
-        releaseModifiers()
-        page.call("type", String(text.prefix(2_000)))
     }
 }
 
@@ -300,42 +147,9 @@ extension RemoteDesktopState {
             ("lock.shield.fill", .orange,
              String(
                 localized:
-                    "Give Sunshine Screen Recording and Accessibility in the Mac's Privacy settings."
+                    "Give Heeler Remote Desktop Screen Recording and Accessibility in the Mac's Privacy settings."
              ),
              String(localized: "Retry"))
-        }
-    }
-}
-
-/// What the page can be told to press: the US keyboard codes Moonlight reads
-/// off `KeyboardEvent`, which travel as they are.
-enum RemoteDesktopKey: String, Sendable {
-    case escape = "Escape"
-    case tab = "Tab"
-    case backspace = "Backspace"
-    case left = "ArrowLeft"
-    case right = "ArrowRight"
-    case up = "ArrowUp"
-    case down = "ArrowDown"
-
-    var pageCode: String { rawValue }
-    var keyValue: String { rawValue }
-}
-
-enum RemoteDesktopModifier: String, Hashable, Sendable, CaseIterable {
-    case control = "ControlLeft"
-    case option = "AltLeft"
-    case command = "MetaLeft"
-    case shift = "ShiftLeft"
-
-    var pageCode: String { rawValue }
-
-    var symbolName: String {
-        switch self {
-        case .control: "control"
-        case .option: "option"
-        case .command: "command"
-        case .shift: "shift"
         }
     }
 }

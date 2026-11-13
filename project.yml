@@ -83,14 +83,19 @@ targets:
         type: folder
         buildPhase: resources
       # Remote Desktop: the Host scripts `RemoteDesktopScripts.bundled()` reads
-      # by name at the bundle root, and the viewer page script the WebView
-      # injects at documentStart. Individual files, not a folder reference:
-      # each is looked up by name and extension.
+      # by name at the bundle root, the viewer page script the WebView injects
+      # at documentStart, and the signed Mac-side sill host the session writes
+      # to the Host (`SillHost.zip` and the sha256 it is compared by). Individual
+      # files, not a folder reference: each is looked up by name and extension.
       - path: remote-desktop/rc-setup.sh
         buildPhase: resources
       - path: remote-desktop/rc-session.sh
         buildPhase: resources
       - path: Sources/Heeler/Resources/RemoteDesktop/viewer.js
+        buildPhase: resources
+      - path: Sources/Heeler/Resources/RemoteDesktop/SillHost.zip
+        buildPhase: resources
+      - path: Sources/Heeler/Resources/RemoteDesktop/SillHost.zip.sha256
         buildPhase: resources
     info:
       path: Sources/Heeler/Info.plist

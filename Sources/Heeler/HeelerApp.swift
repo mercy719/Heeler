@@ -27,11 +27,6 @@ struct HeelerApp: App {
                 if DemoScreenshotMode.isEnabled {
                     DemoScreenshotRootView()
                         .tint(AppAccentColor.color(for: accentColor))
-                } else if let debugURL = RemoteDesktopDebugURL.launchURL {
-                    // A Simulator run opens Remote Desktop on the URL it was
-                    // launched with, skipping SSH.
-                    RemoteDesktopView(store: .debug(url: debugURL))
-                        .tint(AppAccentColor.color(for: accentColor))
                 } else if let address = SillDebugAddress.launchAddress {
                     // `-SillDebugAddress 127.0.0.1:<port>`: the sill stream alone, over
                     // an address the caller already forwards to a Mac.

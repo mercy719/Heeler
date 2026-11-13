@@ -63,6 +63,13 @@ public struct SillStreamView: View {
             onState(.connected(macName: name))
         }
         .onChange(of: client.settings) { _, _ in sendQuality() }
+        .onChange(of: client.connected) { _, connected in
+            // sill's own Disconnect ends the stream but leaves this screen up, and the host hides
+            // its way out once connected: reported as this dial's end, the host shows its own again.
+            guard listed, !connected, !ended else { return }
+            ended = true
+            onState(.failed("Disconnected"))
+        }
         .onChange(of: client.status) { _, line in
             guard !listed, !ended else { return }
             // "Connecting to…" and "Waiting for…" are the dial going on; anything else is its end.

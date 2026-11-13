@@ -104,7 +104,7 @@ struct RemoteDesktopStoreTests {
         // The page is loading; nothing has been decoded yet.
         #expect(store.state == .connecting(step: 3))
 
-        store.receivedFirstFrame()
+        store.sillListed()
         #expect(store.state == .connected)
         #expect(sessions.first?.startCount == 1)
         store.stop()
@@ -156,7 +156,7 @@ struct RemoteDesktopStoreTests {
             })
         store.start()
         try await waitUntil { store.state == .connecting(step: 3) }
-        store.receivedFirstFrame()
+        store.sillListed()
         #expect(store.state == .connected)
 
         // The Host session went away: the screen says so instead of showing a
@@ -177,7 +177,7 @@ struct RemoteDesktopStoreTests {
         let (store, sessions) = makeStore()
         store.start()
         try await waitUntil { store.state == .connecting(step: 3) }
-        store.receivedFirstFrame()
+        store.sillListed()
         #expect(store.state == .connected)
 
         store.pause()
@@ -201,7 +201,7 @@ struct RemoteDesktopStoreTests {
         let (store, sessions) = makeStore()
         store.start()
         try await waitUntil { store.state == .connecting(step: 3) }
-        store.receivedFirstFrame()
+        store.sillListed()
         store.resume()
         try await settle()
         #expect(sessions.count == 1)
@@ -225,22 +225,6 @@ struct RemoteDesktopStoreTests {
         #expect(store.ready != nil)
         store.stop()
         #expect(store.ready == nil)
-    }
-
-    // MARK: Stats
-
-    @Test func aSampleSetsLatencyAndFrames() async throws {
-        let (store, _) = makeStore()
-        store.start()
-        try await waitUntil { store.state == .connecting(step: 3) }
-        store.received(stats: ["rttMs": 42, "fps": 30, "frames": 900])
-        #expect(store.latencyMS == 42)
-        #expect(store.fps == 30)
-        // A sample without a round trip leaves the last one in place.
-        store.received(stats: ["rttMs": NSNull(), "fps": 29])
-        #expect(store.latencyMS == 42)
-        #expect(store.fps == 29)
-        store.stop()
     }
 
     // MARK: Sizes

@@ -131,19 +131,8 @@ extension RemoteDesktopSession: RemoteDesktopSessionRunning {}
 @Observable
 final class RemoteDesktopStore {
     private(set) var state: RemoteDesktopState = .connecting(step: 1)
-    /// The port this session's page is served on; the view loads nothing else.
+    /// The port sill's stream is dialled on; the view reaches nothing else.
     private(set) var ready: RemoteDesktopReady?
-    /// The one URL the page loads: this session's loopback page, or the
-    /// debug launch's own. Nil until there is one.
-    var pageURL: URL? { debugURL ?? ready?.localURL }
-    private(set) var latencyMS: Int?
-    private(set) var fps: Int?
-    /// A decoded frame has arrived, which is what "connected" means: the
-    /// page's own `stream-info` says nothing about a picture.
-    private var sawFirstFrame = false
-
-    var quality: RemoteDesktopQuality
-    var touchMode: RemoteDesktopTouchMode
 
     private let settings: () throws -> SSHTransportSettings
     private let makeSession:
@@ -154,10 +143,6 @@ final class RemoteDesktopStore {
     /// second start must not begin a second one.
     private var isStarting = false
     private var runID = 0
-    /// A URL the screen loads instead of starting a Host session: the
-    /// Simulator's `-RemoteDesktopDebugURL`, which reaches a Mac through its
-    /// own `ssh -L`. Debug builds only, so a release build has no such path.
-    private var debugURL: URL?
 
     init(
         host: Host,
@@ -166,9 +151,7 @@ final class RemoteDesktopStore {
         credentials: HostCredentialsProvider = HostCredentialsProvider(),
         overlays: OverlayNetworkRuntime = .shared,
         scripts: @escaping () throws -> RemoteDesktopScripts = { try RemoteDesktopScripts.bundled() },
-        heartbeatInterval: Duration = .seconds(15),
-        quality: RemoteDesktopQuality = .standard,
-        touchMode: RemoteDesktopTouchMode = .trackpad
+        heartbeatInterval: Duration = .seconds(15)
     ) {
         self.settings = {
             try ConsoleStore.consoleSettings(
@@ -181,9 +164,6 @@ final class RemoteDesktopStore {
                 connector: connector, settings: settings, scripts: try scripts(),
                 heartbeatInterval: heartbeatInterval, onEnded: onEnded)
         }
-        self.quality = quality
-        self.touchMode = touchMode
-        self.debugURL = nil
     }
 
     /// A store over a session the caller builds: previews and tests.
@@ -191,28 +171,11 @@ final class RemoteDesktopStore {
         settings: @escaping () throws -> SSHTransportSettings,
         makeSession: @escaping (
             SSHTransportSettings, @escaping @Sendable (RemoteDesktopEnd) -> Void
-        ) throws -> any RemoteDesktopSessionRunning,
-        quality: RemoteDesktopQuality = .standard,
-        touchMode: RemoteDesktopTouchMode = .trackpad
+        ) throws -> any RemoteDesktopSessionRunning
     ) {
         self.settings = settings
         self.makeSession = makeSession
-        self.quality = quality
-        self.touchMode = touchMode
-        self.debugURL = nil
     }
-
-    #if DEBUG
-        /// The screen over a URL the app was launched with, skipping SSH: a
-        /// Mac a Simulator run reached through its own `ssh -L`.
-        static func debug(url: URL) -> RemoteDesktopStore {
-            let store = RemoteDesktopStore(
-                settings: { throw CancellationError() },
-                makeSession: { _, _ in throw CancellationError() })
-            store.debugURL = url
-            return store
-        }
-    #endif
 
     /// Starts a link. Idempotent while one is starting or running: the one
     /// that is already under way owns `runID`.
@@ -223,7 +186,6 @@ final class RemoteDesktopStore {
         runID += 1
         let id = runID
         isStarting = true
-        sawFirstFrame = false
         clearPage()
         state = .connecting(step: 1)
         // A Host session still closing would tear down this one's processes.
@@ -243,25 +205,26 @@ final class RemoteDesktopStore {
         stopTask = Task { await session.stop() }
     }
 
-    /// The menu's Reconnect, and a quality change: the page loads again at the
-    /// new size, which is a fresh Host session. A debug launch has none, so its
-    /// page just reloads in place.
+    /// The status capsule's Retry: the screen's own link starts afresh.
     func reconnect() {
         stop()
         start()
     }
 
-    /// The page's one sample a second: the transport's round trip and the
-    /// frames the decoder produced since the last one.
-    func received(stats: [String: Any]) {
-        if let rtt = stats["rttMs"] as? Int { latencyMS = rtt }
-        if let frames = stats["fps"] as? Int { fps = frames }
+    /// The Mac's window list arrived: sill's own "connected", not the loopback
+    /// forwarder being up (`SillStreamView`'s state).
+    func sillListed() {
+        guard ready != nil else { return }
+        state = .connected
     }
 
-    func receivedFirstFrame() {
-        guard !sawFirstFrame, ready != nil else { return }
-        sawFirstFrame = true
-        state = .connected
+    /// sill's stream ended: its line is the reason, and the screen's Retry
+    /// starts a fresh session. sill's own Disconnect ends a connected stream
+    /// the same way, because its panel is then the only way out and that would
+    /// leave this screen with no exit.
+    func sillFailed(_ reason: String) {
+        guard ready != nil, state == .connected || state == .connecting(step: 3) else { return }
+        fail(.failed(reason), id: runID)
     }
 
     /// The app left the foreground: the phone cannot hold the stream and
@@ -280,17 +243,6 @@ final class RemoteDesktopStore {
     // MARK: Connecting
 
     private func connect(id: Int) async {
-        #if DEBUG
-            // A debug launch has no Host session to start: the page is one the
-            // caller already reached, so step 3 is where it begins.
-            if debugURL != nil {
-                ready = RemoteDesktopReady(
-                    port: 0, hostID: 0, appID: 0, width: 1_920, height: 1_080, locked: false)
-                state = .connecting(step: 3)
-                isStarting = false
-                return
-            }
-        #endif
         state = .connecting(step: 2)
         do {
             let session = try makeSession(try settings()) { [weak self] end in
@@ -333,27 +285,9 @@ final class RemoteDesktopStore {
         isStarting = false
     }
 
-    /// Nothing of the old link survives: no port to load, no figures to show.
+    /// Nothing of the old link survives: no port sill can dial.
     private func clearPage() {
         session = nil
         ready = nil
-        latencyMS = nil
-        fps = nil
     }
 }
-
-#if DEBUG
-    /// `-RemoteDesktopDebugURL <url>`: a Simulator run opens Remote Desktop on
-    /// that URL, skipping SSH. The URL is a Mac the caller reached through its
-    /// own `ssh -L`, so nothing here dials a real Host.
-    enum RemoteDesktopDebugURL {
-        static var launchURL: URL? {
-            let arguments = ProcessInfo.processInfo.arguments
-            guard let index = arguments.firstIndex(of: "-RemoteDesktopDebugURL"),
-                case let next = arguments.index(after: index), next < arguments.endIndex,
-                let url = URL(string: arguments[next])
-            else { return nil }
-            return url
-        }
-    }
-#endif
