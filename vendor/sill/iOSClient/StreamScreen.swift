@@ -1,3 +1,4 @@
+// PATCH 0003-fit-by-default: Aa starts at 1x (Heeler's remote desktop; see vendor/sill-patches).
 import SwiftUI
 import Combine
 import StreamProtocol
@@ -209,7 +210,9 @@ struct StreamScreen: View {
     /// The Aa control's text scale, device points per Mac point; nil means the Mac window has never
     /// been asked to fit (the control shows 1× for it). Up here, like `latched`, so it survives
     /// rotation and both layouts share it.
-    @State private var textScale: Double? = nil
+    // PATCH 0003-fit-by-default (Heeler): starts at 1×, so a picked window takes the phone's size
+    // without a trip to Aa; upstream starts Off, leaving the window at its Mac size.
+    @State private var textScale: Double? = 1.0
     /// The Aa slider is unfolded (finger down): the bars fade their other buttons meanwhile.
     @State private var scaleOpen = false
     /// The thumbnail whose traffic-light submenu is open (held for ThumbnailHold's length, 0.5 s unless

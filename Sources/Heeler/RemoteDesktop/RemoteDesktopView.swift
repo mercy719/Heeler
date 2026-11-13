@@ -23,7 +23,10 @@ struct RemoteDesktopView: View {
                     switch state {
                     case .connecting: break
                     case .connected: store.sillListed()
-                    case .failed(let message): store.sillFailed(message)
+                    // A stream that was up and then went (sill's Disconnect, or the link)
+                    // goes back to Heeler; a dial that never got there keeps Retry.
+                    case .failed(let message):
+                        if store.state == .connected { close() } else { store.sillFailed(message) }
                     }
                 }
                 .ignoresSafeArea()
