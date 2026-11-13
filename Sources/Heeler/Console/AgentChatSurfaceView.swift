@@ -107,6 +107,8 @@ struct AgentChatSurfaceView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
+    /// The Agent's computer, while Remote Desktop shows it.
+    @State private var remoteDesktopHost: Host?
     @Environment(\.openURL) private var openURL
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -601,9 +603,13 @@ struct AgentChatSurfaceView: View {
             // In the same group as the others: a toolbar of its own put it first.
             more: AnyView(airBuildHeader(mode: .barMore)))
         .airBuildFoldedBarControls(
-            isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch
+            isVisible: foldedUsesBar, onBack: { dismiss() }, surfaceSwitch: terminalSurfaceSwitch,
+            onRemoteDesktop: console.host(for: agent.hostID).map { host in { remoteDesktopHost = host } }
         ) {
             airBuildHeader(mode: .barMore)
+        }
+        .fullScreenCover(item: $remoteDesktopHost) { host in
+            RemoteDesktopView(store: RemoteDesktopStore(host: host))
         }
         .toolbar {
             if moreUsesNavigationBar {

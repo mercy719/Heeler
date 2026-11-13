@@ -300,6 +300,9 @@ final class ConsoleStore {
     /// `hostsOutOfSight` is `HostStore.hostsOutOfSight`: Hosts in the catalog that
     /// are not listed, whose device memory stays. Nil says the catalog could not be
     /// read, so nobody can say which Hosts went and none of that memory is swept.
+    /// The listed Host with `id`, for a screen that opens something on it.
+    func host(for id: Host.ID) -> Host? { catalog.first { $0.id == id } }
+
     func setHosts(_ catalogHosts: [Host], hostsOutOfSight: Set<Host.ID>? = []) {
         let hosts = catalogHosts.filter(\.serverKind.isConfirmed)
         let incoming = Dictionary(hosts.map { ($0.id, $0) }) { _, last in last }

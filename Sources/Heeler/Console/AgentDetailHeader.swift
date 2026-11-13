@@ -476,6 +476,8 @@ private struct AgentDetailHeaderVerticalBarControls: ToolbarContent {
 private struct AirBuildFoldedBarControls<More: View>: ToolbarContent {
     let onBack: () -> Void
     let surfaceSwitch: AgentDetailSurfaceSwitch?
+    /// Opens the Agent's computer on screen; nil hides the button.
+    let onRemoteDesktop: (() -> Void)?
     let more: More
 
     var body: some ToolbarContent {
@@ -491,6 +493,13 @@ private struct AirBuildFoldedBarControls<More: View>: ToolbarContent {
             }
             .axisBehavior(.verticalPreferred)
             .visibilityPriority(.high)
+        }
+        if let onRemoteDesktop {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Remote Desktop", systemImage: "display", action: onRemoteDesktop)
+                    .tint(nil)
+            }
+            .axisBehavior(.verticalPreferred)
         }
         ToolbarItem(placement: .primaryAction) { more.tint(nil) }
             .axisBehavior(.verticalPreferred)
@@ -715,13 +724,15 @@ extension View {
         isVisible: Bool,
         onBack: @escaping () -> Void,
         surfaceSwitch: AgentDetailSurfaceSwitch?,
+        onRemoteDesktop: (() -> Void)? = nil,
         @ViewBuilder more: () -> More
     ) -> some View {
         let more = more()
         return toolbar {
             #if compiler(>=6.4)
             if #available(iOS 27.1, *), isVisible {
-                AirBuildFoldedBarControls(onBack: onBack, surfaceSwitch: surfaceSwitch, more: more)
+                AirBuildFoldedBarControls(
+                    onBack: onBack, surfaceSwitch: surfaceSwitch, onRemoteDesktop: onRemoteDesktop, more: more)
             }
             #endif
         }
