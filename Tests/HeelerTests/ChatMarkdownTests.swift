@@ -468,6 +468,21 @@ struct ChatMarkdownTests {
         ])
     }
 
+    @Test("Strong emphasis closed after Chinese punctuation is still strong")
+    func strongAfterChinesePunctuation() throws {
+        let source = "1. **“创始人”是风险。**NVDA 没有。**估值越依赖一个人越狠。**\n\n`a**b**c` 价格 2** 起"
+        let blocks = ChatMarkdown.blocks(from: source)
+        let item = try #require(blocks.first)
+        #expect(item.text == "1. “创始人”是风险。NVDA 没有。估值越依赖一个人越狠。")
+        #expect(intents(in: item.content) == [
+            Styled("“创始人”是风险。", .stronglyEmphasized), Styled("NVDA 没有。"),
+            Styled("估值越依赖一个人越狠。", .stronglyEmphasized),
+        ])
+        // Stars in code stay; an odd number of leftover stars is left as written.
+        let paragraph = try #require(blocks.last)
+        #expect(paragraph.text == "a**b**c 价格 2** 起")
+    }
+
     @Test("Strong emphasis is bold in the block's font, and its other styles stay intents")
     func strongEmphasisWeight() throws {
         let block = try #require(ChatMarkdown.blocks(from: "plain **strong** ***both*** **`code`** *em*").first)

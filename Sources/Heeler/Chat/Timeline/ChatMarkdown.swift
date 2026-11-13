@@ -572,7 +572,34 @@ private struct BlockBuilder {
                 content.append(AttributedString(text, attributes: attributes))
             }
         }
-        return content
+        return Self.boldingStrandedStars(content)
+    }
+
+    /// CommonMark won't close `**` after punctuation when a letter follows,
+    /// as Agents write Chinese (`**结论。**接着`), so the parser leaves those
+    /// stars as text. Pairs the leftover `**` outside code and links in
+    /// order and bolds what each pair encloses; an odd count is left as is.
+    private static func boldingStrandedStars(_ content: AttributedString) -> AttributedString {
+        var stars: [Range<AttributedString.Index>] = []
+        for run in content.runs where run.link == nil && run.inlinePresentationIntent?.contains(.code) != true {
+            var start = run.range.lowerBound
+            while let found = content[start..<run.range.upperBound].range(of: "**") {
+                stars.append(found)
+                start = found.upperBound
+            }
+        }
+        guard stars.count >= 2, stars.count.isMultiple(of: 2) else { return content }
+        var result = AttributedString()
+        var cursor = content.startIndex
+        for pair in stride(from: 0, to: stars.count, by: 2) {
+            let (open, close) = (stars[pair], stars[pair + 1])
+            result.append(content[cursor..<open.lowerBound])
+            result.append(AttributedString(content[open.upperBound..<close.lowerBound]).transformingAttributes(
+                \.inlinePresentationIntent) { $0.value = ($0.value ?? []).union(.stronglyEmphasized) })
+            cursor = close.upperBound
+        }
+        result.append(content[cursor...])
+        return result
     }
 
     /// A table's source lines, with quote markers and the common indent
