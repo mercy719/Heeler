@@ -18,15 +18,27 @@ enum AirBuildProjectLayout {
             case .all: "all"
             }
         }
-
-        var projectID: ConsoleWorkspaceSection.ID? {
-            if case .project(let project) = self { project.id } else { nil }
-        }
     }
 
     /// The project grid, N × N, as Settings sets it, on the folded home and beside the detail.
     static let homeGridKey = "arc.home-grid"
     static let homeGridChoices = [3, 4, 5]
+
+    /// A project drawer's rows: an Agent's is 60 points and a shell's 38, as
+    /// their rows draw them on the home screen.
+    static func drawerRowsHeight(agents: Int, shells: Int) -> CGFloat {
+        min(CGFloat(agents) * 60 + CGFloat(shells) * 38, drawerRowsLimit)
+    }
+
+    /// Five Agents' worth; more scroll, so the tiles below stay in reach.
+    static let drawerRowsLimit: CGFloat = 300
+    static let drawerTopInset: CGFloat = 6
+    static let drawerFooterHeight: CGFloat = 55
+
+    static func drawerContentHeight(agents: Int, shells: Int, hasNewButtons: Bool) -> CGFloat {
+        drawerTopInset + drawerRowsHeight(agents: agents, shells: shells)
+            + (hasNewButtons ? drawerFooterHeight : 0)
+    }
 
     /// The largest tile `columns` fit across `width`, its label and the gaps
     /// included, never bigger than `largest`.
@@ -84,9 +96,14 @@ struct AirBuildProjectGrid: View {
     var drawer: ((ArcProjectGroup.Project, @escaping @MainActor @Sendable () -> Void) -> AnyView)?
 
     @State private var width: CGFloat = 0
+    /// The page shown when the projects take more than one.
+    @State private var page: Int?
+    /// The project whose drawer is open, at full height.
     @State private var drawerProjectID: ConsoleWorkspaceSection.ID?
-    /// The open drawer's height, which the paged view grows by.
-    @State private var drawerHeight: CGFloat = 0
+    /// Drawers in the layout: the open one, one still closing, and one about to
+    /// open at no height, so opening and closing both animate a height and never
+    /// an insertion (which would land at full height and jump the rows below).
+    @State private var mountedDrawers: Set<ConsoleWorkspaceSection.ID> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSidebarColumn) private var isSidebarColumn
     @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
@@ -106,24 +123,32 @@ struct AirBuildProjectGrid: View {
             if limitsToTwoRows {
                 let pages = AirBuildProjectLayout.pages(projects, columns: columns, rows: rows)
                 if pages.count > 1 {
-                    // Swiped page by page, as apps on the home screen. A fixed height,
-                    // so nothing measured here feeds back into the layout.
-                    TabView {
-                        ForEach(pages.indices, id: \.self) { @Sendable index in
-                            MainActorContent {
-                                // A page clips to its bounds: room above for the
-                                // badges and the selection ring that stand out of a tile.
-                                grid(pages[index])
-                                    .padding(.top, Self.pageTopInset)
-                                    .frame(maxHeight: .infinity, alignment: .top)
+                    // Swiped page by page, as apps on the home screen. A SwiftUI paging
+                    // scroll, not a page-style TabView: that one's UIKit pages jumped
+                    // up and down whenever an opening drawer changed its height.
+                    VStack(spacing: 0) {
+                        ScrollView(.horizontal) {
+                            HStack(alignment: .top, spacing: 0) {
+                                ForEach(pages.indices, id: \.self) { @Sendable index in
+                                    MainActorContent {
+                                        // Room above for the badges and the selection
+                                        // ring that stand out of a tile.
+                                        grid(pages[index])
+                                            .padding(.top, Self.pageTopInset)
+                                            .frame(minHeight: CGFloat(rows) * rowHeight + Self.pageTopInset, alignment: .top)
+                                            .containerRelativeFrame(.horizontal)
+                                            .id(index)
+                                    }
+                                }
                             }
+                            .scrollTargetLayout()
                         }
+                        .scrollTargetBehavior(.paging)
+                        .scrollIndicators(.hidden)
+                        .scrollPosition(id: $page)
+                        AirBuildPageDots(count: pages.count, current: page ?? 0)
+                            .frame(height: 30)
                     }
-                    .tabViewStyle(.page(indexDisplayMode: .always))
-                    .indexViewStyle(.page(backgroundDisplayMode: .never))
-                    .frame(
-                        height: CGFloat(rows) * rowHeight + 30 + Self.pageTopInset
-                            + (drawerProjectID == nil ? 0 : drawerHeight + 10))
                 } else {
                     grid(pages.first ?? [])
                 }
@@ -138,16 +163,18 @@ struct AirBuildProjectGrid: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 
-    /// Rows of tiles; an open drawer sits under its tile's row and pushes
-    /// the rows below it down, as a folder opens in place.
+    /// Rows of tiles; a drawer sits under its tile's row and pushes the rows
+    /// below it down, as a folder opens in place.
     private func grid(_ slots: [AirBuildProjectLayout.Slot]) -> some View {
         let lines = stride(from: 0, to: slots.count, by: columns).map {
             Array(slots[$0..<min($0 + columns, slots.count)])
         }
-        return VStack(spacing: 10) {
+        // Spacing lives in padding, so a drawer at no height adds none.
+        return VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { @Sendable index in
                 MainActorContent {
                     let line = lines[index]
+                    let isLast = index == lines.count - 1
                     HStack(alignment: .top, spacing: 8) {
                         ForEach(line) { @Sendable slot in
                             MainActorContent { cell(slot) }
@@ -156,10 +183,17 @@ struct AirBuildProjectGrid: View {
                             Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                         }
                     }
-                    if let drawer, let open = drawerProjectID, let column = line.firstIndex(where: { $0.projectID == open }),
-                        case .project(let project) = line[column]
-                    {
-                        drawerPanel(drawer(project) { drawerProjectID = nil }, column: column)
+                    .padding(.bottom, isLast ? 0 : 10)
+                    ForEach(Array(line.enumerated()), id: \.element.id) { @Sendable pair in
+                        MainActorContent {
+                            if let drawer, case .project(let project) = pair.element, mountedDrawers.contains(project.id) {
+                                drawerPanel(drawer(project) { close() }, project: project, column: pair.offset)
+                                    .padding(isLast ? .top : .bottom, 10)
+                                    .modifier(AirBuildRevealHeight(
+                                        height: project.id == drawerProjectID ? drawerHeight(project) + 10 : 0))
+                                    .opacity(project.id == drawerProjectID ? 1 : 0)
+                            }
+                        }
                     }
                 }
             }
@@ -168,7 +202,7 @@ struct AirBuildProjectGrid: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func drawerPanel(_ content: AnyView, column: Int) -> some View {
+    private func drawerPanel(_ content: AnyView, project: ArcProjectGroup.Project, column: Int) -> some View {
         let fill = Color(uiColor: .secondarySystemBackground)
         return VStack(spacing: 0) {
             // The caret points at the tile that opened it.
@@ -176,24 +210,54 @@ struct AirBuildProjectGrid: View {
                 ForEach(0..<columns, id: \.self) { @Sendable index in
                     MainActorContent {
                         if index == column {
-                            AirBuildDrawerCaret().fill(fill).frame(width: 20, height: 9)
+                            AirBuildDrawerCaret().fill(fill).frame(width: 20, height: Self.caretHeight)
                                 .frame(maxWidth: .infinity)
                         } else {
-                            Color.clear.frame(maxWidth: .infinity, maxHeight: 9)
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: Self.caretHeight)
                         }
                     }
                 }
             }
             content
+                .frame(height: contentHeight(project), alignment: .top)
                 .background(fill, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-            withAnimation(motion) { drawerHeight = height }
         }
     }
 
+    private static let caretHeight: CGFloat = 9
+
+    /// Known before the drawer draws, so the paged view and the rows below
+    /// move in the same animation as the drawer itself.
+    private func contentHeight(_ project: ArcProjectGroup.Project) -> CGFloat {
+        let actions = actions?(project)
+        return AirBuildProjectLayout.drawerContentHeight(
+            agents: project.agents.count, shells: project.shells.count,
+            hasNewButtons: actions?.newAgent != nil || actions?.newTerminal != nil)
+    }
+
+    private func drawerHeight(_ project: ArcProjectGroup.Project) -> CGFloat {
+        Self.caretHeight + contentHeight(project)
+    }
+
     private var motion: Animation? { reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.12) }
+
+    /// Mounts the drawer at no height first, then grows it on the next turn,
+    /// while any other open drawer shrinks in the same animation.
+    private func toggleDrawer(_ id: ConsoleWorkspaceSection.ID) {
+        if drawerProjectID == id { return close() }
+        mountedDrawers.insert(id)
+        Task { @MainActor in
+            withAnimation(motion) { drawerProjectID = id } completion: { unmountClosed() }
+        }
+    }
+
+    private func close() {
+        withAnimation(motion) { drawerProjectID = nil } completion: { unmountClosed() }
+    }
+
+    private func unmountClosed() {
+        mountedDrawers = drawerProjectID.map { [$0] } ?? []
+    }
 
     @ViewBuilder
     private func cell(_ slot: AirBuildProjectLayout.Slot) -> some View {
@@ -204,10 +268,7 @@ struct AirBuildProjectGrid: View {
                 actions: actions?(project)
             ) {
                 onSelect(project.id)
-                guard drawer != nil else { return }
-                withAnimation(motion) {
-                    drawerProjectID = drawerProjectID == project.id ? nil : project.id
-                }
+                if drawer != nil { toggleDrawer(project.id) }
             }
         case .all(let count):
             Button {
@@ -235,6 +296,43 @@ struct AirBuildProjectGrid: View {
             .accessibilityLabel(Text("All Projects"))
             .accessibilityValue(Text(verbatim: "\(count)"))
         }
+    }
+}
+
+/// Which page of tiles shows, as the home screen's dots say it.
+private struct AirBuildPageDots: View {
+    let count: Int
+    let current: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<count, id: \.self) { @Sendable index in
+                MainActorContent {
+                    Circle()
+                        .fill(index == current ? Color.primary : Color.secondary.opacity(0.5))
+                        .frame(width: 7, height: 7)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Page \(current + 1) of \(count)"))
+    }
+}
+
+/// A height that lays out afresh on every frame of its animation. The home
+/// list resizes the grid's row for each step as a plain change; a plain
+/// animated `frame(height:)` let the list animate the row itself, which drew
+/// the tiles up to 300 points too high while a drawer shrank.
+private struct AirBuildRevealHeight: ViewModifier, Animatable {
+    var height: CGFloat
+
+    nonisolated var animatableData: CGFloat {
+        get { height }
+        set { height = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.frame(height: max(0, height), alignment: .top).clipped()
     }
 }
 

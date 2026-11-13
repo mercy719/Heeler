@@ -2811,44 +2811,41 @@ struct ConsoleView: View {
                 }
             }
         }
-        let count = project.agents.count + project.shells.count
-        // Five rows at most, so the tiles below stay in reach; more scroll.
+        // Heights from AirBuildProjectLayout, which the grid sizes the drawer by.
         return VStack(spacing: 0) {
-            if count > 5 {
-                ScrollView { rows }.frame(height: 5 * 60)
-            } else {
-                rows
-            }
+            ScrollView { rows }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: AirBuildProjectLayout.drawerRowsHeight(
+                    agents: project.agents.count, shells: project.shells.count))
             if actions.newAgent != nil || actions.newTerminal != nil {
-                Divider().padding(.top, 6)
-                HStack(spacing: 0) {
-                    if let newAgent = actions.newAgent {
-                        Button { openFromDrawer(close, newAgent) } label: {
-                            Label("New Agent", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 48)
+                VStack(spacing: 0) {
+                    Divider()
+                    HStack(spacing: 0) {
+                        if let newAgent = actions.newAgent {
+                            Button { openFromDrawer(close, newAgent) } label: {
+                                Label("New Agent", systemImage: "plus").frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
+                        if let newTerminal = actions.newTerminal {
+                            Button { openFromDrawer(close, newTerminal) } label: {
+                                Label("New Terminal", systemImage: "apple.terminal").frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
                         }
                     }
-                    if let newTerminal = actions.newTerminal {
-                        Button { openFromDrawer(close, newTerminal) } label: {
-                            Label("New Terminal", systemImage: "apple.terminal").frame(maxWidth: .infinity, minHeight: 48)
-                        }
-                    }
+                    .font(.system(size: 15, weight: .medium))
+                    .buttonStyle(.plain)
                 }
-                .font(.system(size: 15, weight: .medium))
-                .buttonStyle(.plain)
+                .frame(height: AirBuildProjectLayout.drawerFooterHeight)
             }
         }
-        .padding(.top, 6)
+        .padding(.top, AirBuildProjectLayout.drawerTopInset)
         .frame(maxWidth: .infinity)
     }
 
-    private func openFromDrawer(_ close: () -> Void, _ action: @escaping @MainActor () -> Void) {
+    /// The drawer folds away as the picked screen opens.
+    private func openFromDrawer(_ close: () -> Void, _ action: () -> Void) {
         close()
-        // shortcut: waits out the popover's dismissal, which drops a push made during it; use its
-        // dismissal callback if 0.35 s proves short on a slow phone.
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(350))
-            action()
-        }
+        action()
     }
 
     private func arcProjectActions(_ project: ArcProjectGroup.Project) -> AirBuildProjectActions {
