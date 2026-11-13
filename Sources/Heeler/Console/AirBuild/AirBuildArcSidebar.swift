@@ -104,6 +104,8 @@ struct AirBuildProjectGrid: View {
     /// open at no height, so opening and closing both animate a height and never
     /// an insertion (which would land at full height and jump the rows below).
     @State private var mountedDrawers: Set<ConsoleWorkspaceSection.ID> = []
+    /// The grid's height with no drawer in it, measured while none is.
+    @State private var restHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isSidebarColumn) private var isSidebarColumn
     @AppStorage(AirBuildProjectLayout.homeGridKey) private var homeGrid = 3
@@ -161,6 +163,20 @@ struct AirBuildProjectGrid: View {
         .id(homeGrid)
         .frame(maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+            if mountedDrawers.isEmpty { restHeight = $0 }
+        }
+        // The list row takes its tallest height for the whole open or close and
+        // the drawer moves inside it: a row resized every frame dropped frames,
+        // and one shrinking skipped the close altogether.
+        .frame(height: reservedHeight, alignment: .top)
+    }
+
+    private var reservedHeight: CGFloat? {
+        guard !mountedDrawers.isEmpty, restHeight > 0 else { return nil }
+        return mountedDrawers.reduce(restHeight) { height, id in
+            height + (projects.first { $0.id == id }.map { drawerHeight($0) + 10 } ?? 0)
+        }
     }
 
     /// Rows of tiles; a drawer sits under its tile's row and pushes the rows
