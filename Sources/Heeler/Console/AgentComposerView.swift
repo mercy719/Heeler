@@ -385,10 +385,9 @@ struct AgentComposerView: View {
                         .modifier(ComposerInputReplacement(replacement: inputReplacement))
                         .padding(inputAreaInsets)
                         .background {
+                            // Frosted glass, so the conversation shows through as it scrolls under.
                             if airBuildStyle {
-                                Color(uiColor: .secondarySystemBackground)
-                                    .clipShape(RoundedRectangle(
-                                        cornerRadius: airBuildStyle ? 23 : (isCollapsed ? 20 : 16), style: .continuous))
+                                Color.clear.glassBackground(in: RoundedRectangle(cornerRadius: 23, style: .continuous))
                             }
                         }
 
