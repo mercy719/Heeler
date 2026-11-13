@@ -50,6 +50,8 @@ struct LicenseNoticeInventoryTests {
         "OpenBot",
         "moonlight-web-stream",
         "Sunshine",
+        // sill's iOS client is compiled into SillClient (Apache-2.0).
+        "sill",
     ]
 
     /// Overlay notices are copied verbatim from the heeler-overlay-natives

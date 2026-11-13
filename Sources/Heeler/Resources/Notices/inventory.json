@@ -17,7 +17,8 @@
     "projectPackages": {
       "GhosttyTerminal": ["libghostty-spm", "Ghostty", "GhosttyTheme", "JetBrainsMono"],
       "HeelerSSH": ["libssh2", "libssh2-bcrypt_pbkdf", "libssh2-cipher-chachapoly", "OpenSSL"],
-      "HeelerOverlay": ["libtailscale", "Tailscale", "Go", "Tailscale-Go-modules", "libzt", "ZeroTier-Heeler-modifications", "ZeroTierOne", "ZeroTierOne-LZ4", "lwIP", "lwIP-contrib", "miniupnpc", "libnatpmp", "prometheus-cpp-lite", "concurrentqueue", "EasyTier", "heeler-easytier", "EasyTier-Rust-crates"]
+      "HeelerOverlay": ["libtailscale", "Tailscale", "Go", "Tailscale-Go-modules", "libzt", "ZeroTier-Heeler-modifications", "ZeroTierOne", "ZeroTierOne-LZ4", "lwIP", "lwIP-contrib", "miniupnpc", "libnatpmp", "prometheus-cpp-lite", "concurrentqueue", "EasyTier", "heeler-easytier", "EasyTier-Rust-crates"],
+      "Sill": ["sill"]
     },
     "bundledFontFamilies": {
       "IBMPlexMono": ["IBMPlexMono"]
@@ -287,6 +288,14 @@
       "source": "https://github.com/LizardByte/Sunshine (GPL-3.0-or-later; the screen streamer the computer runs, so this app neither ships nor links it)",
       "spdx": "GPL-3.0-or-later",
       "notice": "Sunshine-GPL-3.0.txt"
+    },
+    {
+      "id": "sill",
+      "displayName": "sill (based on Sill)",
+      "version": "f5bf542",
+      "source": "https://github.com/Saffsanity/sill (Apache-2.0; the iOS client in vendor/sill/iOSClient is compiled into SillClient unmodified, and Heeler's SillStreamView is based on Sill)",
+      "spdx": "Apache-2.0",
+      "notice": "sill-Apache-2.0.txt"
     }
   ]
 }
