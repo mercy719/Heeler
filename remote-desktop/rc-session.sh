@@ -18,6 +18,7 @@ WHOST=52100            # Moonlight Web
 HB=${RC_HEARTBEAT_TIMEOUT:-45}
 WORK="${TMPDIR:-/tmp}/heeler-rc-session.$$"
 WPID=""
+WAS_LOCKED=false   # 连上那一刻锁着的，退出时熄屏让它立刻再锁上
 W=0 H=0
 
 out() { printf '%s\n' "$1"; }
@@ -42,6 +43,8 @@ cleanup() {
     pkill -f "$SUN" 2>/dev/null
     pkill -f "$ML/web-server" 2>/dev/null
     rm -f "$OWNER"
+    # 远程期间可能解了锁：熄屏，配合「熄屏后立即要求密码」就是马上锁上。本来没锁的（人在电脑前）不动。
+    [ "$WAS_LOCKED" = true ] && pmset displaysleepnow >/dev/null 2>&1
   fi
   rm -rf "$WORK"
 }
@@ -92,6 +95,7 @@ start() {
   clear_leftovers
   printf '%s\n' "$$" > "$OWNER"
   launchctl print "gui/$(id -u)" >/dev/null 2>&1 || fail noGuiSession "no Aqua session for this user"
+  WAS_LOCKED=$(screen_locked)
   # Sunshine 在显示器睡着时起不来：先点亮（不需要密码，也不会解锁）。
   caffeinate -u -t 5 >/dev/null 2>&1 &
   # 会话期间屏幕不许睡：Sunshine 每次开流都要先从屏幕拿一帧，屏幕睡着就一直卡住（实测 11-13）。脚本退出它跟着退。

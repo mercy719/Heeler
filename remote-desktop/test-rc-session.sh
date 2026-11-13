@@ -37,7 +37,12 @@ echo '{"SPDisplaysDataType":[{"spdisplays_ndrvs":[
 EOF
 cat > "$T/bin/ioreg" <<'EOF'
 #!/bin/bash
-echo '      "IOConsoleUsers" = ({"CGSSessionScreenIsLocked"=Yes})'
+echo "      \"IOConsoleUsers\" = ({\"CGSSessionScreenIsLocked\"=${STUB_LOCKED:-Yes}})"
+EOF
+cat > "$T/bin/pmset" <<'EOF'
+#!/bin/bash
+echo "pmset $*" >> "$STUB_LOG"
+exit 0
 EOF
 cat > "$T/bin/curl" <<'EOF'
 #!/bin/bash
@@ -129,6 +134,12 @@ close_stdin
 check "EOF：2 秒内进程退出" 'wait_gone $SESS_PID 2'
 check "EOF：web-server 与 Sunshine 都不在" 'no_stub_left'
 check "EOF：launchctl bootout 被调用" 'grep -q "^bootout gui/" "$STUB_LOG"'
+check "EOF：连上时锁着的，退出时熄屏重新锁上" 'grep -q "^pmset displaysleepnow" "$STUB_LOG"'
+
+# ---- 2b. 连上时没锁（人在电脑前）：退出不熄屏 ----
+STUB_LOCKED=No open_session unlocked
+close_stdin
+check "没锁：退出后清理但不熄屏" 'wait_gone $SESS_PID 10 && no_stub_left && ! grep -q "^pmset" "$STUB_LOG"'
 
 # ---- 3. 无心跳（测试里 2 秒）：10 秒内清理 ----
 open_session timeout
@@ -167,6 +178,7 @@ exec 8>&9; A_PID=$SESS_PID
 open_session handoff_b
 exec 8>&-
 check "交接：旧会话收到 EOF 后退出" 'wait_gone $A_PID 10'
+check "交接：旧会话不熄屏（新会话还在用）" '! grep -q "^pmset" "$STUB_LOG"'
 check "交接：新会话和它的 web-server 还在" 'kill -0 $SESS_PID 2>/dev/null && running "$ML/web-server"'
 close_stdin
 check "交接：新会话自己收尾仍清干净" 'wait_gone $SESS_PID 10 && no_stub_left'
