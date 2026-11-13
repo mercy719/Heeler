@@ -45,11 +45,8 @@ struct LicenseNoticeInventoryTests {
         "miniupnpc",
         "prometheus-cpp-lite",
         "concurrentqueue",
-        // Remote Desktop (T4): the viewer script is ported from OpenBot, and
-        // the computer runs Sunshine and moonlight-web-stream under GPL-3.0.
+        // Remote Desktop (T4): the viewer script is ported from OpenBot.
         "OpenBot",
-        "moonlight-web-stream",
-        "Sunshine",
         // sill's iOS client is compiled into SillClient (Apache-2.0).
         "sill",
     ]

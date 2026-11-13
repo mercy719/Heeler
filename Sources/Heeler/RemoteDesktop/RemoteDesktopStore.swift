@@ -11,14 +11,13 @@ enum RemoteDesktopState: Equatable, Sendable {
     case failed(String)
     case paused
     case notInstalled
-    case needsPermission
 
     /// The status dot's colour, in the app's own status palette.
     var statusColor: Color {
         switch self {
         case .connected: .green
         case .failed: .red
-        case .needsPermission, .notInstalled, .connecting, .paused: .orange
+        case .notInstalled, .connecting, .paused: .orange
         }
     }
 
@@ -29,7 +28,6 @@ enum RemoteDesktopState: Equatable, Sendable {
         case .failed: String(localized: "Failed")
         case .paused: String(localized: "Paused")
         case .notInstalled: String(localized: "Not installed")
-        case .needsPermission: String(localized: "Needs permission")
         case .connecting: String(localized: "Connecting")
         }
     }
@@ -46,71 +44,8 @@ enum RemoteDesktopState: Equatable, Sendable {
     init(failure: RemoteDesktopFailure) {
         switch failure {
         case .notInstalled: self = .notInstalled
-        case .needsPermission: self = .needsPermission
         default:
             self = .failed(failure.errorDescription ?? String(localized: "Remote Desktop failed."))
-        }
-    }
-}
-
-/// One quality setting: how often the Host encodes, at what bitrate, and the
-/// widest picture it fits that into.
-enum RemoteDesktopQuality: String, CaseIterable, Sendable {
-    case sharp
-    case standard
-    case saver
-
-    /// Frames a second, kilobits a second, and the widest encode: Sunshine
-    /// never upscales, so a narrower display keeps its own width.
-    private var preset: (fps: Int, bitrate: Int, maxWidth: Int) {
-        switch self {
-        case .sharp: (60, 8_000, 1_920)
-        case .standard: (30, 3_000, 1_280)
-        case .saver: (15, 1_000, 960)
-        }
-    }
-
-    var fps: Int { preset.fps }
-    var bitrateKbps: Int { preset.bitrate }
-    var maxWidth: Int { preset.maxWidth }
-
-    /// Its row in the menu: the name, then what it asks of the link.
-    var menuTitle: String {
-        switch self {
-        case .sharp: String(localized: "Sharp · 60 fps · 8 Mbps")
-        case .standard: String(localized: "Standard · 30 fps · 3 Mbps")
-        case .saver: String(localized: "Data Saver · 15 fps · 1 Mbps")
-        }
-    }
-
-    /// The Host's display scaled into `maxWidth`, in even pixels: encoders
-    /// refuse odd sizes.
-    func streamSize(for ready: RemoteDesktopReady) -> (width: Int, height: Int) {
-        let scale = min(1, Double(maxWidth) / Double(max(1, ready.width)))
-        let even = { (value: Double) in max(2, Int((value / 2).rounded()) * 2) }
-        return (even(Double(ready.width) * scale), even(Double(ready.height) * scale))
-    }
-}
-
-/// The screen's own settings, kept in `@AppStorage`.
-enum RemoteDesktopSettings {
-    static let qualityKey = "remoteDesktop.quality"
-    static let touchModeKey = "remoteDesktop.touchMode"
-}
-
-/// How a finger moves the Host's pointer. Moonlight's own names travel to the
-/// page; these are the two the app offers.
-enum RemoteDesktopTouchMode: String, CaseIterable, Sendable {
-    /// The finger moves the pointer, as on a laptop.
-    case trackpad
-    /// The pointer goes to the finger.
-    case direct
-
-    /// Moonlight's `touchMode` value.
-    var pageValue: String {
-        switch self {
-        case .trackpad: "localCursor"
-        case .direct: "pointAndDrag"
         }
     }
 }

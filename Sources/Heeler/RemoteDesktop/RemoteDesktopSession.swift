@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Host scripts' one-line JSON answers.
+/// The Host script's one-line JSON answers.
 enum RemoteDesktopWire {
     /// The directory's name contains a space, so every path that reaches a
     /// shell is quoted whole.
@@ -15,20 +15,15 @@ enum RemoteDesktopWire {
     static let sillHostStagingApp = path(".sillhost-upload/SillHost.app")
     static let sillHostStagingZip = path(".sillhost-upload/SillHost.zip")
 
-    /// The App always drives the sill engine; the Sunshine branch of the script
-    /// stays until S6 removes it.
+    /// The App always drives the sill engine.
     static let sessionCommand = "bash \(binDirectory)/rc-session.sh start sill"
 
-    /// `{"ready":true,"port":52100,"hostId":1,"appId":1,"width":1280,…}`
-    /// or `{"ready":false,"error":"<code>","detail":"…"}`.
+    /// `{"ready":true,"port":52100,"locked":false}` or
+    /// `{"ready":false,"error":"<code>","detail":"…"}`.
     static func ready(from line: Data) throws -> RemoteDesktopReady {
         struct Line: Decodable {
             let ready: Bool
             let port: UInt16?
-            let hostId: Int?
-            let appId: Int?
-            let width: Int?
-            let height: Int?
             let locked: Bool?
             let error: String?
             let detail: String?
@@ -43,16 +38,11 @@ enum RemoteDesktopWire {
         guard decoded.ready else {
             throw RemoteDesktopFailure(code: decoded.error ?? "", detail: decoded.detail)
         }
-        guard let port = decoded.port, let hostID = decoded.hostId,
-            let appID = decoded.appId, let width = decoded.width,
-            let height = decoded.height, let locked = decoded.locked
-        else {
+        guard let port = decoded.port, let locked = decoded.locked else {
             throw RemoteDesktopFailure.setupFailed(
                 detail: String(localized: "The Host's session answer is missing a field."))
         }
-        return RemoteDesktopReady(
-            port: port, hostID: hostID, appID: appID,
-            width: width, height: height, locked: locked)
+        return RemoteDesktopReady(port: port, locked: locked)
     }
 
     /// The scripts answer in one line; anything after it is not ours.
@@ -146,10 +136,7 @@ actor RemoteDesktopSession {
             throw CancellationError()
         }
         self.forwarder = forwarder
-        let started = RemoteDesktopReady(
-            port: localPort, hostID: ready.hostID, appID: ready.appID,
-            width: ready.width, height: ready.height, locked: ready.locked)
-        return started
+        return RemoteDesktopReady(port: localPort, locked: ready.locked)
     }
 
     private func checkStopped() throws {
@@ -164,15 +151,11 @@ actor RemoteDesktopSession {
         let directory = RemoteDesktopWire.binDirectory
         _ = try await connection.execute(
             "mkdir -p \(directory)", input: Data(), timeout: .seconds(30))
-        for (name, contents) in [
-            ("rc-setup.sh", scripts.setup), ("rc-session.sh", scripts.session),
-        ] {
-            let result = try await connection.execute(
-                "cat > \(directory)/\(name)", input: contents, timeout: .seconds(30))
-            guard result.status == 0 else {
-                throw RemoteDesktopFailure.setupFailed(
-                    detail: String(localized: "The Host refused \(name)."))
-            }
+        let result = try await connection.execute(
+            "cat > \(directory)/rc-session.sh", input: scripts.session, timeout: .seconds(30))
+        guard result.status == 0 else {
+            throw RemoteDesktopFailure.setupFailed(
+                detail: String(localized: "The Host refused rc-session.sh."))
         }
     }
 

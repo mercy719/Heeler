@@ -269,25 +269,9 @@
       "id": "OpenBot",
       "displayName": "OpenBot",
       "version": "0.7",
-      "source": "https://openbot.run (PolyForm Noncommercial 1.0.0; Resources/RemoteDesktop/viewer.js is ported from apps/mobile/src/features/remote-desktop/model/viewer-page-script.ts, and the keyboard bar follows screens/remote-desktop-screen.tsx)",
+      "source": "https://openbot.run (PolyForm Noncommercial 1.0.0; the plush avatar in Sources/Heeler/Console/OpenBot is ported from its plush-draw.ts and agent-orbit-rings.tsx)",
       "spdx": "PolyForm-Noncommercial-1.0.0",
       "notice": "OpenBot-PolyForm-Noncommercial-1.0.0.txt"
-    },
-    {
-      "id": "moonlight-web-stream",
-      "displayName": "moonlight-web-stream",
-      "version": "3.0.1",
-      "source": "https://github.com/MrCreativ3001/moonlight-web-stream (GPL-3.0-or-later; the web viewer the computer runs, so this app neither ships nor links it)",
-      "spdx": "GPL-3.0-or-later",
-      "notice": "moonlight-web-stream-GPL-3.0.txt"
-    },
-    {
-      "id": "Sunshine",
-      "displayName": "Sunshine",
-      "version": "as bundled with OpenBot",
-      "source": "https://github.com/LizardByte/Sunshine (GPL-3.0-or-later; the screen streamer the computer runs, so this app neither ships nor links it)",
-      "spdx": "GPL-3.0-or-later",
-      "notice": "Sunshine-GPL-3.0.txt"
     },
     {
       "id": "sill",
