@@ -217,25 +217,17 @@ struct RemoteDesktopTests {
 
     @Test func readyLineParses() throws {
         let line = Data(
-            #"{"ready":true,"port":52100,"hostId":1,"appId":2,"width":1280,"height":800,"locked":true}"#
+            #"{"ready":true,"port":52100,"locked":true}"#
                 .utf8)
         let ready = try RemoteDesktopWire.ready(from: RemoteDesktopWire.firstLine(of: line))
-        #expect(
-            ready
-                == RemoteDesktopReady(
-                    port: 52100, hostID: 1, appID: 2, width: 1280, height: 800, locked: true))
-        #expect(ready.localURL.absoluteString.contains("hostId=1"))
-        #expect(ready.localURL.absoluteString.contains("appId=2"))
+        #expect(ready == RemoteDesktopReady(port: 52100, locked: true))
     }
 
     @Test func failureLineMapsToCode() {
         let codes: [(String, RemoteDesktopFailure)] = [
             ("notInstalled", .notInstalled),
-            ("needsPermission", .needsPermission),
             ("noGuiSession", .noGuiSession),
-            ("sunshineFailed", .sunshineFailed),
-            ("webServerFailed", .webServerFailed),
-            ("notPaired", .notPaired),
+            ("sillFailed", .sillFailed),
         ]
         for (code, expected) in codes {
             #expect(throws: expected) {
@@ -276,7 +268,7 @@ struct RemoteDesktopTests {
             connector: ScriptedConnector(connection: connection),
             settings: makeSettings(),
             scripts: RemoteDesktopScripts(
-                setup: Data("setup".utf8), session: Data("session".utf8), sillHost: sillHost),
+                session: Data("session".utf8), sillHost: sillHost),
             heartbeatInterval: heartbeat,
             onEnded: ended)
     }
@@ -290,25 +282,14 @@ struct RemoteDesktopTests {
         let mkdir = try #require(calls.first)
         #expect(mkdir.command.hasPrefix("mkdir -p "))
         #expect(mkdir.command.contains("Library/Application Support/Heeler/remote-desktop/bin"))
-        #expect(calls.count >= 4)
-        #expect(calls[1].command.hasPrefix("cat > ") && calls[1].command.hasSuffix("/rc-setup.sh"))
-        #expect(calls[1].input == Data("setup".utf8))
-        #expect(calls[2].command.hasPrefix("cat > ") && calls[2].command.hasSuffix("/rc-session.sh"))
-        #expect(calls[2].input == Data("session".utf8))
-        #expect(calls[3].command.hasSuffix("rc-session.sh start sill"))
+        #expect(calls.count >= 3)
+        #expect(calls[1].command.hasPrefix("cat > ") && calls[1].command.hasSuffix("/rc-session.sh"))
+        #expect(calls[1].input == Data("session".utf8))
+        #expect(calls[2].command.hasSuffix("rc-session.sh start sill"))
         #expect(!connection.isClosed)
 
-        // The URL points at this device's own listener, carrying the Host's ids.
+        // The port is this device's own listener, never the Host's.
         #expect(ready.port != ScriptedConnection.hostPort)
-        #expect(ready.hostID == 7)
-        #expect(ready.appID == 9)
-        #expect(
-            ready.localURL.absoluteString.hasPrefix(
-                "http://127.0.0.1:\(ready.port)/stream.html"))
-        #expect(ready.localURL.absoluteString.contains("hostId=7"))
-        #expect(ready.localURL.absoluteString.contains("appId=9"))
-        #expect(ready.width == 1280)
-        #expect(ready.height == 800)
         #expect(!ready.locked)
         await session.stop()
     }
@@ -354,16 +335,6 @@ struct RemoteDesktopTests {
         }
     }
 
-    @Test func readyLineWithZeroFieldsParses() throws {
-        let line = Data(
-            #"{"ready":true,"port":52999,"hostId":0,"appId":0,"width":0,"height":0,"locked":false}"#
-                .utf8)
-        let ready = try RemoteDesktopWire.ready(from: RemoteDesktopWire.firstLine(of: line))
-        #expect(ready.port == 52999)
-        #expect(ready.hostID == 0 && ready.appID == 0 && ready.width == 0 && ready.height == 0)
-        #expect(!ready.locked)
-    }
-
     @Test func theStartCommandNamesSill() {
         #expect(RemoteDesktopWire.sessionCommand.hasSuffix("rc-session.sh start sill"))
     }
@@ -374,7 +345,7 @@ struct RemoteDesktopTests {
         connection.setHoldStatus(true)
         let session = makeSession(connection) { end in ends.withLock { $0.append(end) } }
         let starting = Task { try await session.start() }
-        try await waitUntil { connection.calls.count >= 3 }
+        try await waitUntil { connection.calls.count >= 2 }
         await session.stop()
         connection.setHoldStatus(false)
         await #expect(throws: (any Error).self) { _ = try await starting.value }
@@ -461,7 +432,7 @@ private final class ScriptedConnection: RemoteDesktopConnection, Sendable {
     }
 
     static let readyLine = Data(
-        #"{"ready":true,"port":52100,"hostId":7,"appId":9,"width":1280,"height":800,"locked":false}"#
+        #"{"ready":true,"port":52100,"locked":false}"#
             .utf8)
     static let hostPort: UInt16 = 52_100
 

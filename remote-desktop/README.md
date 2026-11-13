@@ -1,79 +1,58 @@
-# 电脑端远程桌面（rc-setup / rc-session）
+# 电脑端远程桌面（rc-session）
 
-Heeler 手机端经 SSH 控制这台 Mac 时电脑端跑这一套：Sunshine 抓屏编码，Moonlight Web 在 127.0.0.1 上
-提供页面和 WebSocket 视频流。只写 `~/Library/Application Support/Heeler/remote-desktop/`（0700），
-不碰 OpenBot 的目录、进程和 LaunchAgent，不开机自启。
+Heeler 手机端经 SSH 控制这台 Mac 时电脑端跑这一套：随 App 带来的 SillHost 由 launchd 起，
+只监听 127.0.0.1，手机端经 SSH 隧道连到那个端口。只写
+`~/Library/Application Support/Heeler/remote-desktop/`（0700），不开机自启。
 
 ## 调用方式
 
-App 先把两个脚本写到 `<上述目录>/bin/`（0700），再经 SSH 执行：
+App 把脚本写到 `<上述目录>/bin/rc-session.sh`（0700），再经 SSH 执行：
 
 ```bash
-bash "<dir>/bin/rc-setup.sh" install   # 首次：拷贝、下载、写配置、生成凭据、配对
-bash "<dir>/bin/rc-setup.sh" status    # 只读：installed / needsPermission / paired
 bash "<dir>/bin/rc-session.sh" start   # 每次开远程桌面（心跳走 stdin）
 ```
 
-`install` 选填 `--archive <本地 tar.gz>` 跳过下载、`--creds` 强制换口令。两个脚本单文件自包含、
-兼容 macOS 自带的 `/bin/bash` 3.2，也能在电脑上直接跑。
+`bash rc-session.sh start sill` 和不写引擎名等价；别的引擎名（包括旧版的 `sunshine`）是用法错误，
+退出 2。脚本单文件自包含，兼容 macOS 自带的 `/bin/bash` 3.2，也能在电脑上直接跑。
 
 ## 目录布局
 
 ```
 remote-desktop/
-├── Sunshine.app                     从 OpenBot.app ditto 拷来的运行时
-├── sunshine.conf  sunshine-apps.json  sunshine-credentials.json  *-key/cert.pem
-├── sunshine-state.json              已配对设备
-├── dev.heeler.rc.sunshine.plist     launchctl bootstrap gui/<uid> 用
-├── .webui-cred  .moonlight-cred     口令，0600，只本机脚本读
-├── pair-state.json                  {"hostId":..,"appId":..}
-└── moonlight/  web-server  static/  config.json  data.json
+├── SillHost.app/Contents/MacOS/SillHost     随 App 带来的 Host（固定 bundle id 与签名）
+├── dev.heeler.rc.sillhost.plist             launchctl bootstrap gui/<uid> 用
+├── sillhost.out.log  sillhost.err.log       SillHost 的输出
+└── .session-owner                           当前会话的 PID
 ```
-
-端口全在回环：51989 GameStream、51984 HTTPS、51990 Web UI、52010 RTSP、52100 Moonlight Web。
 
 ## JSON 协议（stdout 只有一行）
 
-- `rc-session start` 成功：`{"ready":true,"port":52100,"hostId":..,"appId":..,"width":..,"height":..,"locked":<bool>}`
-- `rc-setup install` 成功：`{"installed":true,"needsPermission":<bool>}`
-- `rc-setup status`：`{"installed":true,"needsPermission":<bool>,"paired":<bool>}`
+- 成功：`{"ready":true,"port":<端口>,"locked":<bool>}`
+- 失败：`{"ready":false,"error":"<code>","detail":"…"}` 后退出 1
 
-失败一律 `{"ready":false,...}` / `{"installed":false,...}` 后退出 1。错误码：`notInstalled`、
-`needsPermission`、`noGuiSession`、`sunshineFailed`、`webServerFailed`、`notPaired`、`downloadFailed`、
-`shaMismatch`、`pairFailed`。
+错误码：`notInstalled`、`noGuiSession`、`sillFailed`。
 
 ## 生命周期
 
-`start` 先清残留 → `caffeinate -u -t 5` 点亮屏幕（显示器睡着时 Sunshine 起不来，点亮不需要密码、
-不会解锁）→ `launchctl bootstrap gui/<uid>` 起 Sunshine → 轮询 `/api/openbot/setup` 最多 20 秒 →
-起 web-server（静态页按相对路径找，必须在 moonlight 目录里启动）→ 打就绪行 → 等 stdin 心跳。
+`start` 先清残留（`bootout` 旧版 Sunshine 的 label 和本套件的 label，再兜底按绝对路径杀掉还活着的
+SillHost）→ `caffeinate -u -t 5` 点亮屏幕 → `launchctl bootstrap gui/<uid>` 起 SillHost →
+从 `lsof -nP -a -p <pid> -iTCP -sTCP:LISTEN` 读出监听端口（端口是系统随机分的，CLI 不打印）→
+打就绪行 → 等 stdin 心跳。
 
-心跳每行一次 `read -t 45`；stdin 关闭、45 秒没心跳、收到 TERM/HUP/INT，都 `bootout` 关 Sunshine 并杀
-web-server。锁屏只体现在 `locked` 字段，不阻止启动。
+心跳每行一次 `read -t 45`；stdin 关闭、45 秒没心跳、收到 TERM/HUP/INT，都 `bootout` 关 SillHost。
+连上那一刻锁着屏的，退出时 `pmset displaysleepnow` 熄屏让它立刻再锁上。
 
-## 首次手动授权（只能人来点）
+### 旧版残留
 
-1. 跑一次 `install`，会报 `needsPermission`。
-2. 系统设置 → 隐私与安全性 →「屏幕与系统音频录制」加入
-   `~/Library/Application Support/Heeler/remote-desktop/Sunshine.app` 并勾上；「辅助功能」同样一次。
-3. 再跑 `status`，`needsPermission` 变 `false`。
+升级前装过 Sunshine 的 Mac 可能还 loaded 着 `dev.heeler.rc.sunshine`，它占着硬件编码器。每次 `start`
+都 `bootout` 一次那个 label，但**不删用户 Mac 上的任何文件**。
 
-拷出来的 Sunshine 是独立 TCC 条目（`dev.lizardbyte.app.Sunshine`），不继承 OpenBot 的授权。
-`system_tray = disabled` 是必须的：开着托盘会在配对时把 Sunshine 打崩（非主线程改 AppKit 状态 trap）。
+### SillHost 的启动参数
 
-## sill 引擎（`start sill`）
-
-`bash rc-session.sh start sill`（或 `RC_ENGINE=sill`）起的是随 App 带过来的 SillHost，替下
-Sunshine + Moonlight Web。默认仍是 `sunshine`，两条路共用同一套骨架：归属文件、清残留、
-`caffeinate -u -t 5` 与 `caffeinate -d -w $$`、一行就绪 JSON、15 s 心跳 / 45 s 超时、锁着进来退出时熄屏重锁。
-起哪套都先把另一套清掉：两边都占 Mac 的硬件编码器。
-
-sill 的路子：`SillHost.app/Contents/MacOS/SillHost --virtual-display --no-advertise --no-clipboard`，
-环境 `SILL_TEST_LOOPBACK=1`，由 `launchctl bootstrap gui/<uid> "$DIR/dev.heeler.rc.sillhost.plist"` 起。
-`--no-advertise` 让它不上 Bonjour、只听 `127.0.0.1`；手机端经 App 自己的 SSH 隧道连到那个端口，
-SSH 登录就是配对。端口是系统随机分的、CLI 不打印，脚本用 `lsof -nP -a -p <pid> -iTCP -sTCP:LISTEN` 读出来，
-填进就绪 JSON 的 `port`；Sunshine 专用的 `hostId / appId` 填 0。收尾先 `bootout`
-（它收到 SIGTERM 会先把串流的窗口放回原位），等最多 10 s 再兜底 `pkill`。
+`SillHost.app/Contents/MacOS/SillHost --virtual-display --no-advertise --no-clipboard`，环境
+`SILL_TEST_LOOPBACK=1`。`--no-advertise` 让它不上 Bonjour、只听 `127.0.0.1`；脚本还会核对一遍
+监听地址，越出回环就报 `sillFailed`。收尾先 `bootout`（它收到 SIGTERM 会先把串流的窗口放回原位），
+等最多 10 s 再兜底 `pkill`。
 
 ### 构建 Mac 端
 
@@ -114,10 +93,15 @@ launchctl bootstrap gui/$(id -u) <plist>     # ProgramArguments 末尾换成 --v
 
 输出里的 `Screen Recording preflight: …` 和 `Accessibility trusted: …` 都是 `true` 才算齐。
 
-## 许可证
+## 测试
 
-Sunshine 与 moonlight-web-stream 是 GPL-3.0，只在用户自己的电脑上作为独立进程运行；随 Heeler 分发的
-只有本目录这两个启动脚本。它们与 App 之间只隔 SSH 和 HTTP，不链接进 App。
+```bash
+bash remote-desktop/test-rc-session.sh
+```
+
+PATH 前置假的 `launchctl` / `caffeinate` / `ioreg` / `lsof`，不碰真的 launchd、屏幕和网络。
+
+## 许可证
 
 SillHost 来自 [Sill](https://github.com/Saffsanity/sill)（Apache-2.0），快照在 `vendor/sill`，
 本仓库的改动在 `vendor/sill-patches`。`build-sill-host.sh` 会把 `LICENSE` 拷进

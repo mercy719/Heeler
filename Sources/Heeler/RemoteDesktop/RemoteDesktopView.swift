@@ -146,13 +146,6 @@ extension RemoteDesktopState {
             ("shippingbox", .orange,
              String(localized: "Remote Desktop is not installed on this Mac."),
              String(localized: "Retry"))
-        case .needsPermission:
-            ("lock.shield.fill", .orange,
-             String(
-                localized:
-                    "Give Heeler Remote Desktop Screen Recording and Accessibility in the Mac's Privacy settings."
-             ),
-             String(localized: "Retry"))
         }
     }
 }

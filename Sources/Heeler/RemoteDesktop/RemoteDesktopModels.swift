@@ -13,24 +13,18 @@ enum RemoteDesktopEnd: Error, Sendable, Equatable {
 /// Why a Remote Desktop link could not start.
 enum RemoteDesktopFailure: Error, Sendable, Equatable, LocalizedError {
     case notInstalled
-    case needsPermission
     case noGuiSession
-    case sunshineFailed
-    case webServerFailed
-    case notPaired
+    case sillFailed
     case setupFailed(detail: String)
     case connection(String)
 
-    /// The scripts' `error` codes. An unknown code is a setup failure, not a
+    /// The script's `error` codes. An unknown code is a setup failure, not a
     /// silent success.
     init(code: String, detail: String?) {
         switch code {
         case "notInstalled": self = .notInstalled
-        case "needsPermission": self = .needsPermission
         case "noGuiSession": self = .noGuiSession
-        case "sunshineFailed": self = .sunshineFailed
-        case "webServerFailed": self = .webServerFailed
-        case "notPaired": self = .notPaired
+        case "sillFailed": self = .sillFailed
         default: self = .setupFailed(detail: detail ?? code)
         }
     }
@@ -38,12 +32,8 @@ enum RemoteDesktopFailure: Error, Sendable, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notInstalled: String(localized: "Remote Desktop is not installed on the Host.")
-        case .needsPermission:
-            String(localized: "Grant Screen Recording and Accessibility to Heeler Remote Desktop on the Host.")
         case .noGuiSession: String(localized: "No one is logged in on the Host's desktop.")
-        case .sunshineFailed: String(localized: "The Host's screen streamer did not start.")
-        case .webServerFailed: String(localized: "The Host's Remote Desktop page did not start.")
-        case .notPaired: String(localized: "The Host's Remote Desktop is not paired yet.")
+        case .sillFailed: String(localized: "The Host's screen streamer did not start.")
         case .setupFailed(let detail): String(localized: "Remote Desktop setup failed: \(detail).")
         case .connection(let detail): String(localized: "Remote Desktop could not connect: \(detail).")
         }
@@ -54,18 +44,7 @@ enum RemoteDesktopFailure: Error, Sendable, Equatable, LocalizedError {
 /// the Host's.
 struct RemoteDesktopReady: Sendable, Equatable {
     let port: UInt16
-    let hostID: Int
-    let appID: Int
-    let width: Int
-    let height: Int
     let locked: Bool
-
-    var localURL: URL {
-        URL(
-            string:
-                "http://127.0.0.1:\(port)/stream.html?hostId=\(hostID)&appId=\(appID)"
-        ) ?? URL(fileURLWithPath: "/")
-    }
 }
 
 /// The Mac-side sill host this build ships: `remote-desktop/build-sill-host.sh`
@@ -95,16 +74,14 @@ struct SillHostPackage: Sendable, Equatable {
     }
 }
 
-/// The two Host scripts, written on every start so the Host never runs a
-/// version this build was not tested against, and the sill host they start.
+/// The Host script, written on every start so the Host never runs a version
+/// this build was not tested against, and the sill host it starts.
 struct RemoteDesktopScripts: Sendable, Equatable {
-    let setup: Data
     let session: Data
     /// Nil where a test starts no sill host.
     let sillHost: SillHostPackage?
 
-    init(setup: Data, session: Data, sillHost: SillHostPackage? = nil) {
-        self.setup = setup
+    init(session: Data, sillHost: SillHostPackage? = nil) {
         self.session = session
         self.sillHost = sillHost
     }
@@ -112,7 +89,6 @@ struct RemoteDesktopScripts: Sendable, Equatable {
     /// Read from the app bundle; T4 adds the resources to `project.yml`.
     static func bundled() throws -> RemoteDesktopScripts {
         try RemoteDesktopScripts(
-            setup: bundledFile("rc-setup", "sh"),
             session: bundledFile("rc-session", "sh"),
             sillHost: try SillHostPackage.bundled())
     }

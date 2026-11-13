@@ -4,9 +4,8 @@ import Testing
 
 @testable import Heeler
 
-/// Remote Desktop's screen state: what the six states mean, when the link
-/// stops, and what a change of the keyboard field sends. The session is a
-/// stand-in, so no test leaves this device.
+/// Remote Desktop's screen state: what the five states mean and when the link
+/// stops. The session is a stand-in, so no test leaves this device.
 @Suite("Remote desktop store")
 @MainActor
 struct RemoteDesktopStoreTests {
@@ -43,8 +42,7 @@ struct RemoteDesktopStoreTests {
         func stop() async { stopped.withLock { $0 += 1 } }
     }
 
-    private static let ready = RemoteDesktopReady(
-        port: 52_180, hostID: 1, appID: 2, width: 1_920, height: 1_080, locked: false)
+    private static let ready = RemoteDesktopReady(port: 52_180, locked: false)
 
     /// The stub sessions a store started, in order.
     private final class Sessions: Sendable {
@@ -122,10 +120,9 @@ struct RemoteDesktopStoreTests {
 
     @Test func everyFailureMapsToItsState() async throws {
         let cases: [(RemoteDesktopFailure, RemoteDesktopState)] = [
-            (.needsPermission, .needsPermission),
             (.notInstalled, .notInstalled),
-            (.notPaired, .failed(RemoteDesktopFailure.notPaired.errorDescription ?? "")),
-            (.sunshineFailed, .failed(RemoteDesktopFailure.sunshineFailed.errorDescription ?? "")),
+            (.noGuiSession, .failed(RemoteDesktopFailure.noGuiSession.errorDescription ?? "")),
+            (.sillFailed, .failed(RemoteDesktopFailure.sillFailed.errorDescription ?? "")),
         ]
         for (failure, expected) in cases {
             let (store, _) = makeStore(answer: .failure(failure))
@@ -225,48 +222,5 @@ struct RemoteDesktopStoreTests {
         #expect(store.ready != nil)
         store.stop()
         #expect(store.ready == nil)
-    }
-
-    // MARK: Sizes
-
-    @Test func streamSizesFollowTheDisplayAndStayEven() {
-        let ready = RemoteDesktopReady(
-            port: 1, hostID: 1, appID: 1, width: 3_024, height: 1_964, locked: false)
-        let sharp = RemoteDesktopQuality.sharp.streamSize(for: ready)
-        #expect(sharp.width == 1_920)
-        #expect(sharp.width % 2 == 0 && sharp.height % 2 == 0)
-        #expect(sharp.width <= RemoteDesktopQuality.sharp.maxWidth)
-
-        let saver = RemoteDesktopQuality.saver.streamSize(for: ready)
-        #expect(saver.width == 960)
-        #expect(saver.width % 2 == 0 && saver.height % 2 == 0)
-
-        // A display narrower than the cap is never upscaled, and a tiny one
-        // still asks for an encodable size.
-        let small = RemoteDesktopReady(
-            port: 1, hostID: 1, appID: 1, width: 800, height: 600, locked: false)
-        #expect(RemoteDesktopQuality.sharp.streamSize(for: small) == (800, 600))
-        let tiny = RemoteDesktopReady(
-            port: 1, hostID: 1, appID: 1, width: 1, height: 1, locked: false)
-        #expect(RemoteDesktopQuality.sharp.streamSize(for: tiny) == (2, 2))
-    }
-
-    // MARK: Keyboard
-
-    @Test func typedChangeNamesBackspacesAndNewText() {
-        // A word replaced by another: the field's change is not one character.
-        #expect(RemoteDesktopTyped.change(before: "helo", after: "hello") == (1, "lo"))
-        #expect(RemoteDesktopTyped.change(before: "hello", after: "help") == (2, "p"))
-        #expect(RemoteDesktopTyped.change(before: "abc", after: "") == (3, ""))
-        #expect(RemoteDesktopTyped.change(before: "", after: "a") == (0, "a"))
-        // The phone's keyboard can replace every character at once.
-        #expect(RemoteDesktopTyped.change(before: "cat", after: "dog") == (3, "dog"))
-        // A Mac gets only what a US keyboard types: an emoji or a Chinese
-        // character is neither sent nor answered with a Backspace when deleted.
-        #expect(RemoteDesktopTyped.change(before: "", after: "🙂") == (0, ""))
-        #expect(RemoteDesktopTyped.change(before: "a🙂", after: "a") == (0, ""))
-        #expect(RemoteDesktopTyped.change(before: "a🙂", after: "a🙂b") == (0, "b"))
-        #expect(RemoteDesktopTyped.change(before: "a你好", after: "a") == (0, ""))
-        #expect(RemoteDesktopTyped.change(before: "ls", after: "ls\n") == (0, "\n"))
     }
 }
