@@ -269,12 +269,14 @@ struct RemoteDesktopTests {
     private func makeSession(
         _ connection: ScriptedConnection,
         heartbeat: Duration = .seconds(15),
+        sillHost: SillHostPackage? = nil,
         ended: @escaping @Sendable (RemoteDesktopEnd) -> Void = { _ in }
     ) -> RemoteDesktopSession {
         RemoteDesktopSession(
             connector: ScriptedConnector(connection: connection),
             settings: makeSettings(),
-            scripts: RemoteDesktopScripts(setup: Data("setup".utf8), session: Data("session".utf8)),
+            scripts: RemoteDesktopScripts(
+                setup: Data("setup".utf8), session: Data("session".utf8), sillHost: sillHost),
             heartbeatInterval: heartbeat,
             onEnded: ended)
     }
@@ -288,13 +290,12 @@ struct RemoteDesktopTests {
         let mkdir = try #require(calls.first)
         #expect(mkdir.command.hasPrefix("mkdir -p "))
         #expect(mkdir.command.contains("Library/Application Support/Heeler/remote-desktop/bin"))
-        #expect(calls.count >= 5)
+        #expect(calls.count >= 4)
         #expect(calls[1].command.hasPrefix("cat > ") && calls[1].command.hasSuffix("/rc-setup.sh"))
         #expect(calls[1].input == Data("setup".utf8))
         #expect(calls[2].command.hasPrefix("cat > ") && calls[2].command.hasSuffix("/rc-session.sh"))
         #expect(calls[2].input == Data("session".utf8))
-        #expect(calls[3].command.hasSuffix("rc-setup.sh status"))
-        #expect(calls[4].command.hasSuffix("rc-session.sh start"))
+        #expect(calls[3].command.hasSuffix("rc-session.sh start sill"))
         #expect(!connection.isClosed)
 
         // The URL points at this device's own listener, carrying the Host's ids.
@@ -312,36 +313,59 @@ struct RemoteDesktopTests {
         await session.stop()
     }
 
-    @Test func sessionInstallsWhenNotInstalled() async throws {
-        // Installed by the install step, no permission prompt.
-        let fresh = ScriptedConnection()
-        fresh.setStatus(Data(#"{"installed":false,"error":"notInstalled"}"#.utf8))
-        let session = makeSession(fresh)
+    // MARK: Host package
+
+    private static let sillHost = SillHostPackage(
+        zip: Data("PK-sill-host".utf8),
+        sha256: "6734cb30b3304b6a527f9026e12a149376b1eee1909fe6f0df9191efc12faebc")
+
+    @Test func matchingSHASkipsTheUpload() async throws {
+        let connection = ScriptedConnection()
+        connection.setHostSHASum("\(Self.sillHost.sha256)  SillHost.zip\n")
+        let session = makeSession(connection, sillHost: Self.sillHost)
         _ = try await session.start()
-        #expect(fresh.calls.contains { $0.command.hasSuffix("rc-setup.sh install") })
+        #expect(!connection.calls.contains { $0.input == Self.sillHost.zip })
+        #expect(!connection.calls.contains { $0.command.contains("ditto -x -k") })
         await session.stop()
+    }
 
-        // Installed, but the Host needs the user to grant its permissions.
-        let blocked = ScriptedConnection()
-        blocked.setStatus(Data(#"{"installed":false,"error":"notInstalled"}"#.utf8))
-        blocked.setInstallAnswer(
-            Data(#"{"installed":true,"needsPermission":true,"paired":true}"#.utf8))
-        let needsPermission = makeSession(blocked)
-        await #expect(throws: RemoteDesktopFailure.needsPermission) {
-            _ = try await needsPermission.start()
+    @Test func aDifferentOrMissingSHAUploadsThePackage() async throws {
+        for sum in ["0000000000000000000000000000000000000000000000000000000000000000  SillHost.zip\n", ""]
+        {
+            let connection = ScriptedConnection()
+            connection.setHostSHASum(sum)
+            let session = makeSession(connection, sillHost: Self.sillHost)
+            _ = try await session.start()
+            // The zip goes over stdin to a staging file, never on the command line.
+            let upload = try #require(connection.calls.first { $0.input == Self.sillHost.zip })
+            #expect(upload.command.hasPrefix("cat > "))
+            #expect(!upload.command.contains(Self.sillHost.sha256))
+            let unpack = try #require(
+                connection.calls.first { $0.command.contains("ditto -x -k") })
+            #expect(unpack.command.contains(".sillhost-upload"))
+            #expect(unpack.command.contains("mv "))
+            // The start comes after the unpack, so the Host runs this build's.
+            let startIndex = try #require(
+                connection.calls.firstIndex { $0.command.hasSuffix("rc-session.sh start sill") })
+            let unpackIndex = try #require(
+                connection.calls.firstIndex { $0.command.contains("ditto -x -k") })
+            #expect(unpackIndex < startIndex)
+            await session.stop()
         }
-        #expect(blocked.isClosed)
-        #expect(!blocked.calls.contains { $0.command.hasSuffix("rc-session.sh start") })
+    }
 
-        // Nothing to install: the Host has no OpenBot.app.
-        let missing = ScriptedConnection()
-        missing.setStatus(Data(#"{"installed":false,"error":"notInstalled"}"#.utf8))
-        missing.setInstallAnswer(Data(#"{"installed":false,"error":"notInstalled"}"#.utf8))
-        let notInstalled = makeSession(missing)
-        await #expect(throws: RemoteDesktopFailure.notInstalled) {
-            _ = try await notInstalled.start()
-        }
-        #expect(missing.isClosed)
+    @Test func readyLineWithZeroFieldsParses() throws {
+        let line = Data(
+            #"{"ready":true,"port":52999,"hostId":0,"appId":0,"width":0,"height":0,"locked":false}"#
+                .utf8)
+        let ready = try RemoteDesktopWire.ready(from: RemoteDesktopWire.firstLine(of: line))
+        #expect(ready.port == 52999)
+        #expect(ready.hostID == 0 && ready.appID == 0 && ready.width == 0 && ready.height == 0)
+        #expect(!ready.locked)
+    }
+
+    @Test func theStartCommandNamesSill() {
+        #expect(RemoteDesktopWire.sessionCommand.hasSuffix("rc-session.sh start sill"))
     }
 
     @Test func stopWhileStartingLeavesNothingRunning() async throws {
@@ -355,7 +379,7 @@ struct RemoteDesktopTests {
         connection.setHoldStatus(false)
         await #expect(throws: (any Error).self) { _ = try await starting.value }
         #expect(connection.isClosed)
-        #expect(!connection.calls.contains { $0.command.hasSuffix("rc-session.sh start") })
+        #expect(!connection.calls.contains { $0.command.hasSuffix("rc-session.sh start sill") })
         #expect(ends.withLock { $0 } == [.stopped])
     }
 
@@ -430,9 +454,8 @@ private struct Call: Sendable, Equatable {
 private final class ScriptedConnection: RemoteDesktopConnection, Sendable {
     private struct State: Sendable {
         var calls: [Call] = []
-        var status = Data(#"{"installed":true,"needsPermission":false,"paired":true}"#.utf8)
-        var installAnswer = Data(
-            #"{"installed":true,"needsPermission":false,"paired":true}"#.utf8)
+        /// What `shasum -a 256 SillHost.zip` prints; empty means no file.
+        var hostSHASum = ""
         var closed = false
         var holdStatus = false
     }
@@ -452,23 +475,22 @@ private final class ScriptedConnection: RemoteDesktopConnection, Sendable {
         flags.heartbeat.withLock { $0.filter { $0 == UInt8(ascii: "\n") }.count }
     }
 
-    func setStatus(_ answer: Data) { state.withLock { $0.status = answer } }
-    func setInstallAnswer(_ answer: Data) { state.withLock { $0.installAnswer = answer } }
+    func setHostSHASum(_ sum: String) { state.withLock { $0.hostSHASum = sum } }
     func setHoldStatus(_ hold: Bool) { state.withLock { $0.holdStatus = hold } }
 
     func execute(
         _ command: String, input: Data, timeout: Duration
     ) async throws -> (status: Int32, stdout: Data) {
-        if command.hasSuffix("rc-setup.sh status") {
+        let sum = state.withLock { state -> String in
+            state.calls.append(Call(command: command, input: input))
+            return state.hostSHASum
+        }
+        if command.hasPrefix("shasum -a 256") { return (0, Data(sum.utf8)) }
+        // The last script written, held while a test stops the session.
+        if command.hasSuffix("/rc-session.sh") {
             while state.withLock({ $0.holdStatus }) { try await Task.sleep(for: .milliseconds(5)) }
         }
-        let answer = state.withLock { state -> Data in
-            state.calls.append(Call(command: command, input: input))
-            if command.hasSuffix("rc-setup.sh status") { return state.status }
-            if command.hasSuffix("rc-setup.sh install") { return state.installAnswer }
-            return Data()
-        }
-        return (0, answer)
+        return (0, Data())
     }
 
     func openExec(command: String) async throws -> any RemoteDesktopByteStream {

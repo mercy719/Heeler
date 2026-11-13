@@ -1,0 +1,4 @@
+upstream: https://github.com/Saffsanity/sill
+commit: f5bf542 (2026-11-12)
+license: Apache-2.0 (vendor/sill/LICENSE)
+local patches: vendor/sill-patches/0001-no-advertise.patch, 0002-loopback-paired.patch

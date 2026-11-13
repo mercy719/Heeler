@@ -1,0 +1,86 @@
+Heeler's changes to sill f5bf542 (Apache-2.0, vendor/sill/LICENSE).
+Each file changed carries a line saying what changed; apply with:
+  cd vendor/sill && git apply ../sill-patches/0001-no-advertise.patch ../sill-patches/0002-loopback-paired.patch
+
+--- a/Sources/SillHostCLI/main.swift
++++ b/Sources/SillHostCLI/main.swift
+@@ -1,3 +1,4 @@
++// PATCH 0001-no-advertise: `--no-advertise` (Heeler's remote desktop; see vendor/sill-patches).
+ import Foundation
+ import AppKit
+ import CoreGraphics
+@@ -21,6 +22,16 @@
+ // so the encoder, its software fallback and the network can be checked without Screen Recording.
+ let synthetic = CommandLine.arguments.contains("--synthetic")
+ 
++// `SillHost --no-advertise`: stay off Bonjour and off the network: the listener is a test host's
++// (DoorPolicy.isTestHost), so SILL_TEST_LOOPBACK=1 keeps it on 127.0.0.1 alone, no device finds it,
++// and nobody on the local network can watch or type. Heeler's remote desktop reaches it through its
++// own SSH tunnel, so the SSH login is the pairing. PATCH 0001-no-advertise.
++let noAdvertise = CommandLine.arguments.contains("--no-advertise")
++if noAdvertise && !ProcessInfo.processInfo.environment.keys.contains("SILL_TEST_LOOPBACK") {
++    print("--no-advertise needs SILL_TEST_LOOPBACK=1: without it the listener would still take this network's clients.")
++    exit(2)
++}
++
+ // `SillHost --virtual-display`: a picked window is moved onto its own HiDPI virtual display and
+ // that display is captured, so the window keeps repainting whatever covers its old spot on the
+ // Mac. Off by default here (Sill.app has it on since 2026-10-27: HostConfig.app). Needs the AppKit
+@@ -148,7 +159,7 @@
+         do {
+             let remote = config.remoteAccess || pairingFlag ? makeRemoteAccess() : nil
+             let c = try StreamCoordinator(config: config, synthetic: synthetic, appKitLoop: virtualDisplay, remote: remote,
+-                                          homePairing: pairingFlag, testHooks: true)
++                                          homePairing: pairingFlag, testHooks: true, noAdvertise: noAdvertise)
+             coordinator = c
+             await c.start(preselect: preselect)
+             if remote != nil, internetFlag {
+@@ -157,7 +168,8 @@
+             remote?.openPairing(requestedBy: nil)
+             if synthetic { print("Synthetic mode: pick Desktop on the device (or from a test client) to stream a test pattern.") }
+             if virtualDisplay { print("Virtual display mode: a picked window streams from its own HiDPI display; Ctrl-C puts it back.") }
+-            print("\(c.windowCount) windows on screen. Advertising _sill._tcp on the local network.")
++            print(noAdvertise ? "\(c.windowCount) windows on screen. Not advertised: listening on 127.0.0.1 only, for an SSH tunnel."
++                              : "\(c.windowCount) windows on screen. Advertising _sill._tcp on the local network.")
+             if c.active == .none { print("Nothing is streaming yet: pick a window from the iOS app. Ctrl-C to stop.") }
+             if audioFlag {
+                 print(synthetic ? "Audio on for this run (beta): devices that play sound get a test tone with the test pattern."
+--- a/Sources/SillHost/StreamCoordinator.swift
++++ b/Sources/SillHost/StreamCoordinator.swift
+@@ -64,6 +64,8 @@
+     let capture = WindowCapture()
+     /// `--synthetic`: the Desktop source streams a test pattern instead of the screen.
+     let synthetic: Bool
++    /// `--no-advertise` (patch 0001): the listener is a test host's, off Bonjour, loopback only.
++    let noAdvertise: Bool
+     let syntheticCapture = SyntheticCapture()
+     /// A locked Mac's placeholder (LockPolicy): a black still, no ScreenCaptureKit.
+     let stillCapture = StillCapture()
+@@ -396,11 +398,13 @@
+     /// that advertises, those hooks are ignored with one line each. `hostVersion`: Sill.app's
+     /// version for the window lists, when it has one that parses.
+     package init(config: HostConfig, synthetic: Bool = false, appKitLoop: Bool, remote: RemoteAccess? = nil,
+-                 homePairing: Bool = false, testHooks: Bool = true, hostVersion: String? = nil) throws {
++                 homePairing: Bool = false, testHooks: Bool = true, hostVersion: String? = nil,
++                 noAdvertise: Bool = false) throws {
+         var config = config.validated()
+         if !appKitLoop { config.virtualDisplay = false }
+         self.config = config
+         self.synthetic = synthetic
++        self.noAdvertise = noAdvertise
+         self.appKitLoop = appKitLoop
+         self.hostVersion = hostVersion
+         let env = ProcessInfo.processInfo.environment
+@@ -437,8 +441,10 @@
+                 home = .closed("Sill couldn’t use its key \(remote.keyPlace) (\(remote.identityProblem ?? "no identity"))")
+             }
+         }
+-        // The test pattern is for test clients, not devices.
+-        server = try StreamServer(advertise: !synthetic, home: home, testHooks: testHooks)
++        // The test pattern is for test clients, not devices. PATCH 0001-no-advertise: --no-advertise
++        // makes the listener a test host's without a test pattern, so SILL_TEST_LOOPBACK=1 binds it
++        // to 127.0.0.1 and nothing is advertised (Heeler's SSH tunnel reaches it).
++        server = try StreamServer(advertise: !synthetic && !noAdvertise, home: home, testHooks: testHooks)
+         server.macName = macName                           // the update goodbye names this Mac (DeviceGate)
+         TestHooks.reportIgnored(testHost: server.isTestHost)
+         // A host that does not advertise, `--synthetic` in the CLI and in the app alike (as

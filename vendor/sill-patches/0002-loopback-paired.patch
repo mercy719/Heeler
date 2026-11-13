@@ -1,0 +1,16 @@
+Heeler's changes to sill f5bf542 (Apache-2.0, vendor/sill/LICENSE).
+Apply after 0001-no-advertise.patch (it needs that patch's `noAdvertise` property).
+
+--- a/Sources/SillHost/StreamCoordinator.swift
++++ b/Sources/SillHost/StreamCoordinator.swift
+@@ -3707,6 +3707,10 @@
+     /// plain door (no key), for an unpaired key at a door that lets any device in, on a host without
+     /// an identity (no list), and for a route not known.
+     private func sessionPaired(_ id: ObjectIdentifier) -> Bool {
++        // PATCH 0002-loopback-paired: a --no-advertise host listens on 127.0.0.1 alone, so the only
++        // way in is a process on this Mac or an SSH forward, and the SSH login is the pairing (the
++        // plain door carries no key at all). Its sessions type at a locked Mac like a paired one's.
++        if noAdvertise, routes[id]?.origin == .loopback { return true }
+         let trusted = status.snapshot.remote?.paired.compactMap { Base64URL.decode($0.id) } ?? []
+         return DeviceSettings.paired(key: routes[id]?.fingerprint, trusted: trusted)
+     }

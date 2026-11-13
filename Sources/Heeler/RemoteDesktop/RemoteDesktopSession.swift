@@ -2,12 +2,22 @@ import Foundation
 
 /// The Host scripts' one-line JSON answers.
 enum RemoteDesktopWire {
-    /// Quoted: the directory's name contains a space.
-    static let binDirectory =
-        "\"$HOME/Library/Application Support/Heeler/remote-desktop/bin\""
+    /// The directory's name contains a space, so every path that reaches a
+    /// shell is quoted whole.
+    private static let hostRoot = "$HOME/Library/Application Support/Heeler/remote-desktop"
+    private static func path(_ relative: String) -> String { "\"\(hostRoot)/\(relative)\"" }
 
-    static let setupCommand = "bash \(binDirectory)/rc-setup.sh"
-    static let sessionCommand = "bash \(binDirectory)/rc-session.sh start"
+    static let binDirectory = path("bin")
+    static let sillHostApp = path("SillHost.app")
+    static let sillHostZip = path("SillHost.zip")
+    /// Where an upload is unpacked before it replaces anything.
+    static let sillHostStaging = path(".sillhost-upload")
+    static let sillHostStagingApp = path(".sillhost-upload/SillHost.app")
+    static let sillHostStagingZip = path(".sillhost-upload/SillHost.zip")
+
+    /// The App always drives the sill engine; the Sunshine branch of the script
+    /// stays until S6 removes it.
+    static let sessionCommand = "bash \(binDirectory)/rc-session.sh start sill"
 
     /// `{"ready":true,"port":52100,"hostId":1,"appId":1,"width":1280,…}`
     /// or `{"ready":false,"error":"<code>","detail":"…"}`.
@@ -43,29 +53,6 @@ enum RemoteDesktopWire {
         return RemoteDesktopReady(
             port: port, hostID: hostID, appID: appID,
             width: width, height: height, locked: locked)
-    }
-
-    /// `{"installed":true,"needsPermission":false,"paired":true}` or
-    /// `{"installed":false,"error":"<code>","detail":"…"}`. Answers whether the
-    /// Host now holds the install, and whether its permissions are still owed.
-    static func setupStatus(from line: Data) throws -> (installed: Bool, needsPermission: Bool) {
-        struct Line: Decodable {
-            let installed: Bool
-            let needsPermission: Bool?
-            let error: String?
-            let detail: String?
-        }
-        let decoded: Line
-        do {
-            decoded = try JSONDecoder().decode(Line.self, from: line)
-        } catch {
-            throw RemoteDesktopFailure.setupFailed(
-                detail: String(localized: "The Host's setup answer was not JSON."))
-        }
-        guard decoded.installed else {
-            throw RemoteDesktopFailure(code: decoded.error ?? "", detail: decoded.detail)
-        }
-        return (decoded.installed, decoded.needsPermission ?? false)
     }
 
     /// The scripts answer in one line; anything after it is not ours.
@@ -132,7 +119,7 @@ actor RemoteDesktopSession {
         self.connection = connection
         try await writeScripts(over: connection)
         try checkStopped()
-        try await installIfNeeded(over: connection)
+        try await uploadSillHostIfNeeded(over: connection)
         try checkStopped()
         let (exec, ready) = try await startHostSession(over: connection)
         guard !ended else {
@@ -189,19 +176,37 @@ actor RemoteDesktopSession {
         }
     }
 
-    private func installIfNeeded(over connection: any RemoteDesktopConnection) async throws {
-        let status = try await connection.execute(
-            "\(RemoteDesktopWire.setupCommand) status", input: Data(), timeout: .seconds(60))
-        if let installed = try? RemoteDesktopWire.setupStatus(
-            from: RemoteDesktopWire.firstLine(of: status.stdout)), installed.installed
-        {
-            return
+    /// The Host's SillHost.app is the one this build ships, or it is replaced.
+    /// The zip travels over stdin and is unpacked beside the old bundle, so a
+    /// dropped link never leaves half an app where the next start looks.
+    private func uploadSillHostIfNeeded(
+        over connection: any RemoteDesktopConnection
+    ) async throws {
+        guard let package = scripts.sillHost else { return }
+        let listing = try await connection.execute(
+            "shasum -a 256 \(RemoteDesktopWire.sillHostZip) 2>/dev/null", input: Data(),
+            timeout: .seconds(30))
+        guard package.mustUpload(hostSHASum: String(decoding: listing.stdout, as: UTF8.self))
+        else { return }
+        let staging = RemoteDesktopWire.sillHostStaging
+        for (command, input, timeout) in [
+            ("rm -rf \(staging) && mkdir -p \(staging)", Data(), Duration.seconds(30)),
+            ("cat > \(RemoteDesktopWire.sillHostStagingZip)", package.zip, .seconds(300)),
+            (
+                "ditto -x -k \(RemoteDesktopWire.sillHostStagingZip) \(staging)"
+                    + " && rm -rf \(RemoteDesktopWire.sillHostApp)"
+                    + " && mv \(RemoteDesktopWire.sillHostStagingApp) \(RemoteDesktopWire.sillHostApp)"
+                    + " && mv \(RemoteDesktopWire.sillHostStagingZip) \(RemoteDesktopWire.sillHostZip)"
+                    + " && rm -rf \(staging)",
+                Data(), .seconds(120)
+            ),
+        ] {
+            let result = try await connection.execute(command, input: input, timeout: timeout)
+            guard result.status == 0 else {
+                throw RemoteDesktopFailure.setupFailed(
+                    detail: String(localized: "The Host refused the Remote Desktop package."))
+            }
         }
-        let installed = try await connection.execute(
-            "\(RemoteDesktopWire.setupCommand) install", input: Data(), timeout: .seconds(300))
-        let result = try RemoteDesktopWire.setupStatus(
-            from: RemoteDesktopWire.firstLine(of: installed.stdout))
-        if result.needsPermission { throw RemoteDesktopFailure.needsPermission }
     }
 
     // MARK: Host session
