@@ -158,9 +158,8 @@ start_sill() {
     [ -n "$bad" ] && fail sillFailed "SillHost listens beyond loopback: $bad"
   done
 
-  main_display
-  # Sunshine 那套的 hostId/appId 对 sill 无意义：填 0，手机端只看 port。
-  out "{\"ready\":true,\"port\":$port,\"hostId\":0,\"appId\":0,\"width\":$W,\"height\":$H,\"locked\":$(screen_locked)}"
+  # Sunshine 专用的字段对 sill 无意义，按任务书全填 0；手机端只看 port。
+  out "{\"ready\":true,\"port\":$port,\"hostId\":0,\"appId\":0,\"width\":0,\"height\":0,\"locked\":$(screen_locked)}"
 
   # 心跳：每行一次 read；read 返回非零就是 EOF 或 HB 秒没来一行，交给 EXIT 清理。
   while IFS= read -r -t "$HB" _line; do :; done

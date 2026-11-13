@@ -273,12 +273,11 @@ open_sill() {   # $1 = 名字；$2 = 额外环境（可选，如 STUB_SILL_BIND=
 
 open_sill sillready
 check "sill 就绪：stdout 只有一行" '[ "$(grep -c . "$T/sillready.out")" = 1 ]'
-check "sill 就绪：port 取自 lsof 的监听端口，Sunshine 字段填 0" \
+check "sill 就绪：port 取自 lsof 的监听端口，Sunshine 字段（含宽高）全填 0" \
   '[ "$(jget ready "$T/sillready.out")" = true ] && [ "$(jget port "$T/sillready.out")" = 52345 ] && \
    [ "$(jget hostId "$T/sillready.out")" = 0 ] && [ "$(jget appId "$T/sillready.out")" = 0 ] && \
+   [ "$(jget width "$T/sillready.out")" = 0 ] && [ "$(jget height "$T/sillready.out")" = 0 ] && \
    [ "$(jget locked "$T/sillready.out")" = true ]'
-check "sill 就绪：宽高取主显示器 1440x900" \
-  '[ "$(jget width "$T/sillready.out")" = 1440 ] && [ "$(jget height "$T/sillready.out")" = 900 ]'
 check "sill 就绪：plist 的 ProgramArguments 指向 .app 里的可执行文件、带三个参数" \
   'grep -q "<string>$SILLBIN</string>" "$D/dev.heeler.rc.sillhost.plist" && \
    grep -q "<string>--virtual-display</string>" "$D/dev.heeler.rc.sillhost.plist" && \
